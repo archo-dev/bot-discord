@@ -40,6 +40,10 @@ export interface GuildGatewayConfig {
     action: "delete" | "warn" | "timeout";
     timeoutMinutes: number;
   };
+  xp: {
+    enabled: boolean;
+    cooldownSeconds: number;
+  };
 }
 
 export type AutomodRule = "spam" | "invite" | "link" | "word";
@@ -54,6 +58,7 @@ export interface WorkerApi {
   postHeartbeat(payload: HeartbeatPayload): Promise<void>;
   postEvent(guildId: string, eventType: string, payload: Record<string, unknown>): Promise<void>;
   postAutomodSanction(guildId: string, payload: { userId: string; rule: AutomodRule; action: "warn" | "timeout" }): Promise<void>;
+  postXp(guildId: string, payload: { userId: string; username: string | null; channelId: string }): Promise<void>;
 }
 
 export function createWorkerApi(env: GatewayEnv): WorkerApi {
@@ -87,6 +92,9 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
     },
     async postAutomodSanction(guildId, payload) {
       await call("POST", `/internal/guilds/${guildId}/automod-sanctions`, payload);
+    },
+    async postXp(guildId, payload) {
+      await call("POST", `/internal/guilds/${guildId}/xp`, payload);
     },
   };
 }

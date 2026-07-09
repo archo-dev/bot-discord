@@ -11,6 +11,7 @@ import {
   warnHandler,
   warningsHandler,
 } from "./moderation.js";
+import { leaderboardHandler, rankHandler } from "./xp.js";
 
 export interface BuiltinContext {
   env: Env;
@@ -32,4 +33,6 @@ export const builtins: Record<string, BuiltinHandler> = {
   warnings: warningsHandler,
   history: historyHandler,
   clear: clearHandler,
+  rank: rankHandler,
+  leaderboard: leaderboardHandler,
 };

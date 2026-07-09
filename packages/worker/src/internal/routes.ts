@@ -1,17 +1,22 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Env } from "../env.js";
+import { levelFromXp } from "@bot/shared";
+import type { XpRewardDto } from "@bot/shared";
 import {
   activeWarningCount,
   getAutomodSettings,
   getGuild,
   getLogSettings,
   getWelcomeSettings,
+  getXpSettings,
+  grantXp,
   insertGatewayEvent,
   insertModAction,
   insertWarning,
   listAutoRoles,
   listCustomCommands,
+  setXpLevel,
 } from "../db/queries.js";
 import { logRowToDto, welcomeRowToDto } from "../api/welcome.js";
 import { automodRowToDto } from "../api/automod.js";
@@ -65,6 +70,10 @@ internalRouter.get("/internal/guilds/:guildId/config", async (c) => {
     welcome: welcomeRowToDto(await getWelcomeSettings(c.env.DB, guildId)),
     logs: logRowToDto(await getLogSettings(c.env.DB, guildId)),
     automod: automodRowToDto(await getAutomodSettings(c.env.DB, guildId)),
+    xp: await (async () => {
+      const s = await getXpSettings(c.env.DB, guildId);
+      return { enabled: s ? s.enabled === 1 : false, cooldownSeconds: s?.cooldown_seconds ?? 60 };
+    })(),
   });
 });
 
@@ -86,6 +95,59 @@ internalRouter.post("/internal/guilds/:guildId/events", async (c) => {
   if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
   await insertGatewayEvent(c.env.DB, c.req.param("guildId"), parsed.data.eventType, JSON.stringify(parsed.data.payload));
   return c.json({ ok: true }, 201);
+});
+
+const xpGrantSchema = z.object({
+  userId: z.string().regex(/^\d{5,20}$/),
+  username: z.string().max(100).nullable().optional(),
+  channelId: z.string().regex(/^\d{5,20}$/),
+});
+
+/**
+ * XP grant, driven by the gateway (which enforces the per-user cooldown in
+ * memory). The Worker owns the curve, reward roles and the announcement.
+ */
+internalRouter.post("/internal/guilds/:guildId/xp", async (c) => {
+  const guildId = c.req.param("guildId");
+  const parsed = xpGrantSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
+  const { userId, username, channelId } = parsed.data;
+
+  const settings = await getXpSettings(c.env.DB, guildId);
+  if (!settings || settings.enabled !== 1) return c.json({ ok: true, skipped: true });
+
+  const amount = settings.xp_min + Math.floor(Math.random() * (settings.xp_max - settings.xp_min + 1));
+  const member = await grantXp(c.env.DB, guildId, userId, username ?? null, amount);
+  const newLevel = levelFromXp(member.xp);
+  if (newLevel <= member.level) return c.json({ ok: true, xp: member.xp, level: member.level, leveledUp: false });
+
+  await setXpLevel(c.env.DB, guildId, userId, newLevel);
+
+  // Reward roles: catch-up on everything ≤ newLevel so a missed level-up
+  // (bot offline, role deleted then recreated…) heals itself.
+  const rewards = (JSON.parse(settings.rewards) as XpRewardDto[]).filter((r) => r.level <= newLevel);
+  for (const reward of rewards) {
+    try {
+      await discordJson(c.env, "PUT", `/guilds/${guildId}/members/${userId}/roles/${reward.roleId}`, undefined, {
+        auditLogReason: `Récompense de niveau ${reward.level}`,
+      });
+    } catch (err) {
+      console.error(`xp reward role ${reward.roleId} failed:`, err);
+    }
+  }
+
+  if (settings.announce_level_up === 1) {
+    try {
+      await discordJson(c.env, "POST", `/channels/${settings.announce_channel_id ?? channelId}/messages`, {
+        content: `🎉 <@${userId}> passe au niveau **${newLevel}** !`,
+        allowed_mentions: { users: [userId] },
+      });
+    } catch (err) {
+      console.error("xp announce failed:", err);
+    }
+  }
+
+  return c.json({ ok: true, xp: member.xp, level: newLevel, leveledUp: true });
 });
 
 const RULE_LABELS = { spam: "spam", invite: "invitation Discord", link: "lien", word: "mot interdit" } as const;

@@ -44,7 +44,7 @@ export function logRowToDto(row: LogSettingsRow | null): LogSettingsDto {
 }
 
 /** 400s unless every given channel exists and belongs to the guild. */
-async function assertChannelsInGuild(env: Env, guildId: string, channelIds: Array<string | null>): Promise<boolean> {
+export async function assertChannelsInGuild(env: Env, guildId: string, channelIds: Array<string | null>): Promise<boolean> {
   for (const id of new Set(channelIds.filter((c): c is string => c !== null))) {
     const channel = await discordJson<{ id: string; guild_id?: string }>(env, "GET", `/channels/${id}`);
     if (channel.guild_id !== guildId) return false;

@@ -6,6 +6,7 @@ import { createConfigCache } from "./config-cache.js";
 import { createHttpApp } from "./http.js";
 import { registerEvents } from "./events.js";
 import { registerAutomod } from "./automod.js";
+import { registerXp } from "./xp.js";
 
 const HEARTBEAT_INTERVAL_MS = 60_000;
 
@@ -29,6 +30,7 @@ const client = new Client({
 
 registerEvents(client, configCache, api);
 registerAutomod(client, configCache, api);
+registerXp(client, configCache, api);
 
 async function heartbeat(): Promise<void> {
   try {

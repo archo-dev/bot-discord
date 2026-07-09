@@ -11,6 +11,7 @@ const tabs = [
   { to: "roles", label: "Rôles" },
   { to: "welcome", label: "Bienvenue" },
   { to: "automod", label: "Auto-mod" },
+  { to: "levels", label: "Niveaux" },
   { to: "modlog", label: "Mod-log" },
   { to: "access", label: "Accès panel" },
 ] as const;

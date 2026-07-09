@@ -147,6 +147,32 @@ export interface AutomodSettingsDto {
   timeoutMinutes: number;
 }
 
+export interface XpRewardDto {
+  level: number;
+  roleId: string;
+}
+
+/** XP/levels settings; gains are detected by the gateway, computed by the Worker. */
+export interface XpSettingsDto {
+  enabled: boolean;
+  xpMin: number;
+  xpMax: number;
+  cooldownSeconds: number;
+  announceLevelUp: boolean;
+  /** null = announce in the channel the message was sent in. */
+  announceChannelId: string | null;
+  rewards: XpRewardDto[];
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  username: string | null;
+  xp: number;
+  level: number;
+  messages: number;
+}
+
 /** Server event logs, posted by the gateway as embeds. */
 export interface LogSettingsDto {
   channelId: string | null;

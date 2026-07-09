@@ -114,6 +114,13 @@ const commands = [
     options: [{ type: 6, name: "membre", description: "Membre", required: true }],
   },
   {
+    name: "rank",
+    description: "Affiche le niveau et l'XP d'un membre",
+    dm_permission: false,
+    options: [{ type: 6, name: "membre", description: "Membre (vous par défaut)" }],
+  },
+  { name: "leaderboard", description: "Classement XP du serveur", dm_permission: false },
+  {
     name: "clear",
     description: "Supprime les derniers messages du salon",
     dm_permission: false,
