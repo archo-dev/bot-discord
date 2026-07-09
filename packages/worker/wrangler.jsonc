@@ -4,6 +4,12 @@
   "main": "src/index.ts",
   "compatibility_date": "2025-09-01",
   "placement": { "mode": "smart" },
+  // Panel SPA served by the same Worker (build it first: pnpm build).
+  "assets": {
+    "directory": "../panel/dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/auth/*", "/interactions", "/internal/*", "/health"]
+  },
   // D1 + KV: the ids below are placeholders that work for local dev/tests.
   // Before deploying, run `wrangler d1 create botdiscord` and
   // `wrangler kv namespace create KV`, then paste the real ids here (see README).
