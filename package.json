@@ -1,0 +1,22 @@
+{
+  "name": "botdiscord",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.13.1",
+  "scripts": {
+    "dev": "pnpm --filter @bot/worker dev",
+    "dev:panel": "pnpm --filter @bot/panel dev",
+    "build": "pnpm --filter @bot/panel build",
+    "deploy": "pnpm --filter @bot/panel build && pnpm --filter @bot/worker deploy",
+    "check": "pnpm -r check",
+    "test": "pnpm -r test",
+    "register:dev": "tsx scripts/register-commands.ts dev",
+    "register:global": "tsx scripts/register-commands.ts global",
+    "migrate:local": "pnpm --filter @bot/worker migrate:local",
+    "migrate:remote": "pnpm --filter @bot/worker migrate:remote"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  }
+}

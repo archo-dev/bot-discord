@@ -1,0 +1,8 @@
+# Copy to .dev.vars (gitignored) and fill in from the Discord Developer Portal:
+# https://discord.com/developers/applications → your app
+DISCORD_TOKEN=your-bot-token
+DISCORD_PUBLIC_KEY=your-app-public-key-hex
+DISCORD_CLIENT_SECRET=your-oauth2-client-secret
+# Any long random strings:
+SESSION_SECRET=change-me-64-random-chars
+INTERNAL_API_TOKEN=change-me-64-random-chars

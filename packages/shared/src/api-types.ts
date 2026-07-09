@@ -1,0 +1,132 @@
+/** Request/response types shared between the panel SPA and the Worker API. */
+
+import type { CommandLogic } from "./command-logic.js";
+
+export interface MeResponse {
+  id: string;
+  username: string;
+  globalName: string | null;
+  avatar: string | null;
+}
+
+export interface GuildSummary {
+  id: string;
+  name: string;
+  icon: string | null;
+  /** How the user got panel access. */
+  access: "manage_guild" | "panel_grant";
+}
+
+export interface GuildOverview {
+  id: string;
+  name: string;
+  icon: string | null;
+  approximateMemberCount: number | null;
+  logChannelId: string | null;
+  warnThreshold: number;
+  warnTimeoutMinutes: number;
+  /** Always false until the gateway service ships. */
+  gatewayConnected: boolean;
+}
+
+export interface GuildConfigPatch {
+  logChannelId?: string | null;
+  warnThreshold?: number;
+  warnTimeoutMinutes?: number;
+}
+
+export interface ChannelOption {
+  id: string;
+  name: string;
+  type: number;
+  position: number;
+}
+
+export interface RoleOption {
+  id: string;
+  name: string;
+  color: number;
+  position: number;
+  managed: boolean;
+}
+
+export interface CustomCommandDto {
+  id: number;
+  guildId: string;
+  name: string;
+  description: string;
+  triggerType: "slash" | "keyword";
+  enabled: boolean;
+  logic: CommandLogic;
+  cooldownSeconds: number;
+  cooldownScope: "user" | "guild";
+  requiredPermissions: string | null;
+  discordCommandId: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string | null;
+  /** True when the trigger needs the (not yet deployed) gateway service. */
+  gatewayRequired: boolean;
+}
+
+export interface CustomCommandUpsert {
+  name: string;
+  description: string;
+  logic: CommandLogic;
+}
+
+export interface CommandRevisionDto {
+  id: number;
+  commandId: number;
+  changeType: "create" | "update" | "enable" | "disable" | "delete";
+  logic: CommandLogic;
+  changedBy: string;
+  changedAt: string;
+}
+
+export interface ModActionDto {
+  id: number;
+  action: string;
+  targetId: string | null;
+  moderatorId: string;
+  reason: string | null;
+  metadata: Record<string, unknown> | null;
+  source: "interaction" | "panel" | "gateway";
+  createdAt: string;
+}
+
+export interface WarningDto {
+  id: number;
+  userId: string;
+  moderatorId: string;
+  reason: string | null;
+  createdAt: string;
+  revokedAt: string | null;
+  revokedBy: string | null;
+}
+
+export interface PanelAccessEntry {
+  id: number;
+  subjectType: "role" | "user";
+  subjectId: string;
+  addedBy: string;
+  createdAt: string;
+}
+
+export interface AutoRoleEntry {
+  roleId: string;
+  enabled: boolean;
+  /** Feature is stored but inert until the gateway service exists. */
+  gatewayRequired: true;
+}
+
+export interface ApiError {
+  error: string;
+}
+
+export interface Paginated<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
