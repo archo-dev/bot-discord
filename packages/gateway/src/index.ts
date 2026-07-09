@@ -1,19 +1,32 @@
-import { Client, Events, GatewayIntentBits } from "discord.js";
+import { Client, Events, GatewayIntentBits, Partials } from "discord.js";
 import { serve } from "@hono/node-server";
 import { loadEnv } from "./env.js";
 import { createWorkerApi } from "./worker-api.js";
 import { createConfigCache } from "./config-cache.js";
 import { createHttpApp } from "./http.js";
+import { registerEvents } from "./events.js";
 
 const HEARTBEAT_INTERVAL_MS = 60_000;
 
 const env = loadEnv();
 const api = createWorkerApi(env);
-export const configCache = createConfigCache(api);
+const configCache = createConfigCache(api);
 
-// M10 scaffold: Guilds only. M11 (welcome/logs) adds GuildMembers + GuildMessages
-// — both must also be enabled in the Developer Portal (privileged intents).
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+// GuildMembers + MessageContent are privileged: they must also be enabled in
+// the Developer Portal (Bot → Server Members Intent + Message Content Intent),
+// otherwise login fails with "Used disallowed intents".
+// Partials.Message lets MessageDelete/Update fire for uncached messages.
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
+  partials: [Partials.Message],
+});
+
+registerEvents(client, configCache, api);
 
 async function heartbeat(): Promise<void> {
   try {

@@ -116,13 +116,10 @@ export function ConfigPage() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 opacity-90">
-        <div className="flex items-center gap-2">
-          <h2 className="font-semibold">Rôles automatiques à l'arrivée</h2>
-          <span className="rounded-full bg-amber-950 px-2 py-0.5 text-xs text-amber-300">Nécessite le Gateway</span>
-        </div>
+      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+        <h2 className="font-semibold">Rôles automatiques à l'arrivée</h2>
         <p className="mt-1 text-sm text-zinc-400">
-          Enregistré dès maintenant, appliqué automatiquement quand le service Gateway sera déployé.
+          Attribués par le service Gateway à chaque membre qui rejoint le serveur.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           {roles.data

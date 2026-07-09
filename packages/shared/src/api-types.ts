@@ -116,8 +116,28 @@ export interface PanelAccessEntry {
 export interface AutoRoleEntry {
   roleId: string;
   enabled: boolean;
-  /** Feature is stored but inert until the gateway service exists. */
+  /** Applied by the gateway service on member join. */
   gatewayRequired: true;
+}
+
+/** Welcome/leave messages, applied by the gateway on member join/leave. */
+export interface WelcomeSettingsDto {
+  welcomeEnabled: boolean;
+  welcomeChannelId: string | null;
+  welcomeMessage: string;
+  leaveEnabled: boolean;
+  leaveChannelId: string | null;
+  leaveMessage: string;
+}
+
+/** Server event logs, posted by the gateway as embeds. */
+export interface LogSettingsDto {
+  channelId: string | null;
+  memberJoin: boolean;
+  memberLeave: boolean;
+  messageDelete: boolean;
+  messageEdit: boolean;
+  memberUpdate: boolean;
 }
 
 export interface TicketSettingsDto {

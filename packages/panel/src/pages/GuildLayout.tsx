@@ -9,6 +9,7 @@ const tabs = [
   { to: "commands", label: "Commandes" },
   { to: "tickets", label: "Tickets" },
   { to: "roles", label: "Rôles" },
+  { to: "welcome", label: "Bienvenue" },
   { to: "modlog", label: "Mod-log" },
   { to: "access", label: "Accès panel" },
 ] as const;

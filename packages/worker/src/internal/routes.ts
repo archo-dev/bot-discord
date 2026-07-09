@@ -3,11 +3,14 @@ import { z } from "zod";
 import type { Env } from "../env.js";
 import {
   getGuild,
+  getLogSettings,
+  getWelcomeSettings,
   insertGatewayEvent,
   insertModAction,
   listAutoRoles,
   listCustomCommands,
 } from "../db/queries.js";
+import { logRowToDto, welcomeRowToDto } from "../api/welcome.js";
 
 /**
  * Internal API for the future always-on Gateway service (Option B).
@@ -53,6 +56,8 @@ internalRouter.get("/internal/guilds/:guildId/config", async (c) => {
     warnThreshold: guild.warn_threshold,
     warnTimeoutMinutes: guild.warn_timeout_minutes,
     autoRoles: autoRoles.filter((r) => r.enabled === 1).map((r) => r.role_id),
+    welcome: welcomeRowToDto(await getWelcomeSettings(c.env.DB, guildId)),
+    logs: logRowToDto(await getLogSettings(c.env.DB, guildId)),
   });
 });
 

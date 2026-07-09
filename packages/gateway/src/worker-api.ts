@@ -11,6 +11,22 @@ export interface GuildGatewayConfig {
   warnThreshold: number;
   warnTimeoutMinutes: number;
   autoRoles: string[];
+  welcome: {
+    welcomeEnabled: boolean;
+    welcomeChannelId: string | null;
+    welcomeMessage: string;
+    leaveEnabled: boolean;
+    leaveChannelId: string | null;
+    leaveMessage: string;
+  };
+  logs: {
+    channelId: string | null;
+    memberJoin: boolean;
+    memberLeave: boolean;
+    messageDelete: boolean;
+    messageEdit: boolean;
+    memberUpdate: boolean;
+  };
 }
 
 export interface HeartbeatPayload {

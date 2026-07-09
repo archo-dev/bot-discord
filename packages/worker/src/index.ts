@@ -7,6 +7,7 @@ import { commandsRouter } from "./api/commands.js";
 import { moderationRouter } from "./api/moderation.js";
 import { ticketsRouter } from "./api/tickets.js";
 import { buttonRolesRouter } from "./api/button-roles.js";
+import { welcomeRouter } from "./api/welcome.js";
 import { internalRouter } from "./internal/routes.js";
 import { requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
 
@@ -27,6 +28,7 @@ api.route("/", commandsRouter);
 api.route("/", moderationRouter);
 api.route("/", ticketsRouter);
 api.route("/", buttonRolesRouter);
+api.route("/", welcomeRouter);
 api.route("/", guildsRouter);
 app.route("/api", api);
 
