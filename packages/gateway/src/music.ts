@@ -356,7 +356,9 @@ export class MusicController {
 
 export function registerMusic(client: Client, api: WorkerApi): MusicController {
   const distube = new DisTube(client, {
-    plugins: [new YtDlpPlugin({ update: false }), new SpotifyPlugin()],
+    // YtDlpPlugin is the fallback extractor and must be LAST: SpotifyPlugin
+    // rewrites Spotify links into searches that yt-dlp then resolves.
+    plugins: [new SpotifyPlugin(), new YtDlpPlugin({ update: false })],
     emitNewSongOnly: true,
     savePreviousSongs: false,
   });
