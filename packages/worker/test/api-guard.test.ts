@@ -21,11 +21,8 @@ async function makeSession(userId: string): Promise<string> {
 }
 
 function get(path: string, sessionId?: string): Promise<Response> {
-  return app.request(
-    path,
-    { headers: sessionId ? { cookie: `session=${sessionId}` } : {} },
-    env,
-    createExecutionContext(),
+  return Promise.resolve(
+    app.request(path, { headers: sessionId ? { cookie: `session=${sessionId}` } : {} }, env, createExecutionContext()),
   );
 }
 

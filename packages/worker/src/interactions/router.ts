@@ -10,6 +10,8 @@ import { verifyDiscordSignature } from "./verify.js";
 import { builtins } from "./builtins/index.js";
 import { ephemeral, pong } from "./respond.js";
 import { ensureGuild } from "../db/ensure-guild.js";
+import { getEnabledSlashCommand } from "../db/queries.js";
+import { executeCustomCommand } from "./custom.js";
 
 export const interactionsRouter = new Hono<{ Bindings: Env }>();
 
@@ -55,7 +57,11 @@ interactionsRouter.post("/interactions", async (c) => {
       });
     }
 
-    // Custom command execution lands in M4.
+    const custom = await getEnabledSlashCommand(c.env.DB, command.guild_id, command.data.name);
+    if (custom) {
+      return executeCustomCommand(c.env, command, custom, (p) => c.executionCtx.waitUntil(p));
+    }
+
     return ephemeral(`Commande inconnue : \`/${command.data.name}\`.`);
   }
 

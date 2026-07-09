@@ -22,14 +22,11 @@ import {
   upsertGuild,
 } from "../db/queries.js";
 import { discordJson } from "../discord/rest.js";
-import { getUserGuilds, handleGuildAccessLoss, requireGuildAccess, requireManageGuild, requireSession, type AppContext } from "../auth/guard.js";
+import { getUserGuilds, handleGuildAccessLoss, requireManageGuild, type AppContext } from "../auth/guard.js";
 import { rateLimit } from "../ratelimit.js";
 
+// Session + guild-access middlewares are applied once, centrally, in index.ts.
 export const guildsRouter = new Hono<AppContext>();
-
-guildsRouter.use("*", requireSession);
-guildsRouter.use("/guilds/:guildId", requireGuildAccess);
-guildsRouter.use("/guilds/:guildId/*", requireGuildAccess);
 
 guildsRouter.get("/me", (c) => {
   const s = c.get("session");
