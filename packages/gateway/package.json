@@ -11,9 +11,15 @@
   },
   "dependencies": {
     "@bot/shared": "workspace:*",
+    "@discordjs/voice": "^0.18.0",
+    "@distube/spotify": "^2.0.0",
+    "@distube/yt-dlp": "^2.0.0",
     "@hono/node-server": "^1.14.0",
     "discord.js": "^14.16.3",
+    "distube": "^5.0.0",
     "hono": "^4.8.4",
+    "libsodium-wrappers": "^0.7.15",
+    "opusscript": "^0.0.8",
     "zod": "^4.0.5"
   },
   "devDependencies": {
