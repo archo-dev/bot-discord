@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file=.env src/index.ts",
-    "build": "tsup src/index.ts --format esm --target node22 --clean",
+    "build": "tsup",
     "start": "node --env-file-if-exists=.env dist/index.js",
     "check": "tsc --noEmit"
   },
