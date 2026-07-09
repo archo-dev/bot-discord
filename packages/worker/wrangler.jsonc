@@ -10,27 +10,25 @@
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*", "/auth/*", "/interactions", "/internal/*", "/health"]
   },
-  // D1 + KV: the ids below are placeholders that work for local dev/tests.
-  // Before deploying, run `wrangler d1 create botdiscord` and
-  // `wrangler kv namespace create KV`, then paste the real ids here (see README).
+  // D1 + KV created on the production Cloudflare account (see README).
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "botdiscord",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "464ca130-584e-4799-99bb-06cbea8ed222",
       "migrations_dir": "migrations"
     }
   ],
   "kv_namespaces": [
     {
       "binding": "KV",
-      "id": "0000000000000000000000000000000000"
+      "id": "364e4736a4a546569e262180c7d3abde"
     }
   ],
   "vars": {
     // Public (non-secret) config. Override per environment as needed.
     "DISCORD_CLIENT_ID": "1524597895859536074",
-    "PANEL_ORIGIN": "http://localhost:5173"
+    "PANEL_ORIGIN": "https://botdiscord.armand-dedo.workers.dev"
   }
   // Secrets (wrangler secret put …, mirrored in .dev.vars for local dev):
   //   DISCORD_TOKEN, DISCORD_PUBLIC_KEY, DISCORD_CLIENT_SECRET,
