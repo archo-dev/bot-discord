@@ -4,5 +4,5 @@
     "types": ["@cloudflare/workers-types", "@cloudflare/vitest-pool-workers"],
     "lib": ["ES2022"]
   },
-  "include": ["src", "test", "vitest.config.ts"]
+  "include": ["src", "test"]
 }

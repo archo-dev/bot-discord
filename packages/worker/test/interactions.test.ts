@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll } from "vitest";
-import { env, createExecutionContext } from "cloudflare:test";
+import { env, createExecutionContext, fetchMock } from "cloudflare:test";
 import app from "../src/index.js";
 import { verifyDiscordSignature } from "../src/interactions/verify.js";
 import type { Env } from "../src/env.js";
@@ -34,6 +34,15 @@ beforeAll(async () => {
   ])) as CryptoKeyPair;
   privateKey = pair.privateKey;
   publicKeyHex = bytesToHex((await crypto.subtle.exportKey("raw", pair.publicKey)) as ArrayBuffer);
+
+  // No live network calls from tests: stub the Discord REST API.
+  fetchMock.activate();
+  fetchMock.disableNetConnect();
+  fetchMock
+    .get("https://discord.com")
+    .intercept({ path: /\/api\/v10\/guilds\/\d+/, method: "GET" })
+    .reply(200, { id: "200000000000000000", name: "Mock Guild", icon: null })
+    .persist();
 });
 
 describe("verifyDiscordSignature", () => {

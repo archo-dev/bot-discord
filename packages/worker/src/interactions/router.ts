@@ -9,6 +9,7 @@ import type { Env } from "../env.js";
 import { verifyDiscordSignature } from "./verify.js";
 import { builtins } from "./builtins/index.js";
 import { ephemeral, pong } from "./respond.js";
+import { ensureGuild } from "../db/ensure-guild.js";
 
 export const interactionsRouter = new Hono<{ Bindings: Env }>();
 
@@ -41,6 +42,9 @@ interactionsRouter.post("/interactions", async (c) => {
     if (!command.guild_id || !command.member) {
       return ephemeral("Cette commande ne fonctionne que dans un serveur.");
     }
+
+    // Keep the guilds table populated without a gateway (fire-and-forget).
+    c.executionCtx.waitUntil(ensureGuild(c.env, command.guild_id));
 
     const handler = builtins[command.data.name];
     if (handler) {
