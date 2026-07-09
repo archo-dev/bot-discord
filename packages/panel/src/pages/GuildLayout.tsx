@@ -61,7 +61,11 @@ export function GuildLayout(_props: { me: MeResponse }) {
           className={`ml-auto rounded-full px-3 py-1 text-xs ${
             g?.gatewayConnected ? "bg-green-950 text-green-300" : "bg-zinc-800 text-zinc-400"
           }`}
-          title="Le service Gateway (Option B) n'est pas encore déployé : les slash commands fonctionnent, les événements temps réel non."
+          title={
+            g?.gatewayConnected
+              ? "Service Gateway en ligne (heartbeat reçu il y a moins de 3 minutes)."
+              : "Service Gateway non connecté : les slash commands fonctionnent, les événements temps réel non."
+          }
         >
           {g?.gatewayConnected ? "Gateway connectée" : "Mode HTTP (slash commands)"}
         </span>

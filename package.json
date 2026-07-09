@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "pnpm --filter @bot/worker dev",
     "dev:panel": "pnpm --filter @bot/panel dev",
+    "dev:gateway": "pnpm --filter @bot/gateway dev",
     "build": "pnpm --filter @bot/panel build",
     "deploy": "pnpm --filter @bot/panel build && pnpm --filter @bot/worker deploy",
     "check": "pnpm -r check",

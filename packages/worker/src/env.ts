@@ -14,4 +14,9 @@ export interface Env {
   DISCORD_CLIENT_SECRET: string;
   SESSION_SECRET: string;
   INTERNAL_API_TOKEN: string;
+
+  // Set once the gateway VPS is up (Worker → gateway calls: music forward
+  // M14, panel-driven controls). Absent until then.
+  GATEWAY_ORIGIN?: string;
+  GATEWAY_HTTP_TOKEN?: string;
 }

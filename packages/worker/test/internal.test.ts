@@ -37,6 +37,33 @@ describe("internal API (future gateway)", () => {
     expect(body.autoRoles).toEqual([]);
   });
 
+  it("stores gateway heartbeats in KV with a TTL", async () => {
+    const unauthorized = await req("/internal/gateway/heartbeat", {
+      method: "POST",
+      body: JSON.stringify({ guildCount: 2, wsPing: 42 }),
+    });
+    expect(unauthorized.status).toBe(401);
+
+    const bad = await req(
+      "/internal/gateway/heartbeat",
+      { method: "POST", body: JSON.stringify({ guildCount: -1 }) },
+      "test-internal-token",
+    );
+    expect(bad.status).toBe(400);
+
+    const ok = await req(
+      "/internal/gateway/heartbeat",
+      { method: "POST", body: JSON.stringify({ guildCount: 2, wsPing: 42 }) },
+      "test-internal-token",
+    );
+    expect(ok.status).toBe(200);
+
+    const status = JSON.parse((await env.KV.get("gateway:status"))!) as { guildCount: number; wsPing: number | null; at: number };
+    expect(status.guildCount).toBe(2);
+    expect(status.wsPing).toBe(42);
+    expect(status.at).toBeGreaterThan(0);
+  });
+
   it("accepts gateway events and mod actions", async () => {
     await upsertGuild(env.DB, G, "Internal Guild", null);
     const event = await req(

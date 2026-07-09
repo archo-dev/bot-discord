@@ -81,6 +81,17 @@ describe("panel API auth", () => {
     expect(body.gatewayConnected).toBe(false);
   });
 
+  it("reports gatewayConnected while the heartbeat key is fresh", async () => {
+    await env.KV.put("gateway:status", JSON.stringify({ at: Date.now(), guildCount: 1, wsPing: 30 }), {
+      expirationTtl: 180,
+    });
+    const sid = await makeSession("810000000000000002");
+    const res = await get(`/api/guilds/${INSTALLED}`, sid);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { gatewayConnected: boolean };
+    expect(body.gatewayConnected).toBe(true);
+  });
+
   it("404s guilds where the bot is not installed, even for managers", async () => {
     const sid = await makeSession("810000000000000003");
     const res = await get(`/api/guilds/${NOT_INSTALLED}`, sid);
