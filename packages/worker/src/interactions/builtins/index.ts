@@ -1,6 +1,15 @@
 import type { APIChatInputApplicationCommandInteraction } from "discord-api-types/v10";
 import type { Env } from "../../env.js";
 import { pingHandler } from "./ping.js";
+import {
+  banHandler,
+  clearHandler,
+  kickHandler,
+  muteHandler,
+  unbanHandler,
+  warnHandler,
+  warningsHandler,
+} from "./moderation.js";
 
 export interface BuiltinContext {
   env: Env;
@@ -11,7 +20,14 @@ export interface BuiltinContext {
 
 export type BuiltinHandler = (ctx: BuiltinContext) => Promise<Response>;
 
-/** Registry of built-in slash commands. Moderation handlers land in M6. */
+/** Registry of built-in slash commands. */
 export const builtins: Record<string, BuiltinHandler> = {
   ping: pingHandler,
+  ban: banHandler,
+  unban: unbanHandler,
+  kick: kickHandler,
+  mute: muteHandler,
+  warn: warnHandler,
+  warnings: warningsHandler,
+  clear: clearHandler,
 };

@@ -29,7 +29,7 @@
   ],
   "vars": {
     // Public (non-secret) config. Override per environment as needed.
-    "DISCORD_CLIENT_ID": "REPLACE_WITH_APPLICATION_ID",
+    "DISCORD_CLIENT_ID": "1524597895859536074",
     "PANEL_ORIGIN": "http://localhost:5173"
   }
   // Secrets (wrangler secret put …, mirrored in .dev.vars for local dev):

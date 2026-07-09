@@ -1,0 +1,66 @@
+import { describe, expect, it } from "vitest";
+import { env, createExecutionContext } from "cloudflare:test";
+import app from "../src/index.js";
+import { upsertGuild } from "../src/db/queries.js";
+
+const G = "990000000000000001";
+
+function req(path: string, init: RequestInit = {}, token?: string): Promise<Response> {
+  return Promise.resolve(
+    app.request(
+      path,
+      {
+        ...init,
+        headers: {
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+          ...(init.body ? { "content-type": "application/json" } : {}),
+        },
+      },
+      env,
+      createExecutionContext(),
+    ),
+  );
+}
+
+describe("internal API (future gateway)", () => {
+  it("rejects requests without the bearer token", async () => {
+    expect((await req(`/internal/guilds/${G}/config`)).status).toBe(401);
+    expect((await req(`/internal/guilds/${G}/config`, {}, "wrong-token")).status).toBe(401);
+  });
+
+  it("serves guild config with the token", async () => {
+    await upsertGuild(env.DB, G, "Internal Guild", null);
+    const res = await req(`/internal/guilds/${G}/config`, {}, "test-internal-token");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { warnThreshold: number; autoRoles: string[] };
+    expect(body.warnThreshold).toBe(3);
+    expect(body.autoRoles).toEqual([]);
+  });
+
+  it("accepts gateway events and mod actions", async () => {
+    await upsertGuild(env.DB, G, "Internal Guild", null);
+    const event = await req(
+      `/internal/guilds/${G}/events`,
+      { method: "POST", body: JSON.stringify({ eventType: "member_join", payload: { userId: "1" } }) },
+      "test-internal-token",
+    );
+    expect(event.status).toBe(201);
+
+    const action = await req(
+      `/internal/guilds/${G}/mod-actions`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action: "timeout", targetId: "990000000000000002", moderatorId: "automod", reason: "spam" }),
+      },
+      "test-internal-token",
+    );
+    expect(action.status).toBe(201);
+
+    const bad = await req(
+      `/internal/guilds/${G}/events`,
+      { method: "POST", body: JSON.stringify({ eventType: "not_a_thing", payload: {} }) },
+      "test-internal-token",
+    );
+    expect(bad.status).toBe(400);
+  });
+});
