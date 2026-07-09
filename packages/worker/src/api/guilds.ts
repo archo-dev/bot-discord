@@ -145,13 +145,13 @@ interface RESTChannel {
 
 guildsRouter.get("/guilds/:guildId/channels", async (c) => {
   const guildId = c.req.param("guildId");
-  const cacheKey = `channels:${guildId}`;
+  const cacheKey = `channels:v2:${guildId}`;
   const cached = await c.env.KV.get(cacheKey);
   if (cached) return c.json(JSON.parse(cached) as ChannelOption[]);
   try {
     const channels = await discordJson<RESTChannel[]>(c.env, "GET", `/guilds/${guildId}/channels`);
     const options: ChannelOption[] = channels
-      .filter((ch) => ch.type === 0 || ch.type === 5) // text + announcement
+      .filter((ch) => ch.type === 0 || ch.type === 5 || ch.type === 4) // text + announcement + category (tickets)
       .map((ch) => ({ id: ch.id, name: ch.name, type: ch.type, position: ch.position ?? 0 }))
       .sort((a, b) => a.position - b.position);
     await c.env.KV.put(cacheKey, JSON.stringify(options), { expirationTtl: 300 });

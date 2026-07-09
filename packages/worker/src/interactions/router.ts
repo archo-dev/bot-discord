@@ -8,6 +8,7 @@ import {
 import type { Env } from "../env.js";
 import { verifyDiscordSignature } from "./verify.js";
 import { builtins } from "./builtins/index.js";
+import { findComponentHandler, findModalHandler } from "./components/index.js";
 import { ephemeral, pong } from "./respond.js";
 import { ensureGuild } from "../db/ensure-guild.js";
 import { getEnabledSlashCommand } from "../db/queries.js";
@@ -63,6 +64,29 @@ interactionsRouter.post("/interactions", async (c) => {
     }
 
     return ephemeral(`Commande inconnue : \`/${command.data.name}\`.`);
+  }
+
+  if (interaction.type === InteractionType.MessageComponent) {
+    if (!interaction.guild_id || !interaction.member) {
+      return ephemeral("Ce bouton ne fonctionne que dans un serveur.");
+    }
+    c.executionCtx.waitUntil(ensureGuild(c.env, interaction.guild_id));
+    const handler = findComponentHandler(interaction.data.custom_id);
+    if (handler) {
+      return handler({ env: c.env, interaction, waitUntil: (p) => c.executionCtx.waitUntil(p) });
+    }
+    return ephemeral("Ce bouton n'est plus pris en charge.");
+  }
+
+  if (interaction.type === InteractionType.ModalSubmit) {
+    if (!interaction.guild_id || !interaction.member) {
+      return ephemeral("Ce formulaire ne fonctionne que dans un serveur.");
+    }
+    const handler = findModalHandler(interaction.data.custom_id);
+    if (handler) {
+      return handler({ env: c.env, interaction, waitUntil: (p) => c.executionCtx.waitUntil(p) });
+    }
+    return ephemeral("Ce formulaire n'est plus pris en charge.");
   }
 
   return ephemeral("Type d'interaction non pris en charge.");

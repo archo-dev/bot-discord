@@ -63,3 +63,22 @@ export async function discordJson<T>(
 export function isGuildAccessLost(err: unknown): boolean {
   return err instanceof DiscordAPIError && (err.status === 403 || err.status === 404);
 }
+
+/** Multipart POST (payload_json + one text file) — used for ticket transcripts. */
+export async function discordUpload<T>(
+  env: Env,
+  path: string,
+  payload: unknown,
+  file: { name: string; content: string },
+): Promise<T> {
+  const form = new FormData();
+  form.append("payload_json", JSON.stringify(payload));
+  form.append("files[0]", new Blob([file.content], { type: "text/plain" }), file.name);
+  const res = await fetch(`${DISCORD_API}${path}`, {
+    method: "POST",
+    headers: { authorization: `Bot ${env.DISCORD_TOKEN}` },
+    body: form,
+  });
+  if (!res.ok) throw new DiscordAPIError(res.status, await res.text(), path);
+  return (await res.json()) as T;
+}

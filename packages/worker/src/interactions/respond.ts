@@ -48,6 +48,26 @@ export function ephemeral(content: string): Response {
   return message(content, { ephemeral: true });
 }
 
+/** MODAL (type 9) response — only valid for command/component interactions. */
+export function modal(data: {
+  custom_id: string;
+  title: string;
+  components: Array<{
+    type: 1;
+    components: Array<{
+      type: 4;
+      custom_id: string;
+      label: string;
+      style: 1 | 2;
+      required?: boolean;
+      max_length?: number;
+      placeholder?: string;
+    }>;
+  }>;
+}): Response {
+  return json({ type: InteractionResponseType.Modal, data });
+}
+
 /** DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE (type 5) — buys time past the 3s deadline. */
 export function deferred(opts: { ephemeral?: boolean } = {}): Response {
   return json({

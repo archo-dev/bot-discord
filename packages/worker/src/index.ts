@@ -5,6 +5,7 @@ import { authRouter } from "./auth/oauth.js";
 import { guildsRouter } from "./api/guilds.js";
 import { commandsRouter } from "./api/commands.js";
 import { moderationRouter } from "./api/moderation.js";
+import { ticketsRouter } from "./api/tickets.js";
 import { internalRouter } from "./internal/routes.js";
 import { requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
 
@@ -23,6 +24,7 @@ api.use("/guilds/:guildId", requireGuildAccess);
 api.use("/guilds/:guildId/*", requireGuildAccess);
 api.route("/", commandsRouter);
 api.route("/", moderationRouter);
+api.route("/", ticketsRouter);
 api.route("/", guildsRouter);
 app.route("/api", api);
 

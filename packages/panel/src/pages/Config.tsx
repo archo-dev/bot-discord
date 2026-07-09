@@ -76,7 +76,7 @@ export function ConfigPage() {
           className="mt-3 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
         >
           <option value="">— Désactivé —</option>
-          {channels.data?.map((ch) => (
+          {channels.data?.filter((ch) => ch.type !== 4).map((ch) => (
             <option key={ch.id} value={ch.id}>
               #{ch.name}
             </option>

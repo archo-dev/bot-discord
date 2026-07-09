@@ -551,7 +551,7 @@ export function CommandEditorPage() {
                 key={i}
                 condition={cond}
                 roles={roles.data ?? []}
-                channels={channels.data ?? []}
+                channels={(channels.data ?? []).filter((ch) => ch.type !== 4)}
                 onChange={(c) => set("conditions", form.conditions.map((x, j) => (j === i ? c : x)))}
                 onRemove={() => set("conditions", form.conditions.filter((_, j) => j !== i))}
               />
@@ -587,7 +587,7 @@ export function CommandEditorPage() {
                 key={i}
                 action={action}
                 roles={roles.data ?? []}
-                channels={channels.data ?? []}
+                channels={(channels.data ?? []).filter((ch) => ch.type !== 4)}
                 onChange={(a) => set("extraActions", form.extraActions.map((x, j) => (j === i ? a : x)))}
                 onRemove={() => set("extraActions", form.extraActions.filter((_, j) => j !== i))}
               />

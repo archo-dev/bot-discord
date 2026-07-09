@@ -7,6 +7,7 @@ const tabs = [
   { to: "", label: "Vue d'ensemble", end: true },
   { to: "config", label: "Configuration" },
   { to: "commands", label: "Commandes" },
+  { to: "tickets", label: "Tickets" },
   { to: "modlog", label: "Mod-log" },
   { to: "access", label: "Accès panel" },
 ] as const;
