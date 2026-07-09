@@ -1,3 +1,4 @@
+import type { MusicStateDto, MusicTrack } from "@bot/shared";
 import type { GatewayEnv } from "./env.js";
 
 /**
@@ -59,6 +60,9 @@ export interface WorkerApi {
   postEvent(guildId: string, eventType: string, payload: Record<string, unknown>): Promise<void>;
   postAutomodSanction(guildId: string, payload: { userId: string; rule: AutomodRule; action: "warn" | "timeout" }): Promise<void>;
   postXp(guildId: string, payload: { userId: string; username: string | null; channelId: string }): Promise<void>;
+  postMusicState(guildId: string, state: MusicStateDto): Promise<void>;
+  savePlaylist(guildId: string, payload: { ownerId: string; name: string; tracks: MusicTrack[] }): Promise<void>;
+  getPlaylistTracks(guildId: string, name: string): Promise<MusicTrack[] | null>;
 }
 
 export function createWorkerApi(env: GatewayEnv): WorkerApi {
@@ -95,6 +99,17 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
     },
     async postXp(guildId, payload) {
       await call("POST", `/internal/guilds/${guildId}/xp`, payload);
+    },
+    async postMusicState(guildId, state) {
+      await call("POST", `/internal/guilds/${guildId}/music-state`, state);
+    },
+    async savePlaylist(guildId, payload) {
+      await call("POST", `/internal/guilds/${guildId}/playlists`, payload);
+    },
+    async getPlaylistTracks(guildId, name) {
+      const res = await call("GET", `/internal/guilds/${guildId}/playlists/${encodeURIComponent(name)}`);
+      if (res.status === 404) return null;
+      return ((await res.json()) as { tracks: MusicTrack[] }).tracks;
     },
   };
 }

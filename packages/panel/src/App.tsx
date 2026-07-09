@@ -16,6 +16,7 @@ import { RolesPage } from "./pages/Roles.js";
 import { WelcomePage } from "./pages/Welcome.js";
 import { AutomodPage } from "./pages/Automod.js";
 import { LevelsPage } from "./pages/Levels.js";
+import { MusicPage } from "./pages/Music.js";
 
 export function App() {
   const me = useQuery({
@@ -51,6 +52,7 @@ export function App() {
         <Route path="welcome" element={<WelcomePage />} />
         <Route path="automod" element={<AutomodPage />} />
         <Route path="levels" element={<LevelsPage />} />
+        <Route path="music" element={<MusicPage />} />
         <Route path="modlog" element={<ModLogPage />} />
         <Route path="access" element={<PanelAccessPage />} />
       </Route>

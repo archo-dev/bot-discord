@@ -12,6 +12,21 @@ import {
   warningsHandler,
 } from "./moderation.js";
 import { leaderboardHandler, rankHandler } from "./xp.js";
+import {
+  loopHandler,
+  nowplayingHandler,
+  pauseHandler,
+  playHandler,
+  playlistHandler,
+  queueHandler,
+  removeHandler,
+  resumeHandler,
+  seekHandler,
+  shuffleHandler,
+  skipHandler,
+  stopHandler,
+  volumeHandler,
+} from "./music.js";
 
 export interface BuiltinContext {
   env: Env;
@@ -35,4 +50,17 @@ export const builtins: Record<string, BuiltinHandler> = {
   clear: clearHandler,
   rank: rankHandler,
   leaderboard: leaderboardHandler,
+  play: playHandler,
+  pause: pauseHandler,
+  resume: resumeHandler,
+  skip: skipHandler,
+  stop: stopHandler,
+  queue: queueHandler,
+  remove: removeHandler,
+  shuffle: shuffleHandler,
+  loop: loopHandler,
+  volume: volumeHandler,
+  seek: seekHandler,
+  nowplaying: nowplayingHandler,
+  playlist: playlistHandler,
 };

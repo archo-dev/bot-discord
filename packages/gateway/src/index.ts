@@ -7,6 +7,7 @@ import { createHttpApp } from "./http.js";
 import { registerEvents } from "./events.js";
 import { registerAutomod } from "./automod.js";
 import { registerXp } from "./xp.js";
+import { registerMusic } from "./music.js";
 
 const HEARTBEAT_INTERVAL_MS = 60_000;
 
@@ -17,13 +18,16 @@ const configCache = createConfigCache(api);
 // GuildMembers + MessageContent are privileged: they must also be enabled in
 // the Developer Portal (Bot → Server Members Intent + Message Content Intent),
 // otherwise login fails with "Used disallowed intents".
-// Partials.Message lets MessageDelete/Update fire for uncached messages.
+// GuildVoiceStates (not privileged) is required for music (resolve the member's
+// voice channel, detect empty channels). Partials.Message lets MessageDelete/Update
+// fire for uncached messages.
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildVoiceStates,
   ],
   partials: [Partials.Message],
 });
@@ -31,6 +35,7 @@ const client = new Client({
 registerEvents(client, configCache, api);
 registerAutomod(client, configCache, api);
 registerXp(client, configCache, api);
+const music = registerMusic(client, api);
 
 async function heartbeat(): Promise<void> {
   try {
@@ -49,7 +54,7 @@ client.once(Events.ClientReady, (c) => {
   setInterval(() => void heartbeat(), HEARTBEAT_INTERVAL_MS);
 });
 
-const server = serve({ fetch: createHttpApp(env, client).fetch, port: env.GATEWAY_PORT }, (info) => {
+const server = serve({ fetch: createHttpApp(env, client, music).fetch, port: env.GATEWAY_PORT }, (info) => {
   console.log(`gateway http listening on :${info.port}`);
 });
 

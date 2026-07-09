@@ -9,6 +9,7 @@ import {
   getGuild,
   getLogSettings,
   getWelcomeSettings,
+  getPlaylist,
   getXpSettings,
   grantXp,
   insertGatewayEvent,
@@ -17,6 +18,7 @@ import {
   listAutoRoles,
   listCustomCommands,
   setXpLevel,
+  upsertPlaylist,
 } from "../db/queries.js";
 import { logRowToDto, welcomeRowToDto } from "../api/welcome.js";
 import { automodRowToDto } from "../api/automod.js";
@@ -36,6 +38,45 @@ internalRouter.use("/internal/*", async (c, next) => {
     return c.json({ error: "unauthorized" }, 401);
   }
   await next();
+});
+
+// Music playback snapshot from the gateway → KV (short TTL) for the panel.
+internalRouter.post("/internal/guilds/:guildId/music-state", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (typeof body !== "object" || body === null) return c.json({ error: "invalid_body" }, 400);
+  // 60 s = KV minimum TTL; the gateway refreshes every 15 s while playing, so a
+  // stale key clears within a minute of the gateway going silent.
+  await c.env.KV.put(`music:${c.req.param("guildId")}`, JSON.stringify(body), { expirationTtl: 60 });
+  return c.json({ ok: true });
+});
+
+const playlistSaveSchema = z.object({
+  ownerId: z.string().regex(/^\d{5,20}$/),
+  name: z.string().min(1).max(60),
+  tracks: z
+    .array(
+      z.object({
+        title: z.string().max(300),
+        url: z.string().max(500),
+        duration: z.number(),
+        thumbnail: z.string().nullable(),
+        requestedBy: z.string().nullable(),
+      }),
+    )
+    .max(200),
+});
+
+internalRouter.post("/internal/guilds/:guildId/playlists", async (c) => {
+  const parsed = playlistSaveSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
+  await upsertPlaylist(c.env.DB, c.req.param("guildId"), parsed.data.ownerId, parsed.data.name, JSON.stringify(parsed.data.tracks));
+  return c.json({ ok: true }, 201);
+});
+
+internalRouter.get("/internal/guilds/:guildId/playlists/:name", async (c) => {
+  const row = await getPlaylist(c.env.DB, c.req.param("guildId"), c.req.param("name"));
+  if (!row) return c.json({ error: "not_found" }, 404);
+  return c.json({ tracks: JSON.parse(row.tracks) as unknown });
 });
 
 const heartbeatSchema = z.object({

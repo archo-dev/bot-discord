@@ -10,6 +10,7 @@ import { buttonRolesRouter } from "./api/button-roles.js";
 import { welcomeRouter } from "./api/welcome.js";
 import { automodRouter } from "./api/automod.js";
 import { xpRouter } from "./api/xp.js";
+import { musicRouter } from "./api/music.js";
 import { internalRouter } from "./internal/routes.js";
 import { requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
 
@@ -33,6 +34,7 @@ api.route("/", buttonRolesRouter);
 api.route("/", welcomeRouter);
 api.route("/", automodRouter);
 api.route("/", xpRouter);
+api.route("/", musicRouter);
 api.route("/", guildsRouter);
 app.route("/api", api);
 
