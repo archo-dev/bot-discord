@@ -1,6 +1,7 @@
 import type { APIMessageComponentInteraction, APIModalSubmitInteraction } from "discord-api-types/v10";
 import type { Env } from "../../env.js";
 import { openTicket, promptCloseTicket, submitCloseTicket } from "./tickets.js";
+import { toggleButtonRole } from "./button-roles.js";
 
 /**
  * Message-component (type 3) and modal-submit (type 5) dispatch, keyed by
@@ -19,6 +20,7 @@ type ModalHandler = (ctx: ComponentContext<APIModalSubmitInteraction>) => Promis
 const componentHandlers: Array<{ id: string; handler: ComponentHandler }> = [
   { id: "ticket:open", handler: openTicket },
   { id: "ticket:close", handler: promptCloseTicket },
+  { id: "brole:", handler: toggleButtonRole },
 ];
 
 const modalHandlers: Array<{ id: string; handler: ModalHandler }> = [

@@ -5,6 +5,7 @@ import {
   getGuild,
   insertModAction,
   insertWarning,
+  listModActions,
   listWarnings,
 } from "../../db/queries.js";
 import { DiscordAPIError, discordJson, discordRequest } from "../../discord/rest.js";
@@ -226,6 +227,44 @@ export const warningsHandler = moderation(PermissionBits.MODERATE_MEMBERS, { eph
           )
           .join("\n"),
         footer: { text: `${active.length} actif(s) / ${warnings.length} au total` },
+      },
+    ],
+  };
+});
+
+const HISTORY_LABELS: Record<string, string> = {
+  ban: "🔨 Ban",
+  unban: "✅ Unban",
+  kick: "👢 Kick",
+  timeout: "🔇 Timeout",
+  auto_timeout: "🔇 Timeout auto",
+  warn: "⚠️ Warn",
+  unwarn: "✅ Warn révoqué",
+  clear: "🧹 Clear",
+};
+
+export const historyHandler = moderation(PermissionBits.MODERATE_MEMBERS, { ephemeral: true }, async (ctx) => {
+  const guildId = ctx.interaction.guild_id!;
+  const target = userOption(ctx.interaction, "membre");
+  if (!target) return { content: "⚠️ Membre introuvable." };
+
+  const { rows, total } = await listModActions(ctx.env.DB, guildId, { page: 1, pageSize: 15, targetId: target.id });
+  if (total === 0) return { content: `✅ **${displayName(target)}** n'a aucun antécédent de modération.` };
+
+  const activeWarns = await activeWarningCount(ctx.env.DB, guildId, target.id);
+  return {
+    content: "",
+    embeds: [
+      {
+        title: `Historique de ${displayName(target)}`,
+        color: 0x5865f2,
+        description: rows
+          .map((r) => {
+            const who = r.moderator_id === "system" ? "le système" : `<@${r.moderator_id}>`;
+            return `**#${r.id}** ${HISTORY_LABELS[r.action] ?? r.action} — ${r.reason ?? "(sans raison)"} · par ${who} · ${r.created_at} UTC`;
+          })
+          .join("\n"),
+        footer: { text: `${total} action(s) au total · ${activeWarns} warn(s) actif(s)` },
       },
     ],
   };

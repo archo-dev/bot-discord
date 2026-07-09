@@ -4,6 +4,7 @@ import { pingHandler } from "./ping.js";
 import {
   banHandler,
   clearHandler,
+  historyHandler,
   kickHandler,
   muteHandler,
   unbanHandler,
@@ -29,5 +30,6 @@ export const builtins: Record<string, BuiltinHandler> = {
   mute: muteHandler,
   warn: warnHandler,
   warnings: warningsHandler,
+  history: historyHandler,
   clear: clearHandler,
 };

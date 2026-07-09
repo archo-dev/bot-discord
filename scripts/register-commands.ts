@@ -107,6 +107,13 @@ const commands = [
     options: [{ type: 6, name: "membre", description: "Membre", required: true }],
   },
   {
+    name: "history",
+    description: "Affiche l'historique de modération d'un membre",
+    dm_permission: false,
+    default_member_permissions: MODERATE_MEMBERS,
+    options: [{ type: 6, name: "membre", description: "Membre", required: true }],
+  },
+  {
     name: "clear",
     description: "Supprime les derniers messages du salon",
     dm_permission: false,

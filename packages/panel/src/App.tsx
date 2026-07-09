@@ -12,6 +12,7 @@ import { CommandEditorPage } from "./pages/CommandEditor.js";
 import { ModLogPage } from "./pages/ModLog.js";
 import { PanelAccessPage } from "./pages/PanelAccess.js";
 import { TicketsPage } from "./pages/Tickets.js";
+import { RolesPage } from "./pages/Roles.js";
 
 export function App() {
   const me = useQuery({
@@ -43,6 +44,7 @@ export function App() {
         <Route path="commands/new" element={<CommandEditorPage />} />
         <Route path="commands/:commandId" element={<CommandEditorPage />} />
         <Route path="tickets" element={<TicketsPage />} />
+        <Route path="roles" element={<RolesPage />} />
         <Route path="modlog" element={<ModLogPage />} />
         <Route path="access" element={<PanelAccessPage />} />
       </Route>
