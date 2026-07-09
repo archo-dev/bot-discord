@@ -27,7 +27,22 @@ export interface GuildGatewayConfig {
     messageEdit: boolean;
     memberUpdate: boolean;
   };
+  automod: {
+    antiSpamEnabled: boolean;
+    antiSpamMaxMessages: number;
+    antiSpamWindowSeconds: number;
+    antiInviteEnabled: boolean;
+    antiLinkEnabled: boolean;
+    linkWhitelist: string[];
+    bannedWords: string[];
+    exemptRoleIds: string[];
+    exemptChannelIds: string[];
+    action: "delete" | "warn" | "timeout";
+    timeoutMinutes: number;
+  };
 }
+
+export type AutomodRule = "spam" | "invite" | "link" | "word";
 
 export interface HeartbeatPayload {
   guildCount: number;
@@ -38,6 +53,7 @@ export interface WorkerApi {
   getGuildConfig(guildId: string): Promise<GuildGatewayConfig | null>;
   postHeartbeat(payload: HeartbeatPayload): Promise<void>;
   postEvent(guildId: string, eventType: string, payload: Record<string, unknown>): Promise<void>;
+  postAutomodSanction(guildId: string, payload: { userId: string; rule: AutomodRule; action: "warn" | "timeout" }): Promise<void>;
 }
 
 export function createWorkerApi(env: GatewayEnv): WorkerApi {
@@ -68,6 +84,9 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
     },
     async postEvent(guildId, eventType, payload) {
       await call("POST", `/internal/guilds/${guildId}/events`, { eventType, payload });
+    },
+    async postAutomodSanction(guildId, payload) {
+      await call("POST", `/internal/guilds/${guildId}/automod-sanctions`, payload);
     },
   };
 }

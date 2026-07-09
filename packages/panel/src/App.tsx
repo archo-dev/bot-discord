@@ -14,6 +14,7 @@ import { PanelAccessPage } from "./pages/PanelAccess.js";
 import { TicketsPage } from "./pages/Tickets.js";
 import { RolesPage } from "./pages/Roles.js";
 import { WelcomePage } from "./pages/Welcome.js";
+import { AutomodPage } from "./pages/Automod.js";
 
 export function App() {
   const me = useQuery({
@@ -47,6 +48,7 @@ export function App() {
         <Route path="tickets" element={<TicketsPage />} />
         <Route path="roles" element={<RolesPage />} />
         <Route path="welcome" element={<WelcomePage />} />
+        <Route path="automod" element={<AutomodPage />} />
         <Route path="modlog" element={<ModLogPage />} />
         <Route path="access" element={<PanelAccessPage />} />
       </Route>
