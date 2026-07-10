@@ -7,8 +7,21 @@
   // Panel SPA served by the same Worker (build it first: pnpm build).
   "assets": {
     "directory": "../panel/dist",
+    "binding": "ASSETS",
+    // Sans ceci, /index.html est redirigé vers / (auto-trailing-slash) : notre
+    // serveIndex récupérerait cette redirection → boucle ERR_TOO_MANY_REDIRECTS.
+    "html_handling": "none",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/auth/*", "/interactions", "/internal/*", "/health"]
+    "run_worker_first": [
+      "/api/*",
+      "/auth/*",
+      "/interactions",
+      "/internal/*",
+      "/health",
+      "/",
+      "/index.html",
+      "/assets/*"
+    ]
   },
   // D1 + KV created on the production Cloudflare account (see README).
   "d1_databases": [

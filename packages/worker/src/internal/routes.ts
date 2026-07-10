@@ -84,15 +84,16 @@ const heartbeatSchema = z.object({
   wsPing: z.number().nullable().optional(),
 });
 
-// Posted every 60 s by the gateway; the KV TTL makes a silent gateway read as
-// disconnected without any cleanup job (panel badge = key presence).
+// Posted every 120 s by the gateway; the KV TTL (300 s) makes a silent gateway
+// read as disconnected without any cleanup job (panel badge = key presence).
+// Interval/TTL kept above 60 s to stay under the free KV write quota (1000/day).
 internalRouter.post("/internal/gateway/heartbeat", async (c) => {
   const parsed = heartbeatSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
   await c.env.KV.put(
     "gateway:status",
     JSON.stringify({ at: Date.now(), guildCount: parsed.data.guildCount, wsPing: parsed.data.wsPing ?? null }),
-    { expirationTtl: 180 },
+    { expirationTtl: 300 },
   );
   return c.json({ ok: true });
 });

@@ -25,7 +25,7 @@ export interface GuildOverview {
   logChannelId: string | null;
   warnThreshold: number;
   warnTimeoutMinutes: number;
-  /** True while the gateway heartbeat is fresh (< 3 min, KV `gateway:status`). */
+  /** True while the gateway heartbeat is fresh (< 5 min, KV `gateway:status`). */
   gatewayConnected: boolean;
 }
 

@@ -112,7 +112,7 @@ guildsRouter.get("/guilds/:guildId", async (c) => {
     logChannelId: row.log_channel_id,
     warnThreshold: row.warn_threshold,
     warnTimeoutMinutes: row.warn_timeout_minutes,
-    // Key written by /internal/gateway/heartbeat with a 180 s TTL: presence
+    // Key written by /internal/gateway/heartbeat with a 300 s TTL: presence
     // alone means the gateway phoned home recently.
     gatewayConnected: (await c.env.KV.get("gateway:status")) !== null,
   };

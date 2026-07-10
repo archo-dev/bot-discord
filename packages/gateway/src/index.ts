@@ -9,7 +9,9 @@ import { registerAutomod } from "./automod.js";
 import { registerXp } from "./xp.js";
 import { registerMusic } from "./music.js";
 
-const HEARTBEAT_INTERVAL_MS = 60_000;
+// 120 s (TTL KV côté Worker = 300 s) : reste sous le quota d'écritures KV du
+// plan gratuit (1000/jour) tout en gardant le badge « Gateway » fiable.
+const HEARTBEAT_INTERVAL_MS = 120_000;
 
 const env = loadEnv();
 const api = createWorkerApi(env);
