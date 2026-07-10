@@ -2,6 +2,8 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MusicStateDto, PlaylistSummaryDto } from "@bot/shared";
 import { api } from "../lib/api.js";
+import { Badge, Button, Card, InfoCard } from "../ui/kit.js";
+import { Icon } from "../ui/icons.js";
 
 function formatDuration(totalSeconds: number): string {
   const sec = Math.floor(totalSeconds % 60);
@@ -43,19 +45,19 @@ export function MusicPage() {
   const progress = current && current.duration > 0 ? Math.min(100, (s!.elapsed / current.duration) * 100) : 0;
 
   return (
-    <div className="max-w-2xl space-y-8">
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Lecture en cours</h2>
-          {s && (
-            <span className={`rounded-full px-3 py-1 text-xs ${s.connected ? "bg-green-950 text-green-300" : "bg-zinc-800 text-zinc-400"}`}>
+    <div className="max-w-2xl space-y-6">
+      <Card
+        title="Lecture en cours"
+        action={
+          s ? (
+            <Badge tone={s.connected ? (s.paused ? "warning" : "success") : "neutral"}>
               {s.connected ? (s.paused ? "En pause" : "En lecture") : "Inactif"}
-            </span>
-          )}
-        </div>
-
+            </Badge>
+          ) : undefined
+        }
+      >
         {current ? (
-          <div className="mt-4">
+          <div>
             <div className="flex gap-4">
               {current.thumbnail && (
                 <img src={current.thumbnail} alt="" className="h-20 w-20 rounded-lg object-cover" />
@@ -77,7 +79,7 @@ export function MusicPage() {
 
             <div className="mt-4">
               <div className="h-1.5 w-full rounded-full bg-zinc-800">
-                <div className="h-1.5 rounded-full bg-indigo-500" style={{ width: `${progress}%` }} />
+                <div className="h-1.5 rounded-full bg-indigo-600" style={{ width: `${progress}%` }} />
               </div>
               <div className="mt-1 flex justify-between text-xs text-zinc-500">
                 <span>{formatDuration(s!.elapsed)}</span>
@@ -85,42 +87,29 @@ export function MusicPage() {
               </div>
             </div>
 
-            <div className="mt-4 flex gap-2">
-              <button
-                onClick={() => control.mutate(s!.paused ? "resume" : "pause")}
-                disabled={control.isPending}
-                className="rounded-lg bg-zinc-800 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:opacity-50"
-              >
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => control.mutate(s!.paused ? "resume" : "pause")} disabled={control.isPending}>
                 {s!.paused ? "▶️ Reprendre" : "⏸️ Pause"}
-              </button>
-              <button
-                onClick={() => control.mutate("skip")}
-                disabled={control.isPending}
-                className="rounded-lg bg-zinc-800 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:opacity-50"
-              >
+              </Button>
+              <Button variant="secondary" onClick={() => control.mutate("skip")} disabled={control.isPending}>
                 ⏭️ Suivant
-              </button>
-              <button
-                onClick={() => control.mutate("stop")}
-                disabled={control.isPending}
-                className="rounded-lg bg-red-950 px-4 py-2 text-sm font-medium text-red-300 transition hover:bg-red-900 disabled:opacity-50"
-              >
+              </Button>
+              <Button variant="danger" onClick={() => control.mutate("stop")} disabled={control.isPending}>
                 ⏹️ Stop
-              </button>
+              </Button>
             </div>
             {control.isError && <p className="mt-2 text-sm text-red-400">Contrôle indisponible (gateway hors ligne ?).</p>}
           </div>
         ) : (
-          <p className="mt-4 text-sm text-zinc-400">
+          <p className="text-sm text-zinc-400">
             Rien en lecture. Lance une musique sur Discord avec <code className="text-zinc-300">/play</code>.
           </p>
         )}
-      </section>
+      </Card>
 
       {s && s.queue.length > 0 && (
-        <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-          <h2 className="font-semibold">File d'attente ({s.queue.length})</h2>
-          <ol className="mt-3 space-y-1.5 text-sm">
+        <Card title={`File d'attente (${s.queue.length})`}>
+          <ol className="space-y-1.5 text-sm">
             {s.queue.slice(0, 20).map((t, i) => (
               <li key={i} className="flex gap-2 text-zinc-300">
                 <span className="text-zinc-600">{i + 1}.</span>
@@ -129,13 +118,12 @@ export function MusicPage() {
               </li>
             ))}
           </ol>
-        </section>
+        </Card>
       )}
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-        <h2 className="font-semibold">Playlists enregistrées</h2>
+      <Card title="Playlists enregistrées">
         {playlists.data && playlists.data.length > 0 ? (
-          <ul className="mt-3 space-y-1.5 text-sm text-zinc-300">
+          <ul className="space-y-1.5 text-sm text-zinc-300">
             {playlists.data.map((p) => (
               <li key={p.name} className="flex justify-between">
                 <span>
@@ -146,11 +134,16 @@ export function MusicPage() {
             ))}
           </ul>
         ) : (
-          <p className="mt-2 text-sm text-zinc-400">
+          <p className="text-sm text-zinc-400">
             Aucune playlist. Sur Discord : <code className="text-zinc-300">/playlist save nom</code>.
           </p>
         )}
-      </section>
+      </Card>
+
+      <InfoCard icon={<Icon.music />} title="Astuce">
+        Lance la lecture depuis Discord avec <code>/play</code> ; les contrôles ci-dessus pilotent le bot en temps réel
+        via le Gateway. L'état se rafraîchit automatiquement toutes les 4 s.
+      </InfoCard>
     </div>
   );
 }

@@ -3,6 +3,8 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ChannelOption, LeaderboardEntry, RoleOption, XpSettingsDto } from "@bot/shared";
 import { api } from "../lib/api.js";
+import { InfoCard, Toggle } from "../ui/kit.js";
+import { Icon } from "../ui/icons.js";
 
 export function LevelsPage() {
   const { guildId } = useParams<{ guildId: string }>();
@@ -49,12 +51,12 @@ export function LevelsPage() {
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">XP par message</h2>
-          <label className="flex items-center gap-2 text-sm text-zinc-300">
-            <input type="checkbox" checked={s.enabled} onChange={(e) => set({ enabled: e.target.checked })} />
-            Activé
-          </label>
+          <div className="flex items-center gap-2 text-sm text-zinc-300">
+            <span>Activé</span>
+            <Toggle checked={s.enabled} onChange={(v) => set({ enabled: v })} />
+          </div>
         </div>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <label className="text-sm text-zinc-300">
             XP min
             <input
@@ -89,14 +91,10 @@ export function LevelsPage() {
             />
           </label>
         </div>
-        <label className="flex items-center gap-2 text-sm text-zinc-300">
-          <input
-            type="checkbox"
-            checked={s.announceLevelUp}
-            onChange={(e) => set({ announceLevelUp: e.target.checked })}
-          />
-          Annoncer les passages de niveau
-        </label>
+        <div className="flex items-center gap-3 text-sm text-zinc-300">
+          <Toggle checked={s.announceLevelUp} onChange={(v) => set({ announceLevelUp: v })} />
+          <span>Annoncer les passages de niveau</span>
+        </div>
         {s.announceLevelUp && (
           <label className="block text-sm text-zinc-300">
             Salon des annonces
@@ -174,7 +172,7 @@ export function LevelsPage() {
         <button
           onClick={() => save.mutate()}
           disabled={save.isPending}
-          className="rounded-lg bg-indigo-600 px-5 py-2.5 font-medium text-white transition hover:bg-indigo-500 disabled:opacity-50"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {save.isPending ? "Enregistrement…" : "Enregistrer"}
         </button>
@@ -185,32 +183,43 @@ export function LevelsPage() {
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
         <h2 className="font-semibold">Classement</h2>
         {leaderboard.data && leaderboard.data.length > 0 ? (
-          <table className="mt-3 w-full text-sm">
-            <thead className="text-left text-zinc-500">
-              <tr>
-                <th className="py-1 pr-4">#</th>
-                <th className="py-1 pr-4">Membre</th>
-                <th className="py-1 pr-4">Niveau</th>
-                <th className="py-1 pr-4">XP</th>
-                <th className="py-1">Messages</th>
-              </tr>
-            </thead>
-            <tbody className="text-zinc-300">
-              {leaderboard.data.slice(0, 20).map((e) => (
-                <tr key={e.userId} className="border-t border-zinc-800">
-                  <td className="py-1.5 pr-4 text-zinc-500">{e.rank}</td>
-                  <td className="py-1.5 pr-4">{e.username ?? e.userId}</td>
-                  <td className="py-1.5 pr-4">{e.level}</td>
-                  <td className="py-1.5 pr-4">{e.xp}</td>
-                  <td className="py-1.5">{e.messages}</td>
+          <div className="-mx-6 mt-3 overflow-x-auto px-6">
+            <table className="w-full min-w-[30rem] text-sm">
+              <thead>
+                <tr className="border-b border-zinc-800 text-left text-xs uppercase tracking-wide text-zinc-500">
+                  <th className="py-2 pr-4 font-semibold">#</th>
+                  <th className="py-2 pr-4 font-semibold">Membre</th>
+                  <th className="py-2 pr-4 font-semibold">Niveau</th>
+                  <th className="py-2 pr-4 font-semibold">XP</th>
+                  <th className="py-2 text-right font-semibold">Messages</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-white/5 text-zinc-300">
+                {leaderboard.data.slice(0, 20).map((e) => (
+                  <tr key={e.userId}>
+                    <td className="py-2.5 pr-4 text-zinc-500">{e.rank}</td>
+                    <td className="py-2.5 pr-4 font-medium text-zinc-100">{e.username ?? e.userId}</td>
+                    <td className="py-2.5 pr-4">
+                      <span className="inline-flex items-center rounded-full bg-indigo-500/15 px-2 py-0.5 text-xs font-semibold text-indigo-200">
+                        Niv. {e.level}
+                      </span>
+                    </td>
+                    <td className="py-2.5 pr-4">{e.xp}</td>
+                    <td className="py-2.5 text-right">{e.messages}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <p className="mt-2 text-sm text-zinc-400">Personne n'a encore gagné d'XP.</p>
         )}
       </section>
+
+      <InfoCard icon={<Icon.trophy />} title="Bon à savoir">
+        Les rôles récompense sont rattrapés : un membre reçoit tous les rôles jusqu'à son niveau actuel, pas seulement
+        le dernier. Le gain d'XP nécessite le service Gateway.
+      </InfoCard>
     </div>
   );
 }

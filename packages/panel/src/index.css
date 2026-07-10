@@ -1,5 +1,134 @@
 @import "tailwindcss";
 
+/*
+ * Design system « Nocturne » (docs/design_system.md).
+ * Tailwind v4 : on remappe les échelles zinc/indigo/sémantiques vers les teintes
+ * Nocturne pour reskinner tout le panel de façon cohérente, et on expose aussi les
+ * tokens sémantiques (--surface-*, --primary, --viz-*) pour les nouveaux composants.
+ */
+@theme {
+  /* Police UI — Inter, proche de la « gg sans » de Discord */
+  --font-sans:
+    "Inter", -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+
+  /* Rayons alignés sur le design system (cartes 14, boutons/inputs 10, modales 20) */
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-2xl: 20px;
+
+  /* --- Fonds & surfaces (échelle zinc remappée, ordre de luminance préservé) --- */
+  --color-zinc-950: #0a0b12; /* bg-app : canvas le plus sombre */
+  --color-zinc-900: #141824; /* surface-1 : cartes, panneaux */
+  --color-zinc-800: #232838; /* border standard / hover de surface */
+  --color-zinc-700: #2e3548; /* border-strong : bordures d'inputs/boutons */
+  --color-zinc-600: #3a4152;
+  --color-zinc-500: #6b7180; /* text-muted */
+  --color-zinc-400: #9ba1b0; /* text-secondary */
+  --color-zinc-300: #c3c8d4;
+  --color-zinc-200: #e4e6ec;
+  --color-zinc-100: #f3f4f8; /* text-primary */
+
+  /* --- Accent primaire : blurple --- */
+  --color-indigo-600: #5d57f2; /* primary */
+  --color-indigo-500: #6e68f5; /* primary-hover */
+  --color-indigo-400: #8b86f7;
+  --color-indigo-300: #a9a5fa;
+  --color-indigo-200: #c9c5fa; /* texte de chip sélectionnée */
+  --color-indigo-950: #211e4a; /* fond de chip sélectionnée (blurple sombre) */
+
+  /* --- Sémantique : succès --- */
+  --color-green-300: #6ee0a0;
+  --color-green-400: #52d18c;
+  --color-green-950: #0f2a1d;
+
+  /* --- Sémantique : danger --- */
+  --color-red-300: #f49897;
+  --color-red-400: #f1706f;
+  --color-red-500: #ed4245;
+  --color-red-700: #c22b2e;
+  --color-red-900: #3a1517;
+  --color-red-950: #2a0f11;
+
+  /* --- Sémantique : avertissement --- */
+  --color-amber-200: #f2c044;
+  --color-amber-300: #f0b114;
+  --color-amber-900: #4a3510;
+  --color-amber-950: #2a1e08;
+}
+
+/* Tokens sémantiques Nocturne (pour les composants qui n'utilisent pas les utilitaires zinc) */
+:root {
+  --bg-app: #0a0b12;
+  --bg-base: #0d0e1a;
+  --surface-1: #141824;
+  --surface-2: #1a1f2e;
+  --surface-3: #20263a;
+
+  --border: #232838;
+  --border-strong: #2e3548;
+
+  --primary: #5d57f2;
+  --primary-hover: #6e68f5;
+  --primary-subtle: rgba(93, 87, 242, 0.16);
+  --primary-ring: rgba(93, 87, 242, 0.38);
+
+  --viz-violet: #7c4dee;
+  --viz-blue: #3e7afc;
+  --viz-green: #1fc069;
+  --viz-amber: #f0b114;
+  --viz-red: #ed4b4b;
+  --viz-gray: #4b5163;
+
+  --text-primary: #f3f4f8;
+  --text-secondary: #9ba1b0;
+  --text-muted: #6b7180;
+}
+
 body {
-  @apply bg-zinc-950 text-zinc-100 antialiased;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  /* Chiffres tabulaires : la signature « dashboard » du design system */
+  font-feature-settings: "tnum" 1;
+}
+
+/* Barre de défilement discrète, cohérente avec le fond sombre */
+* {
+  scrollbar-color: var(--border-strong) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::selection {
+  background: var(--primary-subtle);
+}
+
+/* Masque la barre de défilement (strip d'onglets sur mobile) */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Coupe les animations non essentielles si l'utilisateur le demande */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

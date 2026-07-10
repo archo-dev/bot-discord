@@ -3,6 +3,8 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ChannelOption, LogSettingsDto, WelcomeSettingsDto } from "@bot/shared";
 import { api } from "../lib/api.js";
+import { InfoCard, Toggle } from "../ui/kit.js";
+import { Icon } from "../ui/icons.js";
 
 const MESSAGE_VARIABLES = ["{mention}", "{user}", "{user.id}", "{server}", "{membercount}"] as const;
 
@@ -151,10 +153,10 @@ export function WelcomePage() {
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">Message de bienvenue</h2>
-          <label className="flex items-center gap-2 text-sm text-zinc-300">
-            <input type="checkbox" checked={welcomeEnabled} onChange={(e) => setWelcomeEnabled(e.target.checked)} />
-            Activé
-          </label>
+          <div className="flex items-center gap-2 text-sm text-zinc-300">
+            <span>Activé</span>
+            <Toggle checked={welcomeEnabled} onChange={setWelcomeEnabled} />
+          </div>
         </div>
         <p className="mt-1 text-sm text-zinc-400">Envoyé par le Gateway à chaque arrivée de membre.</p>
         <label className="mt-3 block text-sm text-zinc-300">
@@ -170,10 +172,10 @@ export function WelcomePage() {
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">Message de départ</h2>
-          <label className="flex items-center gap-2 text-sm text-zinc-300">
-            <input type="checkbox" checked={leaveEnabled} onChange={(e) => setLeaveEnabled(e.target.checked)} />
-            Activé
-          </label>
+          <div className="flex items-center gap-2 text-sm text-zinc-300">
+            <span>Activé</span>
+            <Toggle checked={leaveEnabled} onChange={setLeaveEnabled} />
+          </div>
         </div>
         <label className="mt-3 block text-sm text-zinc-300">
           Salon
@@ -194,16 +196,15 @@ export function WelcomePage() {
           Salon des logs
           <ChannelSelect channels={channels.data} value={logChannelId} onChange={setLogChannelId} />
         </label>
-        <div className="mt-3 space-y-2">
+        <div className="mt-3 divide-y divide-white/5">
           {LOG_TOGGLES.map((t) => (
-            <label key={t.key} className="flex items-center gap-2 text-sm text-zinc-300">
-              <input
-                type="checkbox"
+            <div key={t.key} className="py-2.5 first:pt-0 last:pb-0">
+              <Toggle
+                label={t.label}
                 checked={logToggles[t.key] ?? false}
-                onChange={(e) => setLogToggles((prev) => ({ ...prev, [t.key]: e.target.checked }))}
+                onChange={(v) => setLogToggles((prev) => ({ ...prev, [t.key]: v }))}
               />
-              {t.label}
-            </label>
+            </div>
           ))}
         </div>
       </section>
@@ -212,13 +213,18 @@ export function WelcomePage() {
         <button
           onClick={() => save.mutate()}
           disabled={save.isPending}
-          className="rounded-lg bg-indigo-600 px-5 py-2.5 font-medium text-white transition hover:bg-indigo-500 disabled:opacity-50"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {save.isPending ? "Enregistrement…" : "Enregistrer"}
         </button>
         {save.isSuccess && <span className="text-sm text-green-400">✓ Enregistré</span>}
         {save.isError && <span className="text-sm text-red-400">Échec de l'enregistrement</span>}
       </div>
+
+      <InfoCard icon={<Icon.wave />} title="Bon à savoir">
+        Variables disponibles : <code>{"{mention}"}</code> <code>{"{user}"}</code> <code>{"{server}"}</code>{" "}
+        <code>{"{membercount}"}</code>. L'envoi des messages et des logs nécessite le service Gateway.
+      </InfoCard>
     </div>
   );
 }

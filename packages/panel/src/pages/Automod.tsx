@@ -3,6 +3,8 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AutomodSettingsDto, ChannelOption, RoleOption } from "@bot/shared";
 import { api } from "../lib/api.js";
+import { InfoCard, Toggle as Switch } from "../ui/kit.js";
+import { Icon } from "../ui/icons.js";
 
 const ACTIONS = [
   { value: "delete", label: "Supprimer le message seulement" },
@@ -12,10 +14,10 @@ const ACTIONS = [
 
 function Toggle(props: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
-    <label className="flex items-center gap-2 text-sm text-zinc-300">
-      <input type="checkbox" checked={props.checked} onChange={(e) => props.onChange(e.target.checked)} />
-      {props.label}
-    </label>
+    <div className="flex items-center gap-3">
+      <Switch checked={props.checked} onChange={props.onChange} />
+      <span className="text-sm text-zinc-300">{props.label}</span>
+    </div>
   );
 }
 
@@ -110,7 +112,7 @@ export function AutomodPage() {
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 space-y-3">
         <h2 className="font-semibold">Anti-spam</h2>
         <Toggle checked={s.antiSpamEnabled} onChange={(v) => set({ antiSpamEnabled: v })} label="Activé" />
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="text-sm text-zinc-300">
             Messages max
             <input
@@ -232,13 +234,18 @@ export function AutomodPage() {
         <button
           onClick={() => save.mutate()}
           disabled={save.isPending}
-          className="rounded-lg bg-indigo-600 px-5 py-2.5 font-medium text-white transition hover:bg-indigo-500 disabled:opacity-50"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {save.isPending ? "Enregistrement…" : "Enregistrer"}
         </button>
         {save.isSuccess && <span className="text-sm text-green-400">✓ Enregistré</span>}
         {save.isError && <span className="text-sm text-red-400">Échec de l'enregistrement</span>}
       </div>
+
+      <InfoCard icon={<Icon.shield />} title="Bon à savoir">
+        Les membres avec la permission « Gérer les messages » sont <b>toujours</b> exemptés de l'auto-modération, même
+        sans règle d'exemption. L'auto-mod nécessite le service Gateway pour agir en temps réel.
+      </InfoCard>
     </div>
   );
 }

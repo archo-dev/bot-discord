@@ -3,6 +3,8 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ButtonRoleMessageDto, ChannelOption, RoleOption } from "@bot/shared";
 import { api } from "../lib/api.js";
+import { InfoCard } from "../ui/kit.js";
+import { Icon } from "../ui/icons.js";
 
 const STYLE_OPTIONS = [
   { value: 1, label: "Bleu" },
@@ -188,7 +190,7 @@ export function RolesPage() {
           <button
             onClick={() => publish.mutate()}
             disabled={publish.isPending || !canPublish}
-            className="rounded-lg bg-indigo-600 px-5 py-2.5 font-medium text-white transition hover:bg-indigo-500 disabled:opacity-50"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {publish.isPending ? "Publication…" : "Publier le message"}
           </button>
@@ -233,6 +235,11 @@ export function RolesPage() {
           ))}
         </div>
       </section>
+
+      <InfoCard icon={<Icon.tag />} title="Astuce">
+        Le rôle du bot doit être placé <b>au-dessus</b> des rôles distribués (Paramètres du serveur → Rôles), sinon
+        Discord refuse l'attribution (erreur de hiérarchie). Les boutons fonctionnent sans le Gateway.
+      </InfoCard>
     </div>
   );
 }

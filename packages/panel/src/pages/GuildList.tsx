@@ -10,15 +10,15 @@ export function GuildList({ me }: { me: MeResponse }) {
   });
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10">
-      <header className="mb-8 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Mes serveurs</h1>
+    <div className="mx-auto max-w-3xl px-4 py-8 sm:py-10">
+      <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold tracking-tight">Mes serveurs</h1>
         <div className="flex items-center gap-3">
           <img src={avatarUrl(me.id, me.avatar, 64)} alt="" className="h-8 w-8 rounded-full" />
-          <span className="text-sm text-zinc-300">{me.globalName ?? me.username}</span>
+          <span className="hidden text-sm text-zinc-300 sm:inline">{me.globalName ?? me.username}</span>
           <button
             onClick={() => fetch("/auth/logout", { method: "POST" }).then(() => location.reload())}
-            className="rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800"
+            className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 transition hover:bg-zinc-800"
           >
             Déconnexion
           </button>

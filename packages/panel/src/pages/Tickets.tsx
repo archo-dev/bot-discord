@@ -3,6 +3,8 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ChannelOption, Paginated, RoleOption, TicketDto, TicketSettingsDto } from "@bot/shared";
 import { api } from "../lib/api.js";
+import { Badge, Button, Card, Chip, Field, InfoCard, Input, SaveFeedback, Select, Textarea, Toggle } from "../ui/kit.js";
+import { Icon } from "../ui/icons.js";
 
 const STATUS_LABELS = { open: "Ouvert", closed: "Fermé" } as const;
 
@@ -72,159 +74,116 @@ export function TicketsPage() {
 
   return (
     <div className="max-w-3xl space-y-8">
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="font-semibold">Système de tickets</h2>
-            <p className="mt-1 text-sm text-zinc-400">
-              Un bouton dans un salon public ouvre un salon privé entre le membre et le staff.
-            </p>
-          </div>
-          <button
-            onClick={() => setEnabled((v) => !v)}
-            className={`relative h-6 w-11 rounded-full transition ${enabled ? "bg-indigo-600" : "bg-zinc-700"}`}
-            aria-label="Activer les tickets"
-          >
-            <span
-              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${enabled ? "left-[22px]" : "left-0.5"}`}
-            />
-          </button>
-        </div>
-
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <label className="text-sm text-zinc-300">
-            Catégorie des tickets
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
-            >
+      <Card
+        title="Système de tickets"
+        description="Un bouton dans un salon public ouvre un salon privé entre le membre et le staff."
+        action={<Toggle checked={enabled} onChange={setEnabled} />}
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Catégorie des tickets">
+            <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
               <option value="">— Choisir une catégorie —</option>
               {categories.map((ch) => (
                 <option key={ch.id} value={ch.id}>
                   {ch.name}
                 </option>
               ))}
-            </select>
-          </label>
-          <label className="text-sm text-zinc-300">
-            Salon des transcripts (optionnel)
-            <select
-              value={transcriptChannelId}
-              onChange={(e) => setTranscriptChannelId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
-            >
+            </Select>
+          </Field>
+          <Field label="Salon des transcripts (optionnel)">
+            <Select value={transcriptChannelId} onChange={(e) => setTranscriptChannelId(e.target.value)}>
               <option value="">— Aucun —</option>
               {textChannels.map((ch) => (
                 <option key={ch.id} value={ch.id}>
                   #{ch.name}
                 </option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </Field>
         </div>
 
         <div className="mt-4">
-          <p className="text-sm text-zinc-300">Rôles staff (voient tous les tickets)</p>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <p className="mb-2 text-[13px] font-medium text-zinc-300">Rôles staff (voient tous les tickets)</p>
+          <div className="flex flex-wrap gap-2">
             {roles.data
               ?.filter((r) => !r.managed)
-              .map((r) => {
-                const selected = staffRoleIds.includes(r.id);
-                return (
-                  <button
-                    key={r.id}
-                    onClick={() =>
-                      setStaffRoleIds((prev) => (selected ? prev.filter((id) => id !== r.id) : [...prev, r.id]))
-                    }
-                    className={`rounded-full border px-3 py-1 text-sm transition ${
-                      selected
-                        ? "border-indigo-500 bg-indigo-950 text-indigo-200"
-                        : "border-zinc-700 text-zinc-400 hover:border-zinc-500"
-                    }`}
-                  >
-                    {r.name}
-                  </button>
-                );
-              })}
+              .map((r) => (
+                <Chip
+                  key={r.id}
+                  selected={staffRoleIds.includes(r.id)}
+                  onClick={() =>
+                    setStaffRoleIds((prev) =>
+                      prev.includes(r.id) ? prev.filter((id) => id !== r.id) : [...prev, r.id],
+                    )
+                  }
+                >
+                  {r.name}
+                </Chip>
+              ))}
           </div>
         </div>
 
         <div className="mt-5 flex items-center gap-3">
-          <button
-            onClick={() => saveSettings.mutate()}
-            disabled={saveSettings.isPending}
-            className="rounded-lg bg-indigo-600 px-5 py-2.5 font-medium text-white transition hover:bg-indigo-500 disabled:opacity-50"
-          >
+          <Button onClick={() => saveSettings.mutate()} disabled={saveSettings.isPending}>
             {saveSettings.isPending ? "Enregistrement…" : "Enregistrer"}
-          </button>
-          {saveSettings.isSuccess && <span className="text-sm text-green-400">✓ Enregistré</span>}
-          {saveSettings.isError && <span className="text-sm text-red-400">Échec de l'enregistrement</span>}
+          </Button>
+          <SaveFeedback status={saveSettings.isPending ? "pending" : saveSettings.isSuccess ? "success" : saveSettings.isError ? "error" : "idle"} />
         </div>
-      </section>
+      </Card>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-        <h2 className="font-semibold">Panneau d'ouverture</h2>
-        <p className="mt-1 text-sm text-zinc-400">
-          Publie (ou republie) le message avec le bouton « Ouvrir un ticket » dans un salon public.
-          {settings.data?.panelChannelId && (
-            <> Panneau actuel : salon <code>#{textChannels.find((c) => c.id === settings.data?.panelChannelId)?.name ?? settings.data.panelChannelId}</code>.</>
-          )}
-        </p>
-        <div className="mt-3 grid gap-4">
-          <label className="text-sm text-zinc-300">
-            Salon
-            <select
-              value={panelChannelId}
-              onChange={(e) => setPanelChannelId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
-            >
+      <Card
+        title="Panneau d'ouverture"
+        description={
+          <>
+            Publie (ou republie) le message avec le bouton « Ouvrir un ticket » dans un salon public.
+            {settings.data?.panelChannelId && (
+              <> Panneau actuel : salon <code>#{textChannels.find((c) => c.id === settings.data?.panelChannelId)?.name ?? settings.data.panelChannelId}</code>.</>
+            )}
+          </>
+        }
+      >
+        <div className="grid gap-4">
+          <Field label="Salon">
+            <Select value={panelChannelId} onChange={(e) => setPanelChannelId(e.target.value)}>
               <option value="">— Choisir un salon —</option>
               {textChannels.map((ch) => (
                 <option key={ch.id} value={ch.id}>
                   #{ch.name}
                 </option>
               ))}
-            </select>
-          </label>
-          <label className="text-sm text-zinc-300">
-            Titre
-            <input
-              value={panelTitle}
-              onChange={(e) => setPanelTitle(e.target.value)}
-              maxLength={256}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
-            />
-          </label>
-          <label className="text-sm text-zinc-300">
-            Description
-            <textarea
+            </Select>
+          </Field>
+          <Field label="Titre">
+            <Input value={panelTitle} onChange={(e) => setPanelTitle(e.target.value)} maxLength={256} />
+          </Field>
+          <Field label="Description">
+            <Textarea
               value={panelDescription}
               onChange={(e) => setPanelDescription(e.target.value)}
               maxLength={2000}
               rows={3}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
             />
-          </label>
+          </Field>
         </div>
         <div className="mt-4 flex items-center gap-3">
-          <button
-            onClick={() => publishPanel.mutate()}
-            disabled={publishPanel.isPending || !panelChannelId}
-            className="rounded-lg bg-indigo-600 px-5 py-2.5 font-medium text-white transition hover:bg-indigo-500 disabled:opacity-50"
-          >
+          <Button onClick={() => publishPanel.mutate()} disabled={publishPanel.isPending || !panelChannelId}>
             {publishPanel.isPending ? "Publication…" : "Publier le panneau"}
-          </button>
-          {publishPanel.isSuccess && <span className="text-sm text-green-400">✓ Publié</span>}
+          </Button>
+          {publishPanel.isSuccess && <SaveFeedback status="success" />}
           {publishPanel.isError && (
             <span className="text-sm text-red-400">
               Échec — configurez d'abord la catégorie, et vérifiez les permissions du bot dans le salon.
             </span>
           )}
         </div>
-      </section>
+      </Card>
 
       <TicketList guildId={guildId!} />
+
+      <InfoCard icon={<Icon.ticket />} title="Bon à savoir">
+        Configure d'abord une <b>catégorie</b> et les rôles staff. Le bot doit pouvoir gérer les salons de cette
+        catégorie (permission « Gérer les salons ») pour ouvrir et fermer les tickets.
+      </InfoCard>
     </div>
   );
 }
@@ -248,34 +207,28 @@ function TicketList({ guildId }: { guildId: string }) {
   const totalPages = tickets.data ? Math.max(Math.ceil(tickets.data.total / tickets.data.pageSize), 1) : 1;
 
   return (
-    <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold">Tickets ({tickets.data?.total ?? "…"})</h2>
+    <Card
+      title={`Tickets (${tickets.data?.total ?? "…"})`}
+      action={
         <select
           value={status}
           onChange={(e) => {
             setStatus(e.target.value as typeof status);
             setPage(1);
           }}
-          className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm"
+          className="h-9 rounded-lg border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100"
         >
           <option value="">Tous</option>
           <option value="open">Ouverts</option>
           <option value="closed">Fermés</option>
         </select>
-      </div>
-
-      <div className="mt-4 divide-y divide-zinc-800">
+      }
+    >
+      <div className="divide-y divide-white/5">
         {tickets.data?.items.length === 0 && <p className="py-4 text-sm text-zinc-500">Aucun ticket.</p>}
         {tickets.data?.items.map((t) => (
-          <div key={t.id} className="flex items-center gap-3 py-3 text-sm">
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs ${
-                t.status === "open" ? "bg-green-950 text-green-300" : "bg-zinc-800 text-zinc-400"
-              }`}
-            >
-              {STATUS_LABELS[t.status]}
-            </span>
+          <div key={t.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">
+            <Badge tone={t.status === "open" ? "success" : "neutral"}>{STATUS_LABELS[t.status]}</Badge>
             <span className="font-medium">#{String(t.number).padStart(4, "0")}</span>
             <span className="text-zinc-400">
               par <code>{t.userId}</code> · {new Date(t.createdAt + "Z").toLocaleString()}
@@ -316,11 +269,11 @@ function TicketList({ guildId }: { guildId: string }) {
 
       {transcriptOf && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(6,7,14,0.72)] p-4 sm:p-6"
           onClick={() => setTranscriptOf(null)}
         >
           <div
-            className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-xl border border-zinc-700 bg-zinc-900 p-6"
+            className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-2xl border border-zinc-700 bg-zinc-900 p-6 shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between">
@@ -339,6 +292,6 @@ function TicketList({ guildId }: { guildId: string }) {
           </div>
         </div>
       )}
-    </section>
+    </Card>
   );
 }

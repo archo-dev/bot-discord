@@ -12,6 +12,7 @@ import {
   type ChannelOption,
 } from "@bot/shared";
 import { api, ApiError } from "../lib/api.js";
+import { Toggle } from "../ui/kit.js";
 
 const PERMISSION_OPTIONS = [
   { value: "", label: "Tout le monde" },
@@ -133,8 +134,10 @@ function buildLogic(f: FormState): CommandLogic {
 
 // ---------------------------------------------------------------------------
 
-const inputCls = "w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm";
-const selectCls = "rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm";
+const inputCls =
+  "w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40";
+const selectCls =
+  "rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100 transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40";
 
 function ConditionRow({
   condition,
@@ -319,6 +322,7 @@ function ActionRow({
           <label className="flex items-center gap-1 text-xs text-zinc-400">
             <input
               type="checkbox"
+              className="accent-indigo-600"
               checked={action.includeContext}
               onChange={(e) => onChange({ ...action, includeContext: e.target.checked })}
             />
@@ -503,15 +507,15 @@ export function CommandEditorPage() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-6">
-          <label className="flex items-center gap-2 text-sm text-zinc-300">
-            <input type="checkbox" checked={form.replyEphemeral} onChange={(e) => set("replyEphemeral", e.target.checked)} />
-            Réponse éphémère (visible uniquement par l'utilisateur)
-          </label>
-          <label className="flex items-center gap-2 text-sm text-zinc-300">
-            <input type="checkbox" checked={form.embedEnabled} onChange={(e) => set("embedEnabled", e.target.checked)} />
-            Ajouter un embed
-          </label>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
+          <div className="flex items-center gap-2 text-sm text-zinc-300">
+            <Toggle checked={form.replyEphemeral} onChange={(v) => set("replyEphemeral", v)} />
+            <span>Réponse éphémère (visible uniquement par l'utilisateur)</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-zinc-300">
+            <Toggle checked={form.embedEnabled} onChange={(v) => set("embedEnabled", v)} />
+            <span>Ajouter un embed</span>
+          </div>
         </div>
         {form.embedEnabled && (
           <div className="grid grid-cols-1 gap-3 rounded-lg bg-zinc-950 p-4 sm:grid-cols-[1fr_1fr_auto]">
@@ -639,11 +643,14 @@ export function CommandEditorPage() {
             save.mutate();
           }}
           disabled={!canSave || save.isPending}
-          className="rounded-lg bg-indigo-600 px-5 py-2.5 font-medium text-white transition hover:bg-indigo-500 disabled:opacity-50"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {save.isPending ? "Enregistrement…" : isEditing ? "Enregistrer les modifications" : "Créer la commande"}
         </button>
-        <button onClick={() => void navigate(`/guilds/${guildId}/commands`)} className="rounded-lg border border-zinc-700 px-4 py-2.5 text-sm hover:bg-zinc-800">
+        <button
+          onClick={() => void navigate(`/guilds/${guildId}/commands`)}
+          className="inline-flex h-10 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 px-4 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-700"
+        >
           Annuler
         </button>
         {!canSave && form.name && (

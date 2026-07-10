@@ -2,6 +2,8 @@ import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CustomCommandDto } from "@bot/shared";
 import { api } from "../lib/api.js";
+import { Badge, InfoCard, Toggle } from "../ui/kit.js";
+import { Icon } from "../ui/icons.js";
 
 export function CommandsPage() {
   const { guildId } = useParams<{ guildId: string }>();
@@ -36,7 +38,7 @@ export function CommandsPage() {
         </p>
         <Link
           to="new"
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-500"
         >
           + Nouvelle commande
         </Link>
@@ -56,41 +58,35 @@ export function CommandsPage() {
             className="flex items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3"
           >
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <code className="font-medium text-indigo-300">/{cmd.name}</code>
                 {cmd.gatewayRequired && (
-                  <span className="rounded-full bg-amber-950 px-2 py-0.5 text-xs text-amber-300" title="Les déclencheurs par mot-clé nécessitent le service Gateway (Option B).">
-                    mot-clé — nécessite Gateway
+                  <span title="Les déclencheurs par mot-clé nécessitent le service Gateway (Option B).">
+                    <Badge tone="warning">mot-clé — Gateway</Badge>
                   </span>
                 )}
                 {(cmd.logic.conditions.length > 0 || cmd.logic.actions.some((a) => a.type !== "reply")) && (
-                  <span className="rounded-full bg-purple-950 px-2 py-0.5 text-xs text-purple-300">avancée</span>
+                  <Badge tone="primary">avancée</Badge>
                 )}
               </div>
               <p className="truncate text-sm text-zinc-500">{cmd.description}</p>
             </div>
 
-            <button
-              onClick={() => toggle.mutate(cmd)}
-              disabled={toggle.isPending}
-              role="switch"
-              aria-checked={cmd.enabled}
-              className={`relative h-6 w-11 rounded-full transition ${cmd.enabled ? "bg-indigo-600" : "bg-zinc-700"}`}
-              title={cmd.enabled ? "Désactiver" : "Activer"}
-            >
-              <span
-                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${cmd.enabled ? "left-[22px]" : "left-0.5"}`}
-              />
-            </button>
+            <span title={cmd.enabled ? "Désactiver" : "Activer"}>
+              <Toggle checked={cmd.enabled} onChange={() => !toggle.isPending && toggle.mutate(cmd)} />
+            </span>
 
-            <Link to={String(cmd.id)} className="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-800">
+            <Link
+              to={String(cmd.id)}
+              className="inline-flex h-8 items-center rounded-lg border border-zinc-700 bg-zinc-800 px-3 text-[13px] font-medium text-zinc-100 transition hover:bg-zinc-700"
+            >
               Modifier
             </Link>
             <button
               onClick={() => {
                 if (confirm(`Supprimer /${cmd.name} ?`)) remove.mutate(cmd);
               }}
-              className="rounded-md border border-red-900/60 px-3 py-1.5 text-sm text-red-400 hover:bg-red-950/40"
+              className="inline-flex h-8 items-center rounded-lg px-3 text-[13px] font-medium text-red-400 transition hover:bg-red-950/50"
             >
               Supprimer
             </button>
@@ -100,6 +96,13 @@ export function CommandsPage() {
       {(toggle.isError || remove.isError) && (
         <p className="mt-3 text-sm text-red-400">L'opération a échoué — réessayez.</p>
       )}
+
+      <div className="mt-6">
+        <InfoCard icon={<Icon.command />} title="Bon à savoir">
+          Les commandes utilisent une liste d'actions sécurisées (pas d'<code>eval</code>). Les déclencheurs par mot-clé
+          nécessitent le service Gateway ; les slash commands fonctionnent en HTTP.
+        </InfoCard>
+      </div>
     </div>
   );
 }

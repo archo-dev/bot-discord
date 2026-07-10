@@ -3,6 +3,8 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AutoRoleEntry, ChannelOption, GuildOverview, RoleOption } from "@bot/shared";
 import { api } from "../lib/api.js";
+import { Button, Card, Chip, Field, InfoCard, Input, SaveFeedback, Select } from "../ui/kit.js";
+import { Icon } from "../ui/icons.js";
 
 export function ConfigPage() {
   const { guildId } = useParams<{ guildId: string }>();
@@ -66,96 +68,83 @@ export function ConfigPage() {
   if (overview.isPending) return <p className="text-zinc-400">Chargement…</p>;
 
   return (
-    <div className="max-w-2xl space-y-8">
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-        <h2 className="font-semibold">Logs de modération</h2>
-        <p className="mt-1 text-sm text-zinc-400">Salon où le bot poste chaque action de modération.</p>
-        <select
-          value={logChannelId}
-          onChange={(e) => setLogChannelId(e.target.value)}
-          className="mt-3 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
-        >
+    <div className="max-w-2xl space-y-6">
+      <Card title="Logs de modération" description="Salon où le bot poste chaque action de modération.">
+        <Select value={logChannelId} onChange={(e) => setLogChannelId(e.target.value)}>
           <option value="">— Désactivé —</option>
           {channels.data?.filter((ch) => ch.type !== 4).map((ch) => (
             <option key={ch.id} value={ch.id}>
               #{ch.name}
             </option>
           ))}
-        </select>
-      </section>
+        </Select>
+      </Card>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-        <h2 className="font-semibold">Avertissements</h2>
-        <p className="mt-1 text-sm text-zinc-400">
-          Au bout de <b>{warnThreshold}</b> warns actifs, le membre est automatiquement mute{" "}
-          <b>{warnTimeoutMinutes} min</b> (appliqué au moment du /warn).
-        </p>
-        <div className="mt-3 grid grid-cols-2 gap-4">
-          <label className="text-sm text-zinc-300">
-            Seuil de warns
-            <input
+      <Card
+        title="Avertissements"
+        description={
+          <>
+            Au bout de <b>{warnThreshold}</b> warns actifs, le membre est automatiquement mute{" "}
+            <b>{warnTimeoutMinutes} min</b> (appliqué au moment du /warn).
+          </>
+        }
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Seuil de warns">
+            <Input
               type="number"
               min={1}
               max={20}
               value={warnThreshold}
               onChange={(e) => setWarnThreshold(Number(e.target.value))}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
             />
-          </label>
-          <label className="text-sm text-zinc-300">
-            Durée du mute auto (minutes)
-            <input
+          </Field>
+          <Field label="Durée du mute auto (minutes)">
+            <Input
               type="number"
               min={1}
               max={40320}
               value={warnTimeoutMinutes}
               onChange={(e) => setWarnTimeoutMinutes(Number(e.target.value))}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
             />
-          </label>
+          </Field>
         </div>
-      </section>
+      </Card>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
-        <h2 className="font-semibold">Rôles automatiques à l'arrivée</h2>
-        <p className="mt-1 text-sm text-zinc-400">
-          Attribués par le service Gateway à chaque membre qui rejoint le serveur.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
+      <Card
+        title="Rôles automatiques à l'arrivée"
+        description="Attribués par le service Gateway à chaque membre qui rejoint le serveur."
+      >
+        <div className="flex flex-wrap gap-2">
           {roles.data
             ?.filter((r) => !r.managed)
-            .map((r) => {
-              const selected = selectedAutoRoles.includes(r.id);
-              return (
-                <button
-                  key={r.id}
-                  onClick={() =>
-                    setSelectedAutoRoles((prev) => (selected ? prev.filter((id) => id !== r.id) : [...prev, r.id]))
-                  }
-                  className={`rounded-full border px-3 py-1 text-sm transition ${
-                    selected
-                      ? "border-indigo-500 bg-indigo-950 text-indigo-200"
-                      : "border-zinc-700 text-zinc-400 hover:border-zinc-500"
-                  }`}
-                >
-                  {r.name}
-                </button>
-              );
-            })}
+            .map((r) => (
+              <Chip
+                key={r.id}
+                selected={selectedAutoRoles.includes(r.id)}
+                onClick={() =>
+                  setSelectedAutoRoles((prev) =>
+                    prev.includes(r.id) ? prev.filter((id) => id !== r.id) : [...prev, r.id],
+                  )
+                }
+              >
+                {r.name}
+              </Chip>
+            ))}
         </div>
-      </section>
+      </Card>
 
       <div className="flex items-center gap-3">
-        <button
-          onClick={() => save.mutate()}
-          disabled={save.isPending}
-          className="rounded-lg bg-indigo-600 px-5 py-2.5 font-medium text-white transition hover:bg-indigo-500 disabled:opacity-50"
-        >
+        <Button onClick={() => save.mutate()} disabled={save.isPending}>
           {save.isPending ? "Enregistrement…" : "Enregistrer"}
-        </button>
-        {save.isSuccess && <span className="text-sm text-green-400">✓ Enregistré</span>}
-        {save.isError && <span className="text-sm text-red-400">Échec de l'enregistrement</span>}
+        </Button>
+        <SaveFeedback status={save.isPending ? "pending" : save.isSuccess ? "success" : save.isError ? "error" : "idle"} />
       </div>
+
+      <InfoCard icon={<Icon.sliders />} title="Bon à savoir">
+        Ces réglages s'appliquent immédiatement. Le mute automatique se déclenche au moment du <code>/warn</code> qui
+        atteint le seuil, pas rétroactivement.
+      </InfoCard>
     </div>
   );
 }
