@@ -145,11 +145,18 @@
 - [x] Panel : page **Musique** (now-playing, barre de progression, file, boutons pause/skip/stop, playlists) — polling KV 4 s
 - [x] Gateway M14 déployé sur le VPS et démarré proprement (DisTube init OK)
 
-**Reste (bloqué sur action utilisateur) :**
+**Infra mise en place le 2026-07-11 (session debug complète) :**
 
-- [ ] Domaine rattaché à Cloudflare → tunnel cloudflared `gateway.<domaine>` → localhost:8788 (guide README §8)
-- [ ] Secrets Worker `GATEWAY_ORIGIN` + `GATEWAY_HTTP_TOKEN` (le token est déjà dans le `.env` du VPS)
-- [ ] Migration 0011 remote + `wrangler deploy` + `pnpm register:dev` (autorisation utilisateur)
-- [ ] Validation : `/play` sur Discord + contrôles + vue panel
+- [x] Domaine `archolabs.com` sur Cloudflare → tunnel cloudflared **géré à distance** (dashboard Zero Trust, tunnel `botdiscord-gw`, Public Hostname `gateway.archolabs.com` → `http://localhost:8788`). Connecteur installé via `cloudflared service install <token>`.
+- [x] Secrets Worker `GATEWAY_ORIGIN=https://gateway.archolabs.com` + `GATEWAY_HTTP_TOKEN` (via `wrangler secret bulk`)
+- [x] Migration 0011 remote appliquée + `wrangler deploy` (version `ba70a3fb`) + `pnpm register:dev` (24 commandes)
 
-⚠️ Risque assumé : YouTube casse régulièrement les libs de musique — `yt-dlp` à mettre à jour ponctuellement (`sudo curl -L …/yt-dlp -o /usr/local/bin/yt-dlp`).
+**3 bugs de prod résolus (dans l'ordre) — voir mémoire [[botdiscord-music-youtube]] :**
+
+1. **Vocal — close code 4017 « E2EE/DAVE protocol required »** : Discord impose DAVE. `@discordjs/voice` 0.18.0 ne le gère pas. Fix : override pnpm `@discordjs/voice: 0.19.2` (racine `package.json`, forcé partout y compris DisTube) + `pnpm --filter @bot/gateway add @snazzah/davey`. → connexion vocale `Ready` ✅ (⚠️ **override + davey à répercuter dans le repo** avant tout redéploiement par bundle, sinon régression).
+2. **`@distube/yt-dlp` utilise son propre binaire** (jamais téléchargé, script pnpm ignoré) → drop-in systemd `Environment=YTDLP_DIR=/usr/local/bin` pour pointer sur le yt-dlp système.
+3. **YouTube bloque l'IP datacenter** → `/etc/yt-dlp.conf` avec `--cookies /etc/yt-dlp-cookies.txt` (cookies exportés d'un compte jetable, propriété `ubuntu` pour la réécriture) + `--default-search ytsearch` ; **Deno** installé (`/usr/local/bin/deno`) pour résoudre les signatures JS (sinon storyboards only). Extraction audio prouvée OK.
+
+- [ ] **Validation finale `/play`** : bloquée le 2026-07-11 par un **rate-limit YouTube temporaire** (trop de requêtes de test → bot-check). La chaîne complète a été prouvée fonctionnelle juste avant. À revalider après refroidissement de l'IP (~1 h), sinon ré-exporter des cookies frais.
+
+⚠️ Risque assumé : YouTube casse régulièrement — cookies à ré-exporter périodiquement, `yt-dlp -U` ponctuel.
