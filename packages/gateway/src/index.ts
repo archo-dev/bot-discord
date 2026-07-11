@@ -25,6 +25,9 @@ const configCache = createConfigCache(api);
 // GuildVoiceStates (not privileged) is required for music (resolve the member's
 // voice channel, detect empty channels). Partials.Message lets MessageDelete/Update
 // fire for uncached messages.
+// GuildPresences (privileged, M19) is gated behind PRESENCE_ENABLED so it's only
+// requested once enabled in the portal — otherwise login crashes.
+const presenceEnabled = env.PRESENCE_ENABLED === "true" || env.PRESENCE_ENABLED === "1";
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -32,6 +35,7 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildVoiceStates,
+    ...(presenceEnabled ? [GatewayIntentBits.GuildPresences] : []),
   ],
   partials: [Partials.Message],
 });

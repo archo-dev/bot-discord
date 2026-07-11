@@ -13,6 +13,7 @@ import { xpRouter } from "./api/xp.js";
 import { musicRouter } from "./api/music.js";
 import { membersRouter } from "./api/members.js";
 import { voiceLogsRouter } from "./api/voice-logs.js";
+import { statsRouter } from "./api/stats.js";
 import { internalRouter } from "./internal/routes.js";
 import { blockModeratorWrites, requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
 import { runScheduled } from "./cron.js";
@@ -44,6 +45,7 @@ api.route("/", xpRouter);
 api.route("/", musicRouter);
 api.route("/", membersRouter);
 api.route("/", voiceLogsRouter);
+api.route("/", statsRouter);
 api.route("/", guildsRouter);
 app.route("/api", api);
 

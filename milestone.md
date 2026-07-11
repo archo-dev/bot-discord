@@ -25,6 +25,7 @@
 | M16 | Surnom du bot par guilde | ✅ Déployé (`22d7ffb7`) ; permission Discord à vérifier par serveur | — |
 | M17 | Logs vocaux | ✅ Déployé (worker `e3c3e6a8` + gateway VPS) ; test manuel vocal restant | `eb0daa4` |
 | M18 | Collecte stats + cron Cloudflare | ✅ Déployé (worker `09868500` + gateway VPS) ; données à J+24 h | — |
+| M19 | Page Stats (Recharts) | ✅ Déployé worker+panel (`c07c0015`) ; presence en attente d'activation portail | — |
 
 ---
 
@@ -228,4 +229,16 @@ Collecte de stats côté gateway (en mémoire, flush périodique, zéro scan d'h
 - [x] Déployé : migration 0015 remote, worker `09868500` (cron `23 4 * * *` enregistré), gateway VPS mis à jour.
 
 - [ ] **Vérif à J+24 h** : `wrangler d1 execute botdiscord --remote --command "SELECT * FROM member_snapshots LIMIT 5"` doit montrer des snapshots ; `channel_activity` des compteurs cohérents après activité.
+
+## ✅ M19 — Page Stats (Recharts) (worker+panel `c07c0015`) — 137/137 tests worker
+
+Page **Statistiques** dans le panel : exploite les données collectées en M18. Pas de migration. Toutes les routes GET → accessibles modérateur.
+
+- [x] Worker `api/stats.ts` : GET `stats/members?days=7|30|90` (snapshots horaires à 7 j sinon quotidiens + deltas joins/leaves depuis `gateway_events`), `stats/channels?days=1|7|30` (top 10 messages + top 10 vocal), `stats/presence` (lit KV `gateway:status` ; null si intent off), `stats/events` (REST scheduled-events + cache KV 300 s). Queries `listMemberSnapshots`/`listMemberDeltas`/`topChannels`.
+- [x] Panel : Recharts ajouté. `ui/charts.tsx` — wrappers palette `--viz-*` (thème dark, tooltips en tokens texte, états vides) : courbe membres (humains violet / bots vert, **paire CVD-validée ΔE > 100** via le validateur de la skill dataviz), barres divergentes joins/leaves (axe zéro), barres horizontales top salons (onglets messages/vocal + période), donut présence (statuts + légende).
+- [x] Panel : page `Stats.tsx` (layout bento, sélecteurs de période) + route `/stats` + entrée sidebar (groupe Serveur, icône `chart`). Si `presence === null` → carte d'aide « Activer la présence » (dégradation propre).
+- [x] Gateway : intent `GuildPresences` ajouté mais **gated par `PRESENCE_ENABLED`** (défaut off) → déploiement sans risque de crash « Used disallowed intents ». Presence dans le heartbeat déjà en place (M18).
+- [x] Déployé worker+panel `c07c0015` (pas de migration, gateway non redéployé — intent inerte tant que le flag est off).
+
+- [ ] **Action manuelle utilisateur (presence, optionnel)** : ① portail dev Discord → Bot → **Presence Intent ON** ; ② sur le VPS, ajouter `PRESENCE_ENABLED=true` dans `.env` du gateway ; ③ `sudo systemctl restart botdiscord-gateway`. Sans ça, le donut affiche la carte d'aide (le reste de la page fonctionne).
 

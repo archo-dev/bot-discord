@@ -11,6 +11,7 @@ import { CommandsPage } from "./pages/Commands.js";
 import { CommandEditorPage } from "./pages/CommandEditor.js";
 import { ModLogPage } from "./pages/ModLog.js";
 import { VoiceLogPage } from "./pages/VoiceLog.js";
+import { StatsPage } from "./pages/Stats.js";
 import { PanelAccessPage } from "./pages/PanelAccess.js";
 import { TicketsPage } from "./pages/Tickets.js";
 import { RolesPage } from "./pages/Roles.js";
@@ -60,6 +61,7 @@ export function App() {
       <Route path="/" element={<GuildList me={me.data} />} />
       <Route path="/guilds/:guildId" element={<GuildLayout me={me.data} />}>
         <Route index element={<Dashboard />} />
+        <Route path="stats" element={<StatsPage />} />
         <Route path="config" element={<ConfigPage />} />
         <Route path="commands" element={<CommandsPage />} />
         <Route path="commands/new" element={<CommandEditorPage />} />

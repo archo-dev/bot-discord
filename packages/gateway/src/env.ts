@@ -10,6 +10,12 @@ const envSchema = z.object({
   /** Bearer expected on this service's own HTTP endpoints (Worker → gateway). */
   GATEWAY_HTTP_TOKEN: z.string().min(16),
   GATEWAY_PORT: z.coerce.number().int().min(1).max(65535).default(8788),
+  /**
+   * Gate for the privileged GuildPresences intent (M19). Set to "true" ONLY once
+   * the Presence Intent is enabled in the Discord Developer Portal — otherwise the
+   * client crashes at login with "Used disallowed intents". Default off = safe.
+   */
+  PRESENCE_ENABLED: z.string().optional(),
 });
 
 export type GatewayEnv = z.infer<typeof envSchema>;
