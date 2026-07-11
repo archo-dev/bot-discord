@@ -7,6 +7,7 @@ import { Badge, Button, Card, EmptyState, ErrorCard, InfoCard, Pagination, Tabs,
 import { Icon } from "../ui/icons.js";
 import { SkeletonList } from "../ui/skeleton.js";
 import { UserCell } from "../ui/cells.js";
+import { MemberCombobox } from "../ui/entity-select.js";
 import { ConfirmModal } from "../ui/overlay.js";
 import { actionMeta, ModActionIcon, TimeAgo } from "../ui/mod-meta.js";
 
@@ -151,12 +152,14 @@ function Warnings() {
     <Card
       title="Avertissements"
       action={
-        <input
-          value={userFilter}
-          onChange={(e) => setUserFilter(e.target.value.trim())}
-          placeholder="Filtrer par ID utilisateur"
-          className="h-9 w-44 rounded-lg border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100 placeholder:text-zinc-500 sm:w-64"
-        />
+        <div className="w-56 sm:w-64">
+          <MemberCombobox
+            guildId={guildId!}
+            value={userFilter || null}
+            onChange={(id) => setUserFilter(id ?? "")}
+            placeholder="Filtrer par membre…"
+          />
+        </div>
       }
     >
       {warnings.isPending ? (

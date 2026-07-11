@@ -6,6 +6,7 @@ import { api, ApiError, avatarUrl, guildIconUrl } from "../lib/api.js";
 import { Icon, type IconName } from "../ui/icons.js";
 import { IconButton, ErrorCard } from "../ui/kit.js";
 import { Skeleton } from "../ui/skeleton.js";
+import { MemberResolveProvider } from "../lib/members.js";
 
 interface NavItem {
   to: string;
@@ -231,6 +232,7 @@ export function GuildLayout({ me }: { me: MeResponse }) {
   );
 
   return (
+    <MemberResolveProvider guildId={guildId ?? ""}>
     <div className="min-h-screen lg:flex">
       {/* Sidebar desktop + drawer mobile */}
       <aside
@@ -288,5 +290,6 @@ export function GuildLayout({ me }: { me: MeResponse }) {
         </div>
       </div>
     </div>
+    </MemberResolveProvider>
   );
 }

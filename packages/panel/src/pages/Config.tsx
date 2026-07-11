@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AutoRoleEntry, ChannelOption, GuildOverview, RoleOption } from "@bot/shared";
+import type { AutoRoleEntry, GuildOverview, RoleOption } from "@bot/shared";
 import { api, fieldError } from "../lib/api.js";
-import { Card, Chip, Field, InfoCard, Input, Select } from "../ui/kit.js";
+import { Card, Chip, Field, InfoCard, Input } from "../ui/kit.js";
+import { ChannelSelect } from "../ui/entity-select.js";
 import { SaveBar, useDirty } from "../ui/savebar.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { Icon } from "../ui/icons.js";
@@ -15,10 +16,6 @@ export function ConfigPage() {
   const overview = useQuery({
     queryKey: ["guild", guildId],
     queryFn: () => api<GuildOverview>(`/api/guilds/${guildId}`),
-  });
-  const channels = useQuery({
-    queryKey: ["channels", guildId],
-    queryFn: () => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`),
   });
   const roles = useQuery({
     queryKey: ["roles", guildId],
@@ -96,14 +93,12 @@ export function ConfigPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <Card title="Logs de modération" description="Salon où le bot poste chaque action de modération.">
-        <Select value={logChannelId} onChange={(e) => setLogChannelId(e.target.value)}>
-          <option value="">— Désactivé —</option>
-          {channels.data?.filter((ch) => ch.type !== 4).map((ch) => (
-            <option key={ch.id} value={ch.id}>
-              #{ch.name}
-            </option>
-          ))}
-        </Select>
+        <ChannelSelect
+          guildId={guildId!}
+          value={logChannelId || null}
+          onChange={(id) => setLogChannelId(id ?? "")}
+          placeholder="— Désactivé —"
+        />
       </Card>
 
       <Card

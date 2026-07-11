@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ChannelOption, LogSettingsDto, WelcomeSettingsDto } from "@bot/shared";
+import type { LogSettingsDto, WelcomeSettingsDto } from "@bot/shared";
 import { api, fieldError } from "../lib/api.js";
 import { InfoCard, Toggle } from "../ui/kit.js";
+import { ChannelSelect as EntityChannelSelect } from "../ui/entity-select.js";
 import { SaveBar, useDirty } from "../ui/savebar.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { Icon } from "../ui/icons.js";
@@ -18,26 +19,16 @@ const LOG_TOGGLES: Array<{ key: keyof Omit<LogSettingsDto, "channelId">; label: 
   { key: "memberUpdate", label: "Membres modifiés (surnom, rôles)" },
 ];
 
-function ChannelSelect(props: {
-  channels: ChannelOption[] | undefined;
-  value: string;
-  onChange: (v: string) => void;
-}) {
+function ChannelSelect(props: { guildId: string; value: string; onChange: (v: string) => void }) {
   return (
-    <select
-      value={props.value}
-      onChange={(e) => props.onChange(e.target.value)}
-      className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
-    >
-      <option value="">— Aucun salon —</option>
-      {props.channels
-        ?.filter((ch) => ch.type !== 4)
-        .map((ch) => (
-          <option key={ch.id} value={ch.id}>
-            #{ch.name}
-          </option>
-        ))}
-    </select>
+    <div className="mt-1">
+      <EntityChannelSelect
+        guildId={props.guildId}
+        value={props.value || null}
+        onChange={(id) => props.onChange(id ?? "")}
+        placeholder="— Aucun salon —"
+      />
+    </div>
   );
 }
 
@@ -83,11 +74,6 @@ export function WelcomePage() {
     queryKey: ["log-settings", guildId],
     queryFn: () => api<LogSettingsDto>(`/api/guilds/${guildId}/log-settings`),
   });
-  const channels = useQuery({
-    queryKey: ["channels", guildId],
-    queryFn: () => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`),
-  });
-
   const [welcomeEnabled, setWelcomeEnabled] = useState(false);
   const [welcomeChannelId, setWelcomeChannelId] = useState("");
   const [welcomeMessage, setWelcomeMessage] = useState("");
@@ -206,7 +192,7 @@ export function WelcomePage() {
         <p className="mt-1 text-sm text-zinc-400">Envoyé par le Gateway à chaque arrivée de membre.</p>
         <label className="mt-3 block text-sm text-zinc-300">
           Salon
-          <ChannelSelect channels={channels.data} value={welcomeChannelId} onChange={setWelcomeChannelId} />
+          <ChannelSelect guildId={guildId!} value={welcomeChannelId} onChange={setWelcomeChannelId} />
         </label>
         <label className="mt-3 block text-sm text-zinc-300">
           Message
@@ -228,7 +214,7 @@ export function WelcomePage() {
         </div>
         <label className="mt-3 block text-sm text-zinc-300">
           Salon
-          <ChannelSelect channels={channels.data} value={leaveChannelId} onChange={setLeaveChannelId} />
+          <ChannelSelect guildId={guildId!} value={leaveChannelId} onChange={setLeaveChannelId} />
         </label>
         <label className="mt-3 block text-sm text-zinc-300">
           Message
@@ -243,7 +229,7 @@ export function WelcomePage() {
         </p>
         <label className="mt-3 block text-sm text-zinc-300">
           Salon des logs
-          <ChannelSelect channels={channels.data} value={logChannelId} onChange={setLogChannelId} />
+          <ChannelSelect guildId={guildId!} value={logChannelId} onChange={setLogChannelId} />
         </label>
         <div className="mt-3 divide-y divide-white/5">
           {LOG_TOGGLES.map((t) => (

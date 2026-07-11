@@ -11,6 +11,7 @@ import { welcomeRouter } from "./api/welcome.js";
 import { automodRouter } from "./api/automod.js";
 import { xpRouter } from "./api/xp.js";
 import { musicRouter } from "./api/music.js";
+import { membersRouter } from "./api/members.js";
 import { internalRouter } from "./internal/routes.js";
 import { requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
 
@@ -35,6 +36,7 @@ api.route("/", welcomeRouter);
 api.route("/", automodRouter);
 api.route("/", xpRouter);
 api.route("/", musicRouter);
+api.route("/", membersRouter);
 api.route("/", guildsRouter);
 app.route("/api", api);
 

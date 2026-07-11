@@ -107,7 +107,7 @@ Décisions : **Gateway sur VPS ~5€/mois** (utilisateur débutant → setup gui
 | **M11** ✅ | Bienvenue/départ + auto-rôles à l'arrivée + logs serveur (migration 0008) — livré, déployé (Worker `8885b143`, gateway VPS à jour, intents activés) | Gateway |
 | **M12** ✅ | Auto-modération : anti-spam/invite/lien/mots, exemptions, sanctions via `/internal` qui insèrent aussi des `warnings` (migration 0009) — livré, déployé (Worker `67806992`, gateway VPS à jour) | Gateway |
 | **M13** ✅ | XP/niveaux : gain par message, `/rank`, `/leaderboard`, rôles récompense, page Classement (migration 0010) — livré, déployé (Worker `6ff6ad68`, gateway VPS à jour) | Gateway + Worker |
-| **M14** 🔶 | Musique : DisTube v5 + yt-dlp + ffmpeg, Spotify → recherche YouTube, forward Worker→gateway (token d'interaction), état panel par polling KV (migration 0011 playlists) — **code livré + gateway VPS OK** ; reste tunnel cloudflared `gateway.<domaine>` + secrets Worker `GATEWAY_ORIGIN`/`GATEWAY_HTTP_TOKEN` + migration 0011 remote + deploy | Gateway |
+| **M14** 🔶 | Musique : DisTube v5 + yt-dlp + ffmpeg, Spotify → recherche YouTube, forward Worker→gateway, état panel polling KV (migration 0011) — **infra déployée 2026-07-11** : tunnel `gateway.archolabs.com`, secrets Worker, migration remote, deploy `ba70a3fb`. 3 bugs prod réglés (DAVE→voice 0.19.2+davey ; YTDLP_DIR ; cookies+Deno+default-search) — voir milestone.md + mémoire. **Reste** : valider `/play` après refroidissement rate-limit YouTube ; répercuter override voice+davey dans le repo | Gateway |
 
 Frontière technique : tout ce qui est interaction HTTP (boutons, modals, slash commands) reste dans le Worker ; tout ce qui exige un WebSocket ou du vocal (événements membres/messages, musique) va sur le gateway.
 
@@ -140,16 +140,20 @@ Secrets locaux : `packages/worker/.dev.vars` (gitignoré). Un commit = un milest
 
 ## 8. Chantier design v2 « Nocturne 2 » (panel, non commité)
 
-Spécification : `docs/design_system_v2.md` · plan : `docs/ux_improvement_plan.md`. État au 2026-07-11 (tout front, typecheck + build verts) :
+Spécification : `docs/design_system_v2.md` · plan : `docs/ux_improvement_plan.md`. État au 2026-07-11 (typecheck + build verts, worker 117/117) :
 
 **Fait :**
 - Phase 0 : tokens v2 (`index.css` : info, state-layers, motion, z-index, skeleton), Inter self-hostée (`public/fonts`), primitives `ui/` (toast + Toaster global, Modal/ConfirmModal avec focus trap, SaveBar + useDirty, skeletons, EmptyState, IconButton, Tooltip, Pagination, ErrorCard, InfoTile, UserCell dégradée dans `cells.tsx`), `lib/queryClient.ts` (MutationCache global : toast d'erreur systématique, `meta.successMessage`/`silentError`)
 - Phase 1 : toutes les pages migrées (8 pages de réglages avec SaveBar + les autres : Dashboard, ModLog, Music, GuildList, App, CommandEditor, transcript Tickets) — zéro `confirm()`, zéro « Chargement… », skeletons partout, EmptyStates à registres, révocation de warn via ConfirmModal
-- Phase 2 (partiel) : sidebar groupée + carte serveur unifiée + sous-titre par page + titres de document + favicon (GuildLayout), drawer mobile avec focus trap + Échap, Tabs ARIA (flèches), chips 40 px, dates relatives doublées d'absolu (`TimeAgo`), UserCell partout (mode dégradé : ID abrégé copiable — l'endpoint de résolution de membres reste à faire côté Worker)
+- Phase 2 : sidebar groupée + carte serveur unifiée + sous-titre par page + titres de document + favicon (GuildLayout), drawer mobile avec focus trap + Échap, Tabs ARIA (flèches), chips 40 px, dates relatives doublées d'absolu (`TimeAgo`)
+- Phase 2 — résolution de membres (back + front) : endpoint Worker `api/members.ts` — `GET /members/resolve?ids=` (batch ≤50, cache KV `member:v1:` 600 s, fallback `/users/:id` si le membre est parti) + `GET /members/search?q=` (recherche, cache 60 s ; intent GUILD_MEMBERS requis) ; DTO `ResolvedMember` dans `@bot/shared`. Tests `members.test.ts` (6). **UserCell enrichie** (C1) : avatar + pseudo via `lib/members.tsx` (`MemberResolveProvider` batché, debounce 60 ms, monté dans GuildLayout), fallback dégradé conservé (introuvable / hors provider / chargement)
+- Phase 2 — **Combobox** (E3/E4) : primitive ARIA `ui/combobox.tsx` (rôle combobox+listbox, activedescendant, flèches/Entrée/Échap, clic extérieur) + wrappers `ui/entity-select.tsx` (`ChannelSelect`, `RoleSelect` filtrage client ; `MemberCombobox` recherche async debounce 250 ms). Câblés : Config (log), Welcome (×3), Levels (salon d'annonce + rôle récompense), Tickets (catégorie/transcript/panneau), et **ModLog** : le filtre « ID utilisateur » (E4) est remplacé par la recherche de membre
 - Phase 3 (partiel) : transitions de page 150 ms (H2), garde de navigation interne de la SaveBar (`useBlocker` + modale « Quitter sans enregistrer ? ») — a nécessité le passage de `<BrowserRouter>` à `createBrowserRouter` (route splat, `main.tsx`), +58 kB de bundle (warning vite > 500 kB, code-splitting en option future)
 - Phase 3 — E5 erreurs par champ : le Worker enrichit ses 400 `invalid_body` avec `fields` (helper `api/validation.ts`, `z.flattenError`, routes panel uniquement — `/internal` inchangé) ; `ApiError.fields` + `fieldError()` (avec traduction FR des messages zod) côté panel ; `Field` du kit a une prop `error` (bordure danger, `aria-invalid`/`aria-describedby`) ; câblé sur Config, Welcome, Levels, Automod, Tickets (publication) et CommandEditor (`duplicate_name` sous le champ Nom)
 
-**Reste (Phase 2/3) :** Combobox salons/rôles/membres (E3/E4, dépend du même endpoint), UserCell enrichie (avatar+pseudo), sparkline/deltas Dashboard (dépendances back). `SaveFeedback` du kit est déprécié (plus utilisé).
+**Reste (Phase 3, optionnel) :** sparkline activité de modération 14 j + deltas KPI du Dashboard (F2/F3) — dépendent d'agrégats/snapshots côté gateway (endpoint back plus lourd, non entamé). `SaveFeedback` du kit est déprécié (plus utilisé).
+
+**Non déployé :** ces changements sont locaux (front + endpoint Worker `/members`). Le déploiement Worker (`wrangler deploy`) reste à faire ; la résolution/recherche de membres exige l'intent GUILD_MEMBERS (déjà activé) et que le bot soit dans la guilde.
 
 ## 9. Risques assumés
 

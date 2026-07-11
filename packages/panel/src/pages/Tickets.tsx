@@ -3,7 +3,8 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ChannelOption, Paginated, RoleOption, TicketDto, TicketSettingsDto } from "@bot/shared";
 import { api, fieldError } from "../lib/api.js";
-import { Badge, Button, Card, Chip, EmptyState, ErrorCard, Field, InfoCard, Input, Pagination, Select, Textarea, Toggle } from "../ui/kit.js";
+import { Badge, Button, Card, Chip, EmptyState, ErrorCard, Field, InfoCard, Input, Pagination, Textarea, Toggle } from "../ui/kit.js";
+import { ChannelSelect } from "../ui/entity-select.js";
 import { Modal } from "../ui/overlay.js";
 import { UserCell } from "../ui/cells.js";
 import { TimeAgo } from "../ui/mod-meta.js";
@@ -50,7 +51,6 @@ export function TicketsPage() {
     }
   }, [settings.data]);
 
-  const categories = channels.data?.filter((ch) => ch.type === 4) ?? [];
   const textChannels = channels.data?.filter((ch) => ch.type !== 4) ?? [];
 
   const saveSettings = useMutation({
@@ -114,24 +114,21 @@ export function TicketsPage() {
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Catégorie des tickets">
-            <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-              <option value="">— Choisir une catégorie —</option>
-              {categories.map((ch) => (
-                <option key={ch.id} value={ch.id}>
-                  {ch.name}
-                </option>
-              ))}
-            </Select>
+            <ChannelSelect
+              guildId={guildId!}
+              value={categoryId || null}
+              onChange={(id) => setCategoryId(id ?? "")}
+              types={[4]}
+              placeholder="— Choisir une catégorie —"
+            />
           </Field>
           <Field label="Salon des transcripts (optionnel)">
-            <Select value={transcriptChannelId} onChange={(e) => setTranscriptChannelId(e.target.value)}>
-              <option value="">— Aucun —</option>
-              {textChannels.map((ch) => (
-                <option key={ch.id} value={ch.id}>
-                  #{ch.name}
-                </option>
-              ))}
-            </Select>
+            <ChannelSelect
+              guildId={guildId!}
+              value={transcriptChannelId || null}
+              onChange={(id) => setTranscriptChannelId(id ?? "")}
+              placeholder="— Aucun —"
+            />
           </Field>
         </div>
 
@@ -171,14 +168,12 @@ export function TicketsPage() {
       >
         <div className="grid gap-4">
           <Field label="Salon">
-            <Select value={panelChannelId} onChange={(e) => setPanelChannelId(e.target.value)}>
-              <option value="">— Choisir un salon —</option>
-              {textChannels.map((ch) => (
-                <option key={ch.id} value={ch.id}>
-                  #{ch.name}
-                </option>
-              ))}
-            </Select>
+            <ChannelSelect
+              guildId={guildId!}
+              value={panelChannelId || null}
+              onChange={(id) => setPanelChannelId(id ?? "")}
+              placeholder="— Choisir un salon —"
+            />
           </Field>
           <Field label="Titre" error={fieldError(publishPanel.error, "title")}>
             <Input value={panelTitle} onChange={(e) => setPanelTitle(e.target.value)} maxLength={256} />

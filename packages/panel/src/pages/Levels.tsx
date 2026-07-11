@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ChannelOption, LeaderboardEntry, RoleOption, XpSettingsDto } from "@bot/shared";
+import type { LeaderboardEntry, RoleOption, XpSettingsDto } from "@bot/shared";
 import { api, fieldError } from "../lib/api.js";
 import { EmptyState, IconButton, InfoCard, Toggle } from "../ui/kit.js";
+import { ChannelSelect, RoleSelect } from "../ui/entity-select.js";
 import { SaveBar, useDirty } from "../ui/savebar.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { Icon } from "../ui/icons.js";
@@ -19,10 +20,6 @@ export function LevelsPage() {
   const leaderboard = useQuery({
     queryKey: ["leaderboard", guildId],
     queryFn: () => api<LeaderboardEntry[]>(`/api/guilds/${guildId}/leaderboard`),
-  });
-  const channels = useQuery({
-    queryKey: ["channels", guildId],
-    queryFn: () => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`),
   });
   const roles = useQuery({
     queryKey: ["roles", guildId],
@@ -113,20 +110,14 @@ export function LevelsPage() {
         {s.announceLevelUp && (
           <label className="block text-sm text-zinc-300">
             Salon des annonces
-            <select
-              value={s.announceChannelId ?? ""}
-              onChange={(e) => set({ announceChannelId: e.target.value || null })}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
-            >
-              <option value="">— Salon du message —</option>
-              {channels.data
-                ?.filter((ch) => ch.type !== 4)
-                .map((ch) => (
-                  <option key={ch.id} value={ch.id}>
-                    #{ch.name}
-                  </option>
-                ))}
-            </select>
+            <div className="mt-1">
+              <ChannelSelect
+                guildId={guildId!}
+                value={s.announceChannelId}
+                onChange={(id) => set({ announceChannelId: id })}
+                placeholder="— Salon du message —"
+              />
+            </div>
           </label>
         )}
       </section>
@@ -149,19 +140,17 @@ export function LevelsPage() {
                 className="w-20 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
               />
               <span className="text-sm text-zinc-400">→</span>
-              <select
-                value={reward.roleId}
-                onChange={(e) =>
-                  set({ rewards: s.rewards.map((r, j) => (j === i ? { ...r, roleId: e.target.value } : r)) })
-                }
-                className="flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
-              >
-                {assignableRoles.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
+              <div className="flex-1">
+                <RoleSelect
+                  guildId={guildId!}
+                  value={reward.roleId}
+                  onChange={(id) =>
+                    set({ rewards: s.rewards.map((r, j) => (j === i ? { ...r, roleId: id ?? "" } : r)) })
+                  }
+                  excludeManaged
+                  clearable={false}
+                />
+              </div>
               <IconButton label="Retirer cette récompense" danger onClick={() => set({ rewards: s.rewards.filter((_, j) => j !== i) })}>
                 ✕
               </IconButton>
