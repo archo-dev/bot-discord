@@ -26,6 +26,7 @@ import {
 import { logRowToDto, welcomeRowToDto } from "../api/welcome.js";
 import { automodRowToDto } from "../api/automod.js";
 import { discordJson } from "../discord/rest.js";
+import { withMemberCards } from "../discord/member-card.js";
 import { modLogEmbed, postModLog } from "../interactions/builtins/util.js";
 
 /**
@@ -164,6 +165,7 @@ internalRouter.get("/internal/guilds/:guildId/config", async (c) => {
     logChannelId: guild.log_channel_id,
     warnThreshold: guild.warn_threshold,
     warnTimeoutMinutes: guild.warn_timeout_minutes,
+    mentionCards: guild.mention_cards === 1,
     autoRoles: autoRoles.filter((r) => r.enabled === 1).map((r) => r.role_id),
     welcome: welcomeRowToDto(await getWelcomeSettings(c.env.DB, guildId)),
     logs: logRowToDto(await getLogSettings(c.env.DB, guildId)),
@@ -236,10 +238,15 @@ internalRouter.post("/internal/guilds/:guildId/xp", async (c) => {
 
   if (settings.announce_level_up === 1) {
     try {
-      await discordJson(c.env, "POST", `/channels/${settings.announce_channel_id ?? channelId}/messages`, {
-        content: `🎉 <@${userId}> passe au niveau **${newLevel}** !`,
-        allowed_mentions: { users: [userId] },
-      });
+      await discordJson(
+        c.env,
+        "POST",
+        `/channels/${settings.announce_channel_id ?? channelId}/messages`,
+        await withMemberCards(c.env, guildId, {
+          content: `🎉 <@${userId}> passe au niveau **${newLevel}** !`,
+          allowed_mentions: { users: [userId] },
+        }),
+      );
     } catch (err) {
       console.error("xp announce failed:", err);
     }

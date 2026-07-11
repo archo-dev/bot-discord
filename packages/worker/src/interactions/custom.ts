@@ -1,5 +1,6 @@
 import type { APIChatInputApplicationCommandInteraction } from "discord-api-types/v10";
 import {
+  extractUserMentions,
   hasPermission,
   referencedCounters,
   safeParseCommandLogic,
@@ -14,6 +15,7 @@ import { getCounterValues, getGuild } from "../db/queries.js";
 import { conditionCounters, evaluateConditions } from "../engine/conditions.js";
 import { remainingCooldown, startCooldown } from "../engine/cooldown.js";
 import { executeAction, renderEmbed, type ReplyPayload } from "../engine/actions.js";
+import { withMemberCards } from "../discord/member-card.js";
 import { deferred, editOriginal, ephemeral, message } from "./respond.js";
 
 /** Counter names used anywhere in the logic (conditions + templates). */
@@ -116,10 +118,19 @@ export async function executeCustomCommand(
   const replyAction = logic.actions.find((a): a is Extract<CommandAction, { type: "reply" }> => a.type === "reply");
   const restActions = logic.actions.filter((a) => a.type !== "reply");
 
+  // Member cards (M20) need an async member fetch, impossible on the type-4 fast
+  // path — force the deferred path when the reply mentions someone and the guild
+  // opted in, so withMemberCards can append cards before editing the response.
+  const replyPreview = replyAction ? buildReply(replyAction, vars) : null;
+  const wantsCards =
+    guildRow?.mention_cards === 1 && !!replyPreview?.content && extractUserMentions(replyPreview.content).length > 0;
+
   // FAST PATH — pure reply, no REST/DB side effects: answer directly (type 4).
-  if (restActions.length === 0) {
-    const payload = replyAction ? buildReply(replyAction, vars) : null;
-    return message(payload?.content ?? "✅", { ephemeral: payload?.ephemeral ?? true, embeds: payload?.embeds });
+  if (restActions.length === 0 && !wantsCards) {
+    return message(replyPreview?.content ?? "✅", {
+      ephemeral: replyPreview?.ephemeral ?? true,
+      embeds: replyPreview?.embeds,
+    });
   }
 
   // SLOW PATH — defer now, run the chain, then edit the original response.
@@ -144,7 +155,11 @@ export async function executeCustomCommand(
           content: `⚠️ L'action \`${failed}\` a échoué. Vérifiez la configuration de la commande.`,
         });
       } else if (replyPayload) {
-        await editOriginal(env, interaction, { content: replyPayload.content, embeds: replyPayload.embeds });
+        await editOriginal(
+          env,
+          interaction,
+          await withMemberCards(env, guildId, { content: replyPayload.content, embeds: replyPayload.embeds }),
+        );
       } else {
         await editOriginal(env, interaction, { content: "✅ Actions exécutées." });
       }

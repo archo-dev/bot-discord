@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AutoRoleEntry, GuildOverview, RoleOption } from "@bot/shared";
 import { api, ApiError, fieldError } from "../lib/api.js";
-import { Button, Card, Chip, Field, InfoCard, Input } from "../ui/kit.js";
+import { Button, Card, Chip, Field, InfoCard, Input, Toggle } from "../ui/kit.js";
 import { ChannelSelect } from "../ui/entity-select.js";
 import { SaveBar, useDirty } from "../ui/savebar.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
@@ -33,6 +33,7 @@ export function ConfigPage() {
   const [warnTimeoutMinutes, setWarnTimeoutMinutes] = useState(60);
   const [selectedAutoRoles, setSelectedAutoRoles] = useState<string[]>([]);
   const [botNickname, setBotNickname] = useState("");
+  const [mentionCards, setMentionCards] = useState(false);
 
   useEffect(() => {
     if (overview.data) {
@@ -40,6 +41,7 @@ export function ConfigPage() {
       setWarnThreshold(overview.data.warnThreshold);
       setWarnTimeoutMinutes(overview.data.warnTimeoutMinutes);
       setBotNickname(overview.data.customNickname ?? "");
+      setMentionCards(overview.data.mentionCards);
     }
   }, [overview.data]);
 
@@ -55,6 +57,7 @@ export function ConfigPage() {
           logChannelId: logChannelId || null,
           warnThreshold,
           warnTimeoutMinutes,
+          mentionCards,
         }),
       });
       await api(`/api/guilds/${guildId}/auto-roles`, {
@@ -90,11 +93,12 @@ export function ConfigPage() {
           logChannelId: overview.data.logChannelId ?? "",
           warnThreshold: overview.data.warnThreshold,
           warnTimeoutMinutes: overview.data.warnTimeoutMinutes,
+          mentionCards: overview.data.mentionCards,
           autoRoles: autoRoles.data.map((r) => r.roleId).sort(),
         }
       : undefined;
   const dirty = useDirty(
-    { logChannelId, warnThreshold, warnTimeoutMinutes, autoRoles: [...selectedAutoRoles].sort() },
+    { logChannelId, warnThreshold, warnTimeoutMinutes, mentionCards, autoRoles: [...selectedAutoRoles].sort() },
     initial,
   );
   const resetForm = () => {
@@ -102,6 +106,7 @@ export function ConfigPage() {
     setLogChannelId(initial.logChannelId);
     setWarnThreshold(initial.warnThreshold);
     setWarnTimeoutMinutes(initial.warnTimeoutMinutes);
+    setMentionCards(initial.mentionCards);
     setSelectedAutoRoles(autoRoles.data?.map((r) => r.roleId) ?? []);
   };
 
@@ -202,6 +207,18 @@ export function ConfigPage() {
               </Chip>
             ))}
         </div>
+      </Card>
+
+      <Card
+        title="Carte de membre sur mention"
+        description="Quand le bot poste un message qui mentionne des membres (réponses de commandes, annonce de niveau, accueil/départ), il ajoute une petite fiche par membre mentionné (compte créé, arrivée, rôles, statut)."
+      >
+        <Toggle
+          checked={mentionCards}
+          onChange={setMentionCards}
+          label="Activer les cartes de membre"
+          description="Une carte par membre unique mentionné, maximum 3 cartes par message."
+        />
       </Card>
 
       <InfoCard icon={<Icon.sliders />} title="Bon à savoir">

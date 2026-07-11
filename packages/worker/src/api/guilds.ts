@@ -115,6 +115,7 @@ guildsRouter.get("/guilds/:guildId", async (c) => {
     warnThreshold: row.warn_threshold,
     warnTimeoutMinutes: row.warn_timeout_minutes,
     customNickname: row.custom_nickname,
+    mentionCards: row.mention_cards === 1,
     // Key written by /internal/gateway/heartbeat with a 300 s TTL: presence
     // alone means the gateway phoned home recently.
     gatewayConnected: (await c.env.KV.get("gateway:status")) !== null,
@@ -127,6 +128,7 @@ const configPatchSchema = z.object({
   logChannelId: z.string().regex(/^\d{5,20}$/).nullable().optional(),
   warnThreshold: z.number().int().min(1).max(20).optional(),
   warnTimeoutMinutes: z.number().int().min(1).max(40320).optional(),
+  mentionCards: z.boolean().optional(),
 });
 
 guildsRouter.patch("/guilds/:guildId/config", rateLimit({ name: "config", limit: 20 }), async (c) => {
@@ -138,6 +140,7 @@ guildsRouter.patch("/guilds/:guildId/config", rateLimit({ name: "config", limit:
     ...("logChannelId" in patch ? { log_channel_id: patch.logChannelId ?? null } : {}),
     ...(patch.warnThreshold !== undefined ? { warn_threshold: patch.warnThreshold } : {}),
     ...(patch.warnTimeoutMinutes !== undefined ? { warn_timeout_minutes: patch.warnTimeoutMinutes } : {}),
+    ...(patch.mentionCards !== undefined ? { mention_cards: patch.mentionCards ? 1 : 0 } : {}),
   });
   return c.json({ ok: true });
 });

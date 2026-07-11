@@ -13,6 +13,7 @@ export interface GuildRow {
   warn_threshold: number;
   warn_timeout_minutes: number;
   custom_nickname: string | null;
+  mention_cards: number;
   created_at: string;
   updated_at: string | null;
 }
@@ -111,7 +112,7 @@ export async function getGuild(db: D1Database, id: string): Promise<GuildRow | n
 export async function updateGuildConfig(
   db: D1Database,
   id: string,
-  patch: { log_channel_id?: string | null; warn_threshold?: number; warn_timeout_minutes?: number },
+  patch: { log_channel_id?: string | null; warn_threshold?: number; warn_timeout_minutes?: number; mention_cards?: number },
 ): Promise<void> {
   const sets: string[] = [];
   const binds: unknown[] = [];
@@ -126,6 +127,10 @@ export async function updateGuildConfig(
   if (patch.warn_timeout_minutes !== undefined) {
     binds.push(patch.warn_timeout_minutes);
     sets.push(`warn_timeout_minutes = ?${binds.length}`);
+  }
+  if (patch.mention_cards !== undefined) {
+    binds.push(patch.mention_cards);
+    sets.push(`mention_cards = ?${binds.length}`);
   }
   if (sets.length === 0) return;
   binds.push(id);

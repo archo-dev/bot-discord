@@ -8,6 +8,7 @@ import {
 } from "@bot/shared";
 import type { Env } from "../env.js";
 import { discordJson } from "../discord/rest.js";
+import { withMemberCards } from "../discord/member-card.js";
 import { incrementCounter } from "../db/queries.js";
 
 export interface ActionContext {
@@ -70,11 +71,16 @@ export async function executeAction(action: CommandAction, ctx: ActionContext): 
       if (!(await channelBelongsToGuild(ctx.env, action.channelId, ctx.guildId))) {
         throw new Error(`channel ${action.channelId} is not in this guild`);
       }
-      await discordJson(ctx.env, "POST", `/channels/${action.channelId}/messages`, {
-        content: action.content ? substituteVariables(action.content, ctx.vars) : undefined,
-        embeds: action.embed ? [renderEmbed(action.embed, ctx.vars)] : undefined,
-        allowed_mentions: { parse: [] },
-      });
+      await discordJson(
+        ctx.env,
+        "POST",
+        `/channels/${action.channelId}/messages`,
+        await withMemberCards(ctx.env, ctx.guildId, {
+          content: action.content ? substituteVariables(action.content, ctx.vars) : undefined,
+          embeds: action.embed ? [renderEmbed(action.embed, ctx.vars)] : undefined,
+          allowed_mentions: { parse: [] },
+        }),
+      );
       return;
     }
 

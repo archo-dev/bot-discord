@@ -27,6 +27,8 @@ export interface GuildOverview {
   warnTimeoutMinutes: number;
   /** Bot's custom nickname on this guild (M16); null = default username. */
   customNickname: string | null;
+  /** Append a member card to bot messages that mention users (M20, opt-in). */
+  mentionCards: boolean;
   /** True while the gateway heartbeat is fresh (< 5 min, KV `gateway:status`). */
   gatewayConnected: boolean;
   /** Panel permission tier of the requesting user: moderators are read-only. */
@@ -37,6 +39,7 @@ export interface GuildConfigPatch {
   logChannelId?: string | null;
   warnThreshold?: number;
   warnTimeoutMinutes?: number;
+  mentionCards?: boolean;
 }
 
 export interface ChannelOption {

@@ -240,5 +240,20 @@ Page **Statistiques** dans le panel : exploite les données collectées en M18. 
 - [x] Gateway : intent `GuildPresences` ajouté mais **gated par `PRESENCE_ENABLED`** (défaut off) → déploiement sans risque de crash « Used disallowed intents ». Presence dans le heartbeat déjà en place (M18).
 - [x] Déployé worker+panel `c07c0015` (pas de migration, gateway non redéployé — intent inerte tant que le flag est off).
 
-- [ ] **Action manuelle utilisateur (presence, optionnel)** : ① portail dev Discord → Bot → **Presence Intent ON** ; ② sur le VPS, ajouter `PRESENCE_ENABLED=true` dans `.env` du gateway ; ③ `sudo systemctl restart botdiscord-gateway`. Sans ça, le donut affiche la carte d'aide (le reste de la page fonctionne).
+- [x] **Presence activée le 2026-07-11** : Presence Intent ON au portail + `PRESENCE_ENABLED=true` dans le `.env` du gateway VPS + gateway M19 redéployé (bundle `5e1b0e4`) + restart. Vérifié : KV `gateway:status` contient `presence` avec des comptes réels (online/idle/dnd) → le donut s'affiche. (offline reste à 0 : Discord ne cache pas les présences hors-ligne.)
+
+## 🚧 M20 — Carte membre sur mentions — code complet, non déployé — 148/148 tests worker
+
+Quand un message **du bot** mentionne des membres, une petite fiche par membre mentionné est ajoutée (compte créé, arrivée, rôles, statut si dispo). Opt-in par serveur. Décision actée : **1 carte par mention unique, max 3**.
+
+- [x] Migration `0016_mention_cards.sql` : `guilds.mention_cards INTEGER NOT NULL DEFAULT 0`.
+- [x] Shared `member-card.ts` (pur, sans dépendance discord.js) : `extractUserMentions` (regex `<@!?(\d+)>`, dédup, ordre d'apparition ; rôles/@everyone exclus), `snowflakeToTimestamp`, `buildMemberCardEmbed` (author=tag+avatar, thumbnail, champs Compte créé/A rejoint/Statut/Rôles, cap 5 rôles + `+N`, footer ID). `MAX_MENTION_CARDS=3`.
+- [x] Worker `discord/member-card.ts` — `withMemberCards(env, guildId, payload)` : si `mention_cards`, extrait les mentions du `content`, fetch membre via **`getMember` KV-caché 60 s** (refactor de `guard.ts`, clé `member:v2:` pour ne pas relire l'ancien shape `{roles}`), résout les noms de rôles via le cache KV `roles:` (300 s), append des embeds (cap 3, jamais > 10). Branché sur : annonce level-up XP, action `send_message`, réponses de commandes perso (`custom.ts` — le fast-path type-4 bascule en defer quand une carte s'applique, car le fetch est async). `mentionCards` exposé dans `/internal/guilds/:id/config` + DTO `GuildOverview`/`GuildConfigPatch`.
+- [x] Gateway : `sendTo` accepte `{ mentionCards }` → `buildMemberCards(guild, content)` via `guild.members.fetch()` + `presence.status` (M19). Branché sur **welcome/leave uniquement**, jamais sur les embeds de logs (bruit). `GuildGatewayConfig.mentionCards` ajouté.
+- [x] Panel : toggle « Carte de membre sur mention » dans `Config.tsx` (câblé SaveBar dirty/reset/PATCH). Écriture ⇒ admin only (modérateur bloqué par le middleware M15).
+- [x] Tests worker `member-card.test.ts` (11) : `extractUserMentions` (dédup/ordre/exclusions), `buildMemberCardEmbed` (snowflake documenté, cap rôles, champs optionnels), `withMemberCards` (opt-in append, opt-out inchangé, sans mention, cap 3, plafond 10 embeds). Suite worker : 148/148.
+- [x] `pnpm check` vert sur shared/worker/gateway/panel.
+
+- [ ] **Déploiement** : `migrate:remote` (0016) → worker+panel → rebuild bundle gateway + restart systemd (VPS). Aucune action portail Discord (pas de nouvel intent/permission ; opt-in par serveur via le panel).
+- [ ] **Vérif manuelle** : commande perso avec `<@id>` → carte ; toggle off → aucune carte ; message d'accueil qui mentionne le nouveau → carte avec statut si Presence actif.
 

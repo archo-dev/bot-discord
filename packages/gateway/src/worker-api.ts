@@ -11,6 +11,8 @@ export interface GuildGatewayConfig {
   logChannelId: string | null;
   warnThreshold: number;
   warnTimeoutMinutes: number;
+  /** Append a member card to welcome/leave messages that mention users (M20). */
+  mentionCards: boolean;
   autoRoles: string[];
   welcome: {
     welcomeEnabled: boolean;

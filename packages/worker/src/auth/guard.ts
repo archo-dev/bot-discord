@@ -60,24 +60,48 @@ export async function getUserGuilds(env: Env, session: SessionData & { id: strin
 }
 
 interface RESTMember {
+  user?: { id: string; username: string; global_name: string | null; avatar: string | null };
   roles: string[];
+  joined_at?: string;
+}
+
+/** The member subset we cache — enough for the access guard AND member cards (M20). */
+export interface CachedMember {
+  roles: string[];
+  user: { id: string; username: string; globalName: string | null; avatar: string | null } | null;
+  joinedAt: string | null;
+}
+
+/**
+ * A guild member via bot REST, KV-cached 60s. null = not a member (or lookup
+ * failed). Shared by the access guard (roles) and member cards (M20); the
+ * `v2` key avoids reading the pre-M20 `{roles}` shape after a deploy.
+ */
+export async function getMember(env: Env, guildId: string, userId: string): Promise<CachedMember | null> {
+  const cacheKey = `member:v2:${guildId}:${userId}`;
+  const cached = await env.KV.get(cacheKey);
+  if (cached) return (JSON.parse(cached) as { member: CachedMember | null }).member;
+
+  let member: CachedMember | null = null;
+  try {
+    const m = await discordJson<RESTMember>(env, "GET", `/guilds/${guildId}/members/${userId}`);
+    member = {
+      roles: m.roles,
+      user: m.user
+        ? { id: m.user.id, username: m.user.username, globalName: m.user.global_name, avatar: m.user.avatar }
+        : null,
+      joinedAt: m.joined_at ?? null,
+    };
+  } catch {
+    member = null;
+  }
+  await env.KV.put(cacheKey, JSON.stringify({ member }), { expirationTtl: 60 });
+  return member;
 }
 
 /** Member roles via bot REST, KV-cached 60s. null = not a member (or lookup failed). */
 async function getMemberRoles(env: Env, guildId: string, userId: string): Promise<string[] | null> {
-  const cacheKey = `member:${guildId}:${userId}`;
-  const cached = await env.KV.get(cacheKey);
-  if (cached) return (JSON.parse(cached) as { roles: string[] | null }).roles;
-
-  let roles: string[] | null = null;
-  try {
-    const member = await discordJson<RESTMember>(env, "GET", `/guilds/${guildId}/members/${userId}`);
-    roles = member.roles;
-  } catch {
-    roles = null;
-  }
-  await env.KV.put(cacheKey, JSON.stringify({ roles }), { expirationTtl: 60 });
-  return roles;
+  return (await getMember(env, guildId, userId))?.roles ?? null;
 }
 
 /**
