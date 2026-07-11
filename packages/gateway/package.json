@@ -12,6 +12,7 @@
   "dependencies": {
     "@bot/shared": "workspace:*",
     "@discordjs/voice": "^0.18.0",
+    "@snazzah/davey": "^0.1.12",
     "@distube/spotify": "^2.0.0",
     "@distube/yt-dlp": "^2.0.0",
     "@hono/node-server": "^1.14.0",
