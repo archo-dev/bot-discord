@@ -7,7 +7,7 @@
 
 Bot Discord d'administration **100% serverless Cloudflare** avec panel web de configuration, en cours d'extension vers les fonctionnalités type **Draftbot** (tickets, modération, automod, bienvenue, rôles, logs, XP) et **Rythm** (musique).
 
-- **Production** : `https://botdiscord.armand-dedo.workers.dev` (Worker + panel servis par la même origine)
+- **Production** : `https://botdiscord.archodev.workers.dev` (Worker + panel servis par la même origine)
 - **Application Discord** : ID `1524597895859536074`
 - **Serveur de test** : `1406188083380092989`
 - **Repo** : monorepo pnpm workspaces, TypeScript strict partout

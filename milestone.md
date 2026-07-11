@@ -62,7 +62,7 @@
 
 - D1 `464ca130-…` migrée (remote), KV `364e4736…`, ids câblés dans `wrangler.jsonc`
 - 5 secrets via `wrangler secret bulk` (⚠️ jamais via pipe PowerShell — voir context.md §7)
-- Endpoint validé dans le Developer Portal, Worker sur `https://botdiscord.armand-dedo.workers.dev`
+- Endpoint validé dans le Developer Portal, Worker sur `https://botdiscord.archodev.workers.dev`
 - Commandes enregistrées sur le serveur de test `1406188083380092989`
 
 ## ✅ M8 — Tickets + composants d'interaction (`a1cce30`) — 86/86 tests

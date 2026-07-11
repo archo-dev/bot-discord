@@ -41,7 +41,7 @@
   "vars": {
     // Public (non-secret) config. Override per environment as needed.
     "DISCORD_CLIENT_ID": "1524597895859536074",
-    "PANEL_ORIGIN": "https://botdiscord.armand-dedo.workers.dev"
+    "PANEL_ORIGIN": "https://botdiscord.archodev.workers.dev"
   }
   // Secrets (wrangler secret put …, mirrored in .dev.vars for local dev):
   //   DISCORD_TOKEN, DISCORD_PUBLIC_KEY, DISCORD_CLIENT_SECRET,
