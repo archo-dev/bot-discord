@@ -62,7 +62,7 @@ export const toast = {
 const toneStyles: Record<ToastTone, { icon: string; iconClass: string; live: "polite" | "assertive" }> = {
   success: { icon: "✓", iconClass: "bg-green-950 text-green-300", live: "polite" },
   error: { icon: "✕", iconClass: "bg-red-950 text-red-300", live: "assertive" },
-  info: { icon: "i", iconClass: "bg-[--info-subtle] text-[--info-text]", live: "polite" },
+  info: { icon: "i", iconClass: "bg-(--info-subtle) text-(--info-text)", live: "polite" },
 };
 
 function subscribe(cb: () => void) {
@@ -77,7 +77,7 @@ export function Toaster() {
   return (
     <div
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-4 bottom-4 z-[--z-toast] flex flex-col items-end gap-2 sm:inset-x-auto sm:right-5 sm:bottom-5"
+      className="pointer-events-none fixed inset-x-4 bottom-4 z-(--z-toast) flex flex-col items-end gap-2 sm:inset-x-auto sm:right-5 sm:bottom-5"
     >
       {list.map((t) => {
         const s = toneStyles[t.tone];
@@ -90,7 +90,7 @@ export function Toaster() {
               if (timer) clearTimeout(timer);
             }}
             onMouseLeave={() => schedule(t.id, t.tone)}
-            className="animate-toast-in pointer-events-auto flex w-full max-w-[380px] items-start gap-3 rounded-lg border border-zinc-800 bg-[--surface-2] p-3.5 shadow-[--shadow-md]"
+            className="animate-toast-in pointer-events-auto flex w-full max-w-[380px] items-start gap-3 rounded-lg border border-zinc-800 bg-(--surface-2) p-3.5 shadow-(--shadow-md)"
           >
             <span
               className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${s.iconClass}`}

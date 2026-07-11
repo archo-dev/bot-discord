@@ -23,7 +23,7 @@ export function UserCell({ userId }: { userId: string }) {
     return (
       <span className="inline-flex items-center gap-2 text-sm text-zinc-300">
         <span
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[--surface-3] text-zinc-400"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-(--surface-3) text-zinc-400"
           aria-hidden
         >
           <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -46,7 +46,7 @@ export function UserCell({ userId }: { userId: string }) {
       className="inline-flex items-center gap-2 rounded-md text-sm text-zinc-200 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
     >
       <span
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[--surface-3] text-[10px] font-bold text-zinc-400"
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-(--surface-3) text-[10px] font-bold text-zinc-400"
         aria-hidden
       >
         {userId.slice(-2)}

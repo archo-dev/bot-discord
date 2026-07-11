@@ -236,7 +236,7 @@ export function GuildLayout({ me }: { me: MeResponse }) {
       <aside
         ref={drawerRef}
         aria-label="Navigation du serveur"
-        className={`fixed inset-y-0 left-0 z-[--z-drawer] w-[264px] border-r border-zinc-800 bg-[#101320] transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-(--z-drawer) w-[264px] border-r border-zinc-800 bg-[#101320] transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${
           drawerOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >

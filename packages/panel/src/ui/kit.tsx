@@ -306,7 +306,7 @@ export function InfoTile({
   const cls = "block rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm";
   if (to) {
     return (
-      <Link to={to} className={`${cls} transition hover:bg-[--state-hover]`}>
+      <Link to={to} className={`${cls} transition hover:bg-(--state-hover)`}>
         {body}
       </Link>
     );
@@ -407,7 +407,7 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center py-8 text-center">
-      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[--surface-2] text-zinc-500" aria-hidden>
+      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-(--surface-2) text-zinc-500" aria-hidden>
         {icon}
       </span>
       <p className="mt-3 text-sm font-semibold text-zinc-100">{title}</p>
@@ -474,7 +474,7 @@ export function Tooltip({ content, children }: { content: ReactNode; children: R
       {children}
       <span
         role="tooltip"
-        className="pointer-events-none absolute bottom-full left-1/2 z-[--z-tooltip] mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md bg-[--surface-3] px-2.5 py-1.5 text-xs text-zinc-100 opacity-0 shadow-[--shadow-md] transition-opacity delay-300 group-hover/tt:opacity-100 group-focus-within/tt:opacity-100 group-focus-within/tt:delay-0"
+        className="pointer-events-none absolute bottom-full left-1/2 z-(--z-tooltip) mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md bg-(--surface-3) px-2.5 py-1.5 text-xs text-zinc-100 opacity-0 shadow-(--shadow-md) transition-opacity delay-300 group-hover/tt:opacity-100 group-focus-within/tt:opacity-100 group-focus-within/tt:delay-0"
       >
         {content}
       </span>

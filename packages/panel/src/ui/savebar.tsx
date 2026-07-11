@@ -74,10 +74,10 @@ export function SaveBar({
   }
 
   return (
-    <div className="sticky bottom-4 z-[--z-sticky] mt-6">
+    <div className="sticky bottom-4 z-(--z-sticky) mt-6">
       <div
         role="status"
-        className="animate-savebar-in flex flex-wrap items-center gap-3 rounded-xl border border-zinc-700 bg-[--surface-2] px-4 py-3 shadow-[--shadow-md]"
+        className="animate-savebar-in flex flex-wrap items-center gap-3 rounded-xl border border-zinc-700 bg-(--surface-2) px-4 py-3 shadow-(--shadow-md)"
       >
         {justSaved && !dirty ? (
           <span className="text-sm font-semibold text-green-400">✓ Enregistré</span>

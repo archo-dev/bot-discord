@@ -73,7 +73,7 @@ export function Modal({
 
   return (
     <div
-      className="animate-overlay-in fixed inset-0 z-[--z-modal] flex items-center justify-center bg-[rgba(6,7,14,0.72)] p-4 sm:p-6"
+      className="animate-overlay-in fixed inset-0 z-(--z-modal) flex items-center justify-center bg-[rgba(6,7,14,0.72)] p-4 sm:p-6"
       onClick={() => !locked && onClose()}
       aria-hidden={false}
     >
@@ -84,7 +84,7 @@ export function Modal({
         aria-label={typeof title === "string" ? title : undefined}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className={`animate-panel-in max-h-[85vh] w-full overflow-auto rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-[--shadow-lg] outline-none sm:p-6 ${
+        className={`animate-panel-in max-h-[85vh] w-full overflow-auto rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-(--shadow-lg) outline-none sm:p-6 ${
           size === "2xl" ? "max-w-2xl" : "max-w-md"
         }`}
       >
