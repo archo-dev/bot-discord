@@ -136,6 +136,7 @@ Secrets locaux : `packages/worker/.dev.vars` (gitignoré). Un commit = un milest
 7. **Catégories de salons** : l'endpoint channels renvoie aussi le type 4 (catégorie, nécessaire pour les tickets) — filtrer `ch.type !== 4` dans les selects de salons texte, cache `channels:v2:`.
 8. **`@bot/shared` est du TS brut** (`exports: ./src/index.ts`) : tout consommateur Node runtime (gateway) doit le **bundler** — `noExternal: ["@bot/shared"]` dans `tsup.config.ts`. Le build passait tant que rien n'était importé à runtime ; découvert au premier `import { substituteVariables }` (crash ERR_MODULE_NOT_FOUND en prod).
 9. **Intents privilégiés** : `GuildMembers` et `MessageContent` doivent être activés dans le Developer Portal (Bot → Privileged Gateway Intents), sinon le login échoue en « Used disallowed intents ». Fait pour cette app.
+10. **Tailwind v4 : variables CSS en parenthèses.** `bg-[--var]`/`z-[--var]`/`shadow-[--var]` (raccourci v3) sont **silencieusement ignorés** — la classe disparaît sans erreur de build ni de typecheck. Écrire `bg-(--var)`. Détecté uniquement en pilotant le panel en headless (toasts sans fond, modales sans ombre) ; fix `b74c7d5`.
 
 ## 8. Chantier design v2 « Nocturne 2 » (panel, non commité)
 
