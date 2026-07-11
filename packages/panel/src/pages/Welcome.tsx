@@ -8,6 +8,7 @@ import { ChannelSelect as EntityChannelSelect } from "../ui/entity-select.js";
 import { SaveBar, useDirty } from "../ui/savebar.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { Icon } from "../ui/icons.js";
+import { useCanWrite } from "../lib/access.js";
 
 const MESSAGE_VARIABLES = ["{mention}", "{user}", "{user.id}", "{server}", "{membercount}"] as const;
 
@@ -17,6 +18,10 @@ const LOG_TOGGLES: Array<{ key: keyof Omit<LogSettingsDto, "channelId">; label: 
   { key: "messageDelete", label: "Messages supprimés" },
   { key: "messageEdit", label: "Messages modifiés" },
   { key: "memberUpdate", label: "Membres modifiés (surnom, rôles)" },
+  { key: "voiceJoin", label: "Vocal — arrivées dans un salon" },
+  { key: "voiceLeave", label: "Vocal — départs d'un salon" },
+  { key: "voiceMove", label: "Vocal — changements de salon" },
+  { key: "voiceState", label: "Vocal — muet / casque coupé" },
 ];
 
 function ChannelSelect(props: { guildId: string; value: string; onChange: (v: string) => void }) {
@@ -65,6 +70,7 @@ function MessageEditor(props: { value: string; onChange: (v: string) => void; er
 export function WelcomePage() {
   const { guildId } = useParams<{ guildId: string }>();
   const queryClient = useQueryClient();
+  const canWrite = useCanWrite();
 
   const welcome = useQuery({
     queryKey: ["welcome", guildId],
@@ -97,13 +103,7 @@ export function WelcomePage() {
   useEffect(() => {
     if (logs.data) {
       setLogChannelId(logs.data.channelId ?? "");
-      setLogToggles({
-        memberJoin: logs.data.memberJoin,
-        memberLeave: logs.data.memberLeave,
-        messageDelete: logs.data.messageDelete,
-        messageEdit: logs.data.messageEdit,
-        memberUpdate: logs.data.memberUpdate,
-      });
+      setLogToggles(Object.fromEntries(LOG_TOGGLES.map((t) => [t.key, logs.data[t.key]])));
     }
   }, [logs.data]);
 
@@ -129,6 +129,10 @@ export function WelcomePage() {
           messageDelete: logToggles["messageDelete"] ?? false,
           messageEdit: logToggles["messageEdit"] ?? false,
           memberUpdate: logToggles["memberUpdate"] ?? false,
+          voiceJoin: logToggles["voiceJoin"] ?? false,
+          voiceLeave: logToggles["voiceLeave"] ?? false,
+          voiceMove: logToggles["voiceMove"] ?? false,
+          voiceState: logToggles["voiceState"] ?? false,
         }),
       });
     },
@@ -180,7 +184,8 @@ export function WelcomePage() {
   if (welcome.isPending || logs.isPending) return <SkeletonSettingsPage cards={3} />;
 
   return (
-    <div className="max-w-2xl space-y-8">
+    // fieldset disabled (M15) : neutralise tous les champs pour les accès lecture seule.
+    <fieldset disabled={!canWrite} className="max-w-2xl space-y-8">
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">Message de bienvenue</h2>
@@ -255,6 +260,6 @@ export function WelcomePage() {
         onSave={() => save.mutate()}
         onReset={resetForm}
       />
-    </div>
+    </fieldset>
   );
 }

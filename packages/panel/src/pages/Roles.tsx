@@ -8,6 +8,7 @@ import { ConfirmModal } from "../ui/overlay.js";
 import { SkeletonList } from "../ui/skeleton.js";
 import { toast } from "../ui/toast.js";
 import { Icon } from "../ui/icons.js";
+import { useCanWrite } from "../lib/access.js";
 
 const STYLE_OPTIONS = [
   { value: 1, label: "Bleu" },
@@ -26,6 +27,7 @@ interface DraftButton {
 export function RolesPage() {
   const { guildId } = useParams<{ guildId: string }>();
   const queryClient = useQueryClient();
+  const canWrite = useCanWrite();
 
   const messages = useQuery({
     queryKey: ["button-roles", guildId],
@@ -90,6 +92,8 @@ export function RolesPage() {
 
   return (
     <div className="max-w-3xl space-y-8">
+      {/* fieldset disabled (M15) : composition + publication neutralisées en lecture seule. */}
+      <fieldset disabled={!canWrite} className="contents">
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
         <h2 className="font-semibold">Nouveau message de rôles</h2>
         <p className="mt-1 text-sm text-zinc-400">
@@ -203,6 +207,7 @@ export function RolesPage() {
           </Button>
         </div>
       </section>
+      </fieldset>
 
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
         <h2 className="font-semibold">Messages publiés</h2>
@@ -222,12 +227,14 @@ export function RolesPage() {
                 <span className="text-sm text-zinc-500">
                   #{textChannels.find((c) => c.id === m.channelId)?.name ?? m.channelId}
                 </span>
-                <button
-                  onClick={() => setToDelete(m)}
-                  className="ml-auto text-sm text-red-400 hover:underline"
-                >
-                  Supprimer
-                </button>
+                {canWrite && (
+                  <button
+                    onClick={() => setToDelete(m)}
+                    className="ml-auto text-sm text-red-400 hover:underline"
+                  >
+                    Supprimer
+                  </button>
+                )}
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {m.buttons.map((b) => (

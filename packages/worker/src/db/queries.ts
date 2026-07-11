@@ -12,6 +12,7 @@ export interface GuildRow {
   log_channel_id: string | null;
   warn_threshold: number;
   warn_timeout_minutes: number;
+  custom_nickname: string | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -72,6 +73,7 @@ export interface PanelAccessRow {
   guild_id: string;
   subject_type: "role" | "user";
   subject_id: string;
+  level: "admin" | "moderator";
   added_by: string;
   created_at: string;
 }
@@ -130,6 +132,14 @@ export async function updateGuildConfig(
   await db
     .prepare(`UPDATE guilds SET ${sets.join(", ")}, updated_at = datetime('now') WHERE id = ?${binds.length}`)
     .bind(...binds)
+    .run();
+}
+
+/** Stores the bot's per-guild custom nickname (null = none). Applied to Discord separately. */
+export async function setGuildNickname(db: D1Database, id: string, nickname: string | null): Promise<void> {
+  await db
+    .prepare(`UPDATE guilds SET custom_nickname = ?2, updated_at = datetime('now') WHERE id = ?1`)
+    .bind(id, nickname)
     .run();
 }
 
@@ -433,15 +443,15 @@ export async function listPanelAccess(db: D1Database, guildId: string): Promise<
 export async function replacePanelAccess(
   db: D1Database,
   guildId: string,
-  entries: Array<{ subjectType: "role" | "user"; subjectId: string }>,
+  entries: Array<{ subjectType: "role" | "user"; subjectId: string; level: "admin" | "moderator" }>,
   addedBy: string,
 ): Promise<void> {
   const statements = [db.prepare(`DELETE FROM panel_access WHERE guild_id = ?1`).bind(guildId)];
   for (const e of entries) {
     statements.push(
       db
-        .prepare(`INSERT INTO panel_access (guild_id, subject_type, subject_id, added_by) VALUES (?1, ?2, ?3, ?4)`)
-        .bind(guildId, e.subjectType, e.subjectId, addedBy),
+        .prepare(`INSERT INTO panel_access (guild_id, subject_type, subject_id, level, added_by) VALUES (?1, ?2, ?3, ?4, ?5)`)
+        .bind(guildId, e.subjectType, e.subjectId, e.level, addedBy),
     );
   }
   await db.batch(statements);
@@ -549,6 +559,10 @@ export interface LogSettingsRow {
   log_message_delete: number;
   log_message_edit: number;
   log_member_update: number;
+  log_voice_join: number;
+  log_voice_leave: number;
+  log_voice_move: number;
+  log_voice_state: number;
 }
 
 export async function getLogSettings(db: D1Database, guildId: string): Promise<LogSettingsRow | null> {
@@ -565,19 +579,125 @@ export async function upsertLogSettings(
     messageDelete: boolean;
     messageEdit: boolean;
     memberUpdate: boolean;
+    voiceJoin: boolean;
+    voiceLeave: boolean;
+    voiceMove: boolean;
+    voiceState: boolean;
   },
 ): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO log_settings (guild_id, channel_id, log_member_join, log_member_leave, log_message_delete, log_message_edit, log_member_update)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+      `INSERT INTO log_settings (guild_id, channel_id, log_member_join, log_member_leave, log_message_delete, log_message_edit, log_member_update,
+         log_voice_join, log_voice_leave, log_voice_move, log_voice_state)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
        ON CONFLICT(guild_id) DO UPDATE SET
          channel_id = ?2, log_member_join = ?3, log_member_leave = ?4,
          log_message_delete = ?5, log_message_edit = ?6, log_member_update = ?7,
+         log_voice_join = ?8, log_voice_leave = ?9, log_voice_move = ?10, log_voice_state = ?11,
          updated_at = datetime('now')`,
     )
-    .bind(guildId, s.channelId, s.memberJoin ? 1 : 0, s.memberLeave ? 1 : 0, s.messageDelete ? 1 : 0, s.messageEdit ? 1 : 0, s.memberUpdate ? 1 : 0)
+    .bind(
+      guildId,
+      s.channelId,
+      s.memberJoin ? 1 : 0,
+      s.memberLeave ? 1 : 0,
+      s.messageDelete ? 1 : 0,
+      s.messageEdit ? 1 : 0,
+      s.memberUpdate ? 1 : 0,
+      s.voiceJoin ? 1 : 0,
+      s.voiceLeave ? 1 : 0,
+      s.voiceMove ? 1 : 0,
+      s.voiceState ? 1 : 0,
+    )
     .run();
+}
+
+// ---------------------------------------------------------------------------
+// Voice logs (M17)
+// ---------------------------------------------------------------------------
+
+export interface VoiceLogRow {
+  id: number;
+  guild_id: string;
+  user_id: string;
+  user_tag: string | null;
+  action: "join" | "leave" | "move" | "mute" | "unmute" | "deafen" | "undeafen";
+  channel_id: string | null;
+  from_channel_id: string | null;
+  created_at: string;
+}
+
+export interface VoiceLogEntry {
+  userId: string;
+  userTag: string | null;
+  action: VoiceLogRow["action"];
+  channelId: string | null;
+  fromChannelId: string | null;
+}
+
+/** Batch-inserts voice entries (posted by the gateway in 5 s buffers). */
+export async function insertVoiceLogs(db: D1Database, guildId: string, entries: VoiceLogEntry[]): Promise<void> {
+  if (entries.length === 0) return;
+  const statements = entries.map((e) =>
+    db
+      .prepare(
+        `INSERT INTO voice_logs (guild_id, user_id, user_tag, action, channel_id, from_channel_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+      )
+      .bind(guildId, e.userId, e.userTag, e.action, e.channelId, e.fromChannelId),
+  );
+  await db.batch(statements);
+}
+
+/**
+ * Keyset-paginated voice history (newest first). Cursor is the last row's
+ * `created_at|id`; passing it returns the next page. Returns `limit`+1-driven
+ * `nextCursor` (null on the last page).
+ */
+export async function listVoiceLogs(
+  db: D1Database,
+  guildId: string,
+  opts: {
+    userId?: string;
+    channelId?: string;
+    action?: string;
+    from?: string;
+    to?: string;
+    cursor?: { createdAt: string; id: number };
+    limit: number;
+  },
+): Promise<{ rows: VoiceLogRow[]; nextCursor: string | null }> {
+  const where: string[] = ["guild_id = ?1"];
+  const binds: unknown[] = [guildId];
+  const add = (clause: (n: number) => string, value: unknown) => {
+    binds.push(value);
+    where.push(clause(binds.length));
+  };
+  if (opts.userId) add((n) => `user_id = ?${n}`, opts.userId);
+  if (opts.channelId) {
+    binds.push(opts.channelId);
+    where.push(`(channel_id = ?${binds.length} OR from_channel_id = ?${binds.length})`);
+  }
+  if (opts.action) add((n) => `action = ?${n}`, opts.action);
+  if (opts.from) add((n) => `created_at >= ?${n}`, opts.from);
+  if (opts.to) add((n) => `created_at <= ?${n}`, opts.to);
+  if (opts.cursor) {
+    binds.push(opts.cursor.createdAt, opts.cursor.createdAt, opts.cursor.id);
+    where.push(`(created_at < ?${binds.length - 2} OR (created_at = ?${binds.length - 1} AND id < ?${binds.length}))`);
+  }
+  const limit = Math.min(Math.max(opts.limit, 1), 100);
+  const rows = await db
+    .prepare(`SELECT * FROM voice_logs WHERE ${where.join(" AND ")} ORDER BY created_at DESC, id DESC LIMIT ${limit + 1}`)
+    .bind(...binds)
+    .all<VoiceLogRow>();
+  const results = rows.results;
+  let nextCursor: string | null = null;
+  if (results.length > limit) {
+    const last = results[limit - 1]!;
+    nextCursor = `${last.created_at}|${last.id}`;
+    results.length = limit;
+  }
+  return { rows: results, nextCursor };
 }
 
 // ---------------------------------------------------------------------------

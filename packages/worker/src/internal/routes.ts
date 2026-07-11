@@ -14,6 +14,7 @@ import {
   grantXp,
   insertGatewayEvent,
   insertModAction,
+  insertVoiceLogs,
   insertWarning,
   listAutoRoles,
   listCustomCommands,
@@ -306,6 +307,31 @@ internalRouter.post("/internal/guilds/:guildId/automod-sanctions", async (c) => 
     }
   }
   return c.json({ ok: true, applied: "warn", warnCount: count, autoTimeout }, 201);
+});
+
+const SNOWFLAKE = /^\d{5,20}$/;
+const voiceLogsSchema = z.object({
+  entries: z
+    .array(
+      z.object({
+        userId: z.string().regex(SNOWFLAKE),
+        userTag: z.string().max(64).nullable(),
+        action: z.enum(["join", "leave", "move", "mute", "unmute", "deafen", "undeafen"]),
+        channelId: z.string().regex(SNOWFLAKE).nullable(),
+        fromChannelId: z.string().regex(SNOWFLAKE).nullable(),
+      }),
+    )
+    .min(1)
+    .max(50),
+});
+
+// Voice activity from the gateway (buffered ~5 s, batched). join/leave/move are
+// always sent; mute/deafen only when the guild's voice-state toggle is on.
+internalRouter.post("/internal/guilds/:guildId/voice-logs", async (c) => {
+  const parsed = voiceLogsSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
+  await insertVoiceLogs(c.env.DB, c.req.param("guildId"), parsed.data.entries);
+  return c.json({ ok: true }, 201);
 });
 
 const modActionSchema = z.object({

@@ -7,6 +7,7 @@ import { Icon, type IconName } from "../ui/icons.js";
 import { IconButton, ErrorCard } from "../ui/kit.js";
 import { Skeleton } from "../ui/skeleton.js";
 import { MemberResolveProvider } from "../lib/members.js";
+import { AccessContext } from "../lib/access.js";
 
 interface NavItem {
   to: string;
@@ -39,6 +40,7 @@ const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
     items: [
       { to: "automod", label: "Auto-mod", icon: "shield", subtitle: "Filtres automatiques : spam, invitations, liens et mots interdits." },
       { to: "modlog", label: "Mod-log", icon: "scroll", subtitle: "Historique des actions de modération et des avertissements." },
+      { to: "voicelog", label: "Logs vocaux", icon: "mic", subtitle: "Historique des arrivées, départs et déplacements en vocal." },
       { to: "tickets", label: "Tickets", icon: "ticket", subtitle: "Support par tickets : réglages, panneau public et transcripts." },
     ],
   },
@@ -233,6 +235,7 @@ export function GuildLayout({ me }: { me: MeResponse }) {
 
   return (
     <MemberResolveProvider guildId={guildId ?? ""}>
+    <AccessContext.Provider value={{ canWrite: g ? g.access !== "moderator" : true }}>
     <div className="min-h-screen lg:flex">
       {/* Sidebar desktop + drawer mobile */}
       <aside
@@ -268,10 +271,19 @@ export function GuildLayout({ me }: { me: MeResponse }) {
               <h1 className="text-[22px] font-bold tracking-tight text-zinc-100">{active.label}</h1>
               <p className="mt-0.5 text-sm text-zinc-400">{active.subtitle}</p>
             </div>
+            {g?.access === "moderator" && (
+              <span
+                className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full bg-amber-950 px-3 py-1 text-xs font-medium text-amber-300"
+                title="Accès modérateur : vous pouvez tout consulter mais rien modifier."
+              >
+                <Icon.key />
+                <span className="hidden sm:inline">Lecture seule</span>
+              </span>
+            )}
             <span
-              className={`ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
                 g?.gatewayConnected ? "bg-green-950 text-green-300" : "bg-zinc-800 text-zinc-400"
-              }`}
+              } ${g?.access === "moderator" ? "" : "ml-auto"}`}
               title={
                 g?.gatewayConnected
                   ? "Service Gateway en ligne (heartbeat reçu il y a moins de 3 minutes)."
@@ -290,6 +302,7 @@ export function GuildLayout({ me }: { me: MeResponse }) {
         </div>
       </div>
     </div>
+    </AccessContext.Provider>
     </MemberResolveProvider>
   );
 }

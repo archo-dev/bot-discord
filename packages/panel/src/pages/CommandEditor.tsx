@@ -15,6 +15,7 @@ import { api, ApiError } from "../lib/api.js";
 import { Button, Toggle } from "../ui/kit.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { TimeAgo } from "../ui/mod-meta.js";
+import { useCanWrite } from "../lib/access.js";
 
 const PERMISSION_OPTIONS = [
   { value: "", label: "Tout le monde" },
@@ -347,6 +348,7 @@ export function CommandEditorPage() {
   const isEditing = commandId !== undefined;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const canWrite = useCanWrite();
 
   const [mode, setMode] = useState<"simple" | "advanced">("simple");
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -444,6 +446,8 @@ export function CommandEditorPage() {
         </div>
       </div>
 
+      {/* fieldset disabled (M15) : tous les champs neutralisés en lecture seule ; l'en-tête (Simple/Avancé) et « Annuler » restent actifs. */}
+      <fieldset disabled={!canWrite} className="space-y-6">
       <section className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="text-sm text-zinc-300">
@@ -651,10 +655,12 @@ export function CommandEditorPage() {
           </section>
         </>
       )}
+      </fieldset>
 
       {error && <p className="rounded-lg bg-red-950/40 px-4 py-3 text-sm text-red-300">{error}</p>}
 
       <div className="flex items-center gap-3">
+        {canWrite && (
         <Button
           onClick={() => {
             setError(null);
@@ -665,10 +671,11 @@ export function CommandEditorPage() {
         >
           {isEditing ? "Enregistrer les modifications" : "Créer la commande"}
         </Button>
+        )}
         <Button variant="secondary" onClick={() => void navigate(`/guilds/${guildId}/commands`)}>
-          Annuler
+          {canWrite ? "Annuler" : "Retour"}
         </Button>
-        {!canSave && form.name && (
+        {canWrite && !canSave && form.name && (
           <span className="text-xs text-zinc-500">Nom valide, description et au moins une réponse/action requis.</span>
         )}
       </div>

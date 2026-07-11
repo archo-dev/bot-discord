@@ -2,16 +2,18 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AutoRoleEntry, GuildOverview, RoleOption } from "@bot/shared";
-import { api, fieldError } from "../lib/api.js";
-import { Card, Chip, Field, InfoCard, Input } from "../ui/kit.js";
+import { api, ApiError, fieldError } from "../lib/api.js";
+import { Button, Card, Chip, Field, InfoCard, Input } from "../ui/kit.js";
 import { ChannelSelect } from "../ui/entity-select.js";
 import { SaveBar, useDirty } from "../ui/savebar.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { Icon } from "../ui/icons.js";
+import { useCanWrite } from "../lib/access.js";
 
 export function ConfigPage() {
   const { guildId } = useParams<{ guildId: string }>();
   const queryClient = useQueryClient();
+  const canWrite = useCanWrite();
 
   const overview = useQuery({
     queryKey: ["guild", guildId],
@@ -30,12 +32,14 @@ export function ConfigPage() {
   const [warnThreshold, setWarnThreshold] = useState(3);
   const [warnTimeoutMinutes, setWarnTimeoutMinutes] = useState(60);
   const [selectedAutoRoles, setSelectedAutoRoles] = useState<string[]>([]);
+  const [botNickname, setBotNickname] = useState("");
 
   useEffect(() => {
     if (overview.data) {
       setLogChannelId(overview.data.logChannelId ?? "");
       setWarnThreshold(overview.data.warnThreshold);
       setWarnTimeoutMinutes(overview.data.warnTimeoutMinutes);
+      setBotNickname(overview.data.customNickname ?? "");
     }
   }, [overview.data]);
 
@@ -66,6 +70,19 @@ export function ConfigPage() {
     },
   });
 
+  // Surnom du bot (M16) : appliqué immédiatement côté Discord, indépendant de la
+  // SaveBar. Le 409 « missing_permission » signifie « enregistré mais non appliqué ».
+  const saveNickname = useMutation({
+    mutationFn: () =>
+      api(`/api/guilds/${guildId}/nickname`, {
+        method: "PATCH",
+        body: JSON.stringify({ nickname: botNickname.trim() || null }),
+      }),
+    meta: { silentError: true },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["guild", guildId] }),
+  });
+  const nickMissingPerm = saveNickname.error instanceof ApiError && saveNickname.error.status === 409;
+
   // Dirty state : projection comparée à l'état serveur (D.S. v2 §4.9)
   const initial =
     overview.data && autoRoles.data
@@ -91,7 +108,8 @@ export function ConfigPage() {
   if (overview.isPending) return <SkeletonSettingsPage cards={3} />;
 
   return (
-    <div className="max-w-2xl space-y-6">
+    // fieldset disabled (M15) : neutralise tous les champs pour les accès lecture seule.
+    <fieldset disabled={!canWrite} className="max-w-2xl space-y-6">
       <Card title="Logs de modération" description="Salon où le bot poste chaque action de modération.">
         <ChannelSelect
           guildId={guildId!}
@@ -133,6 +151,37 @@ export function ConfigPage() {
       </Card>
 
       <Card
+        title="Surnom du bot"
+        description="Nom affiché du bot sur ce serveur. Nécessite la permission Discord « Changer de pseudo » pour être appliqué."
+      >
+        <div className="flex gap-2">
+          <Input
+            value={botNickname}
+            onChange={(e) => setBotNickname(e.target.value)}
+            maxLength={32}
+            placeholder="Nom par défaut du bot"
+            className="flex-1"
+          />
+          <Button variant="secondary" onClick={() => saveNickname.mutate()} loading={saveNickname.isPending}>
+            Appliquer
+          </Button>
+        </div>
+        {saveNickname.isSuccess && (
+          <p className="mt-2 text-sm text-green-400">✓ Surnom appliqué sur ce serveur.</p>
+        )}
+        {nickMissingPerm && (
+          <p className="mt-2 text-sm text-amber-400">
+            Surnom enregistré, mais <b>non appliqué</b> : le bot n'a pas la permission « Changer de pseudo » sur ce
+            serveur. Donne-lui cette permission puis clique à nouveau sur « Appliquer ».
+          </p>
+        )}
+        {saveNickname.isError && !nickMissingPerm && (
+          <p className="mt-2 text-sm text-red-400">Échec de l'application du surnom — réessaie.</p>
+        )}
+        <p className="mt-2 text-xs text-zinc-500">Laisse le champ vide et clique sur « Appliquer » pour réinitialiser au nom par défaut.</p>
+      </Card>
+
+      <Card
         title="Rôles automatiques à l'arrivée"
         description="Attribués par le service Gateway à chaque membre qui rejoint le serveur."
       >
@@ -166,6 +215,6 @@ export function ConfigPage() {
         onSave={() => save.mutate()}
         onReset={resetForm}
       />
-    </div>
+    </fieldset>
   );
 }

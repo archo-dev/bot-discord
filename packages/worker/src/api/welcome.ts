@@ -41,6 +41,10 @@ export function logRowToDto(row: LogSettingsRow | null): LogSettingsDto {
     messageDelete: row ? row.log_message_delete === 1 : false,
     messageEdit: row ? row.log_message_edit === 1 : false,
     memberUpdate: row ? row.log_member_update === 1 : false,
+    voiceJoin: row ? row.log_voice_join === 1 : false,
+    voiceLeave: row ? row.log_voice_leave === 1 : false,
+    voiceMove: row ? row.log_voice_move === 1 : false,
+    voiceState: row ? row.log_voice_state === 1 : false,
   };
 }
 
@@ -93,6 +97,10 @@ const logSchema = z.object({
   messageDelete: z.boolean(),
   messageEdit: z.boolean(),
   memberUpdate: z.boolean(),
+  voiceJoin: z.boolean(),
+  voiceLeave: z.boolean(),
+  voiceMove: z.boolean(),
+  voiceState: z.boolean(),
 });
 
 welcomeRouter.put("/guilds/:guildId/log-settings", rateLimit({ name: "welcome", limit: 20 }), async (c) => {

@@ -5,6 +5,7 @@ import { api } from "../lib/api.js";
 import { Badge, Button, Card, EmptyState, ErrorCard, InfoCard } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
 import { Skeleton, SkeletonList } from "../ui/skeleton.js";
+import { useCanWrite } from "../lib/access.js";
 
 function formatDuration(totalSeconds: number): string {
   const sec = Math.floor(totalSeconds % 60);
@@ -24,6 +25,7 @@ const LOOP_LABELS: Record<MusicStateDto["loop"], string> = {
 export function MusicPage() {
   const { guildId } = useParams<{ guildId: string }>();
   const queryClient = useQueryClient();
+  const canWrite = useCanWrite();
 
   const state = useQuery({
     queryKey: ["music-state", guildId],
@@ -100,18 +102,23 @@ export function MusicPage() {
               </div>
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button variant="secondary" onClick={() => control.mutate(s!.paused ? "resume" : "pause")} disabled={control.isPending}>
-                {s!.paused ? "▶️ Reprendre" : "⏸️ Pause"}
-              </Button>
-              <Button variant="secondary" onClick={() => control.mutate("skip")} disabled={control.isPending}>
-                ⏭️ Suivant
-              </Button>
-              <Button variant="danger" onClick={() => control.mutate("stop")} disabled={control.isPending}>
-                ⏹️ Stop
-              </Button>
-            </div>
-            {control.isError && <p className="mt-2 text-sm text-red-400">Contrôle indisponible (gateway hors ligne ?).</p>}
+            {/* Contrôles masqués en lecture seule (M15) : modérateur = consultation uniquement. */}
+            {canWrite && (
+              <>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button variant="secondary" onClick={() => control.mutate(s!.paused ? "resume" : "pause")} disabled={control.isPending}>
+                    {s!.paused ? "▶️ Reprendre" : "⏸️ Pause"}
+                  </Button>
+                  <Button variant="secondary" onClick={() => control.mutate("skip")} disabled={control.isPending}>
+                    ⏭️ Suivant
+                  </Button>
+                  <Button variant="danger" onClick={() => control.mutate("stop")} disabled={control.isPending}>
+                    ⏹️ Stop
+                  </Button>
+                </div>
+                {control.isError && <p className="mt-2 text-sm text-red-400">Contrôle indisponible (gateway hors ligne ?).</p>}
+              </>
+            )}
           </div>
         ) : (
           <EmptyState

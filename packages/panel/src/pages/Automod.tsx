@@ -7,6 +7,7 @@ import { InfoCard, Toggle as Switch } from "../ui/kit.js";
 import { SaveBar, useDirty } from "../ui/savebar.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { Icon } from "../ui/icons.js";
+import { useCanWrite } from "../lib/access.js";
 
 const ACTIONS = [
   { value: "delete", label: "Supprimer le message seulement" },
@@ -26,6 +27,7 @@ function Toggle(props: { checked: boolean; onChange: (v: boolean) => void; label
 export function AutomodPage() {
   const { guildId } = useParams<{ guildId: string }>();
   const queryClient = useQueryClient();
+  const canWrite = useCanWrite();
 
   const settings = useQuery({
     queryKey: ["automod", guildId],
@@ -94,7 +96,8 @@ export function AutomodPage() {
   const set = (patch: Partial<AutomodSettingsDto>) => setS((prev) => (prev ? { ...prev, ...patch } : prev));
 
   return (
-    <div className="max-w-2xl space-y-8">
+    // fieldset disabled (M15) : neutralise tous les champs pour les accès lecture seule.
+    <fieldset disabled={!canWrite} className="max-w-2xl space-y-8">
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
         <h2 className="font-semibold">Sanction</h2>
         <p className="mt-1 text-sm text-zinc-400">
@@ -268,6 +271,6 @@ export function AutomodPage() {
         onSave={() => save.mutate()}
         onReset={resetForm}
       />
-    </div>
+    </fieldset>
   );
 }

@@ -112,6 +112,10 @@ describe("welcome + log settings API", () => {
         messageDelete: true,
         messageEdit: false,
         memberUpdate: false,
+        voiceJoin: true,
+        voiceLeave: false,
+        voiceMove: false,
+        voiceState: false,
       }),
     });
     expect(put.status).toBe(200);
@@ -127,6 +131,8 @@ describe("welcome + log settings API", () => {
     expect(cfg.logs.channelId).toBe(CHANNEL_IN_GUILD);
     expect(cfg.logs.memberJoin).toBe(true);
     expect(cfg.logs.messageEdit).toBe(false);
+    expect(cfg.logs.voiceJoin).toBe(true);
+    expect(cfg.logs.voiceState).toBe(false);
     // No welcome row in this test (D1 rolls back between tests): defaults.
     expect(cfg.welcome.welcomeEnabled).toBe(false);
   });

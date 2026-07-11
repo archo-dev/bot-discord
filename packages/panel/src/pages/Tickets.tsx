@@ -12,12 +12,14 @@ import { SaveBar, useDirty } from "../ui/savebar.js";
 import { Skeleton, SkeletonList, SkeletonSettingsPage } from "../ui/skeleton.js";
 import { toast } from "../ui/toast.js";
 import { Icon } from "../ui/icons.js";
+import { useCanWrite } from "../lib/access.js";
 
 const STATUS_LABELS = { open: "Ouvert", closed: "Fermé" } as const;
 
 export function TicketsPage() {
   const { guildId } = useParams<{ guildId: string }>();
   const queryClient = useQueryClient();
+  const canWrite = useCanWrite();
 
   const settings = useQuery({
     queryKey: ["ticket-settings", guildId],
@@ -107,6 +109,8 @@ export function TicketsPage() {
 
   return (
     <div className="max-w-3xl space-y-8">
+      {/* fieldset disabled (M15) : réglages + publication neutralisés en lecture seule ; la liste reste consultable. */}
+      <fieldset disabled={!canWrite} className="space-y-8">
       <Card
         title="Système de tickets"
         description="Un bouton dans un salon public ouvre un salon privé entre le membre et le staff."
@@ -193,6 +197,7 @@ export function TicketsPage() {
           </Button>
         </div>
       </Card>
+      </fieldset>
 
       <TicketList guildId={guildId!} />
 

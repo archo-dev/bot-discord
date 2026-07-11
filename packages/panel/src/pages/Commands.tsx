@@ -8,10 +8,12 @@ import { ConfirmModal } from "../ui/overlay.js";
 import { SkeletonList } from "../ui/skeleton.js";
 import { toast } from "../ui/toast.js";
 import { Icon } from "../ui/icons.js";
+import { useCanWrite } from "../lib/access.js";
 
 export function CommandsPage() {
   const { guildId } = useParams<{ guildId: string }>();
   const queryClient = useQueryClient();
+  const canWrite = useCanWrite();
   const [toDelete, setToDelete] = useState<CustomCommandDto | null>(null);
 
   const commands = useQuery({
@@ -48,12 +50,14 @@ export function CommandsPage() {
         <p className="text-sm text-zinc-400">
           {commands.data ? `${commands.data.length} / 80 commandes` : ""}
         </p>
-        <Link
-          to="new"
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-500"
-        >
-          + Nouvelle commande
-        </Link>
+        {canWrite && (
+          <Link
+            to="new"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-500"
+          >
+            + Nouvelle commande
+          </Link>
+        )}
       </div>
 
       {commands.isPending && (
@@ -100,22 +104,27 @@ export function CommandsPage() {
               <p className="truncate text-sm text-zinc-500">{cmd.description}</p>
             </div>
 
-            <span title={cmd.enabled ? "Désactiver" : "Activer"}>
-              <Toggle checked={cmd.enabled} onChange={() => !toggle.isPending && toggle.mutate(cmd)} />
+            <span
+              title={!canWrite ? "Lecture seule" : cmd.enabled ? "Désactiver" : "Activer"}
+              className={!canWrite ? "pointer-events-none opacity-50" : undefined}
+            >
+              <Toggle checked={cmd.enabled} onChange={() => canWrite && !toggle.isPending && toggle.mutate(cmd)} />
             </span>
 
             <Link
               to={String(cmd.id)}
               className="inline-flex h-8 items-center rounded-lg border border-zinc-700 bg-zinc-800 px-3 text-[13px] font-medium text-zinc-100 transition hover:bg-zinc-700"
             >
-              Modifier
+              {canWrite ? "Modifier" : "Voir"}
             </Link>
-            <button
-              onClick={() => setToDelete(cmd)}
-              className="inline-flex h-8 items-center rounded-lg px-3 text-[13px] font-medium text-red-400 transition hover:bg-red-950/50"
-            >
-              Supprimer
-            </button>
+            {canWrite && (
+              <button
+                onClick={() => setToDelete(cmd)}
+                className="inline-flex h-8 items-center rounded-lg px-3 text-[13px] font-medium text-red-400 transition hover:bg-red-950/50"
+              >
+                Supprimer
+              </button>
+            )}
           </li>
         ))}
       </ul>

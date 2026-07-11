@@ -5,6 +5,7 @@ import { createWorkerApi } from "./worker-api.js";
 import { createConfigCache } from "./config-cache.js";
 import { createHttpApp } from "./http.js";
 import { registerEvents } from "./events.js";
+import { registerVoice } from "./voice.js";
 import { registerAutomod } from "./automod.js";
 import { registerXp } from "./xp.js";
 import { registerMusic } from "./music.js";
@@ -35,6 +36,7 @@ const client = new Client({
 });
 
 registerEvents(client, configCache, api);
+registerVoice(client, configCache, api);
 registerAutomod(client, configCache, api);
 registerXp(client, configCache, api);
 const music = registerMusic(client, api);

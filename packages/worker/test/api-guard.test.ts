@@ -104,7 +104,7 @@ describe("panel API auth", () => {
 
     expect((await get(`/api/guilds/${INSTALLED}`, sid)).status).toBe(403);
 
-    await replacePanelAccess(env.DB, INSTALLED, [{ subjectType: "user", subjectId: outsider }], "someone");
+    await replacePanelAccess(env.DB, INSTALLED, [{ subjectType: "user", subjectId: outsider, level: "admin" }], "someone");
     expect((await get(`/api/guilds/${INSTALLED}`, sid)).status).toBe(200);
   });
 });

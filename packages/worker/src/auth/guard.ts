@@ -13,7 +13,13 @@ export interface OAuthGuild {
   permissions: string;
 }
 
-export type GuildAccess = "manage_guild" | "panel_grant";
+/**
+ * manage_guild     — MANAGE_GUILD/ADMINISTRATOR on Discord: full access.
+ * panel_admin      — explicit grant with level 'admin': full access.
+ * panel_moderator  — explicit grant with level 'moderator': read-only
+ *                    (every write verb under the guild is rejected with 403).
+ */
+export type GuildAccess = "manage_guild" | "panel_admin" | "panel_moderator";
 
 export interface AppVariables {
   session: SessionData & { id: string };
@@ -102,22 +108,35 @@ export const requireGuildAccess: MiddlewareHandler<AppContext> = async (c, next)
   }
 
   const grants = await listPanelAccess(c.env.DB, guildId);
-  if (grants.some((g) => g.subject_type === "user" && g.subject_id === session.userId)) {
-    c.set("guildAccess", "panel_grant");
+  const matched = grants.filter((g) => g.subject_type === "user" && g.subject_id === session.userId);
+  const roleGrants = grants.filter((g) => g.subject_type === "role");
+  // Only resolve member roles when a role grant could still raise the level.
+  if (roleGrants.length > 0 && !matched.some((g) => g.level === "admin")) {
+    const roles = await getMemberRoles(c.env, guildId, session.userId);
+    if (roles) matched.push(...roleGrants.filter((g) => roles.includes(g.subject_id)));
+  }
+  if (matched.length > 0) {
+    // A user matched by several grants gets the highest level.
+    c.set("guildAccess", matched.some((g) => g.level === "admin") ? "panel_admin" : "panel_moderator");
     await next();
     return;
   }
-  const roleGrants = grants.filter((g) => g.subject_type === "role");
-  if (roleGrants.length > 0) {
-    const roles = await getMemberRoles(c.env, guildId, session.userId);
-    if (roles && roleGrants.some((g) => roles.includes(g.subject_id))) {
-      c.set("guildAccess", "panel_grant");
-      await next();
-      return;
-    }
-  }
 
   return c.json({ error: "forbidden" }, 403);
+};
+
+const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+/**
+ * Read-only enforcement for moderator grants: rejects every write verb under
+ * a guild with 403. Mounted centrally in index.ts so new write routes are
+ * born protected — route-level checks must never be the only barrier.
+ */
+export const blockModeratorWrites: MiddlewareHandler<AppContext> = async (c, next) => {
+  if (c.get("guildAccess") === "panel_moderator" && WRITE_METHODS.has(c.req.method)) {
+    return c.json({ error: "read_only_access" }, 403);
+  }
+  await next();
 };
 
 /** Only members with MANAGE_GUILD may pass (panel-access management, etc.). */

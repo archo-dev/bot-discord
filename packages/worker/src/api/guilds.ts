@@ -18,10 +18,11 @@ import {
   listPanelAccess,
   replaceAutoRoles,
   replacePanelAccess,
+  setGuildNickname,
   updateGuildConfig,
   upsertGuild,
 } from "../db/queries.js";
-import { discordJson } from "../discord/rest.js";
+import { DiscordAPIError, discordJson } from "../discord/rest.js";
 import { getUserGuilds, handleGuildAccessLoss, requireManageGuild, type AppContext } from "../auth/guard.js";
 import { rateLimit } from "../ratelimit.js";
 import { invalidBody } from "./validation.js";
@@ -113,9 +114,11 @@ guildsRouter.get("/guilds/:guildId", async (c) => {
     logChannelId: row.log_channel_id,
     warnThreshold: row.warn_threshold,
     warnTimeoutMinutes: row.warn_timeout_minutes,
+    customNickname: row.custom_nickname,
     // Key written by /internal/gateway/heartbeat with a 300 s TTL: presence
     // alone means the gateway phoned home recently.
     gatewayConnected: (await c.env.KV.get("gateway:status")) !== null,
+    access: c.get("guildAccess") === "panel_moderator" ? "moderator" : "admin",
   };
   return c.json(body);
 });
@@ -139,6 +142,37 @@ guildsRouter.patch("/guilds/:guildId/config", rateLimit({ name: "config", limit:
   return c.json({ ok: true });
 });
 
+// --- Bot nickname (M16) ----------------------------------------------------
+
+const nicknameSchema = z.object({ nickname: z.string().min(1).max(32).nullable() });
+
+/**
+ * Sets the bot's nickname on this guild. The value is persisted first so the
+ * panel keeps it even when Discord rejects the change; a missing CHANGE_NICKNAME
+ * permission returns 409 (stored but not applied) rather than a hard failure.
+ * null resets to the bot's default username.
+ */
+guildsRouter.patch("/guilds/:guildId/nickname", rateLimit({ name: "nickname", limit: 10 }), async (c) => {
+  const guildId = c.req.param("guildId");
+  const parsed = nicknameSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return invalidBody(c, parsed.error);
+  const { nickname } = parsed.data;
+
+  await setGuildNickname(c.env.DB, guildId, nickname);
+  try {
+    await discordJson(c.env, "PATCH", `/guilds/${guildId}/members/@me`, { nick: nickname });
+  } catch (err) {
+    // 403 here means the bot lacks CHANGE_NICKNAME — NOT a loss of guild access,
+    // so handle it before handleGuildAccessLoss (which would flip bot_installed off).
+    if (err instanceof DiscordAPIError && err.status === 403) {
+      return c.json({ error: "missing_permission" }, 409);
+    }
+    if (await handleGuildAccessLoss(c.env, guildId, err)) return c.json({ error: "bot_not_installed" }, 404);
+    return c.json({ error: "discord_error" }, 502);
+  }
+  return c.json({ ok: true });
+});
+
 interface RESTChannel {
   id: string;
   name: string;
@@ -154,7 +188,9 @@ guildsRouter.get("/guilds/:guildId/channels", async (c) => {
   try {
     const channels = await discordJson<RESTChannel[]>(c.env, "GET", `/guilds/${guildId}/channels`);
     const options: ChannelOption[] = channels
-      .filter((ch) => ch.type === 0 || ch.type === 5 || ch.type === 4) // text + announcement + category (tickets)
+      // text + announcement + category (tickets) + voice + stage (voice logs, M17).
+      // Each panel selector filters by its own `types` prop, so this stays additive.
+      .filter((ch) => ch.type === 0 || ch.type === 5 || ch.type === 4 || ch.type === 2 || ch.type === 13)
       .map((ch) => ({ id: ch.id, name: ch.name, type: ch.type, position: ch.position ?? 0 }))
       .sort((a, b) => a.position - b.position);
     await c.env.KV.put(cacheKey, JSON.stringify(options), { expirationTtl: 300 });
@@ -200,6 +236,7 @@ guildsRouter.get("/guilds/:guildId/panel-access", requireManageGuild, async (c) 
     id: r.id,
     subjectType: r.subject_type,
     subjectId: r.subject_id,
+    level: r.level,
     addedBy: r.added_by,
     createdAt: r.created_at,
   }));
@@ -211,6 +248,7 @@ const panelAccessSchema = z
     z.object({
       subjectType: z.enum(["role", "user"]),
       subjectId: z.string().regex(/^\d{5,20}$/),
+      level: z.enum(["admin", "moderator"]).default("admin"),
     }),
   )
   .max(50);

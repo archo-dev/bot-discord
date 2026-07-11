@@ -8,10 +8,12 @@ import { ChannelSelect, RoleSelect } from "../ui/entity-select.js";
 import { SaveBar, useDirty } from "../ui/savebar.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { Icon } from "../ui/icons.js";
+import { useCanWrite } from "../lib/access.js";
 
 export function LevelsPage() {
   const { guildId } = useParams<{ guildId: string }>();
   const queryClient = useQueryClient();
+  const canWrite = useCanWrite();
 
   const settings = useQuery({
     queryKey: ["xp-settings", guildId],
@@ -50,7 +52,8 @@ export function LevelsPage() {
   const assignableRoles = roles.data?.filter((r) => !r.managed) ?? [];
 
   return (
-    <div className="max-w-2xl space-y-8">
+    // fieldset disabled (M15) : neutralise tous les champs pour les accès lecture seule.
+    <fieldset disabled={!canWrite} className="max-w-2xl space-y-8">
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">XP par message</h2>
@@ -220,6 +223,6 @@ export function LevelsPage() {
         onSave={() => save.mutate()}
         onReset={resetForm}
       />
-    </div>
+    </fieldset>
   );
 }

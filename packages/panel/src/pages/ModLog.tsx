@@ -10,6 +10,7 @@ import { UserCell } from "../ui/cells.js";
 import { MemberCombobox } from "../ui/entity-select.js";
 import { ConfirmModal } from "../ui/overlay.js";
 import { actionMeta, ModActionIcon, TimeAgo } from "../ui/mod-meta.js";
+import { useCanWrite } from "../lib/access.js";
 
 const ACTION_FILTERS: { value: string; label: string }[] = [
   { value: "", label: "Toutes les actions" },
@@ -128,6 +129,7 @@ function ModActions() {
 function Warnings() {
   const { guildId } = useParams<{ guildId: string }>();
   const queryClient = useQueryClient();
+  const canWrite = useCanWrite();
   const [userFilter, setUserFilter] = useState("");
   const [toRevoke, setToRevoke] = useState<WarningDto | null>(null);
 
@@ -215,10 +217,12 @@ function Warnings() {
                 <td className="py-2.5 pr-4 text-right">
                   {w.revokedAt ? (
                     <Badge tone="neutral">Révoqué</Badge>
-                  ) : (
+                  ) : canWrite ? (
                     <Button size="sm" variant="secondary" onClick={() => setToRevoke(w)}>
                       Révoquer
                     </Button>
+                  ) : (
+                    <Badge tone="success">Actif</Badge>
                   )}
                 </td>
               </tr>

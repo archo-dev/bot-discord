@@ -163,18 +163,24 @@ describe("counters + panel access", () => {
 
   it("replaces panel access atomically", async () => {
     await upsertGuild(env.DB, G, "Test Guild", null);
-    await replacePanelAccess(env.DB, G, [{ subjectType: "role", subjectId: "600000000000000001" }], "700000000000000001");
+    await replacePanelAccess(
+      env.DB,
+      G,
+      [{ subjectType: "role", subjectId: "600000000000000001", level: "admin" }],
+      "700000000000000001",
+    );
     await replacePanelAccess(
       env.DB,
       G,
       [
-        { subjectType: "role", subjectId: "600000000000000002" },
-        { subjectType: "user", subjectId: "800000000000000003" },
+        { subjectType: "role", subjectId: "600000000000000002", level: "admin" },
+        { subjectType: "user", subjectId: "800000000000000003", level: "moderator" },
       ],
       "700000000000000001",
     );
     const entries = await listPanelAccess(env.DB, G);
     expect(entries).toHaveLength(2);
     expect(entries.map((e) => e.subject_id)).toEqual(["600000000000000002", "800000000000000003"]);
+    expect(entries.map((e) => e.level)).toEqual(["admin", "moderator"]);
   });
 });

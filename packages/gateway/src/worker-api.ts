@@ -1,4 +1,4 @@
-import type { MusicStateDto, MusicTrack } from "@bot/shared";
+import type { MusicStateDto, MusicTrack, VoiceLogAction } from "@bot/shared";
 import type { GatewayEnv } from "./env.js";
 
 /**
@@ -27,6 +27,10 @@ export interface GuildGatewayConfig {
     messageDelete: boolean;
     messageEdit: boolean;
     memberUpdate: boolean;
+    voiceJoin: boolean;
+    voiceLeave: boolean;
+    voiceMove: boolean;
+    voiceState: boolean;
   };
   automod: {
     antiSpamEnabled: boolean;
@@ -49,6 +53,14 @@ export interface GuildGatewayConfig {
 
 export type AutomodRule = "spam" | "invite" | "link" | "word";
 
+export interface VoiceLogEntry {
+  userId: string;
+  userTag: string | null;
+  action: VoiceLogAction;
+  channelId: string | null;
+  fromChannelId: string | null;
+}
+
 export interface HeartbeatPayload {
   guildCount: number;
   wsPing: number | null;
@@ -60,6 +72,8 @@ export interface WorkerApi {
   postEvent(guildId: string, eventType: string, payload: Record<string, unknown>): Promise<void>;
   postAutomodSanction(guildId: string, payload: { userId: string; rule: AutomodRule; action: "warn" | "timeout" }): Promise<void>;
   postXp(guildId: string, payload: { userId: string; username: string | null; channelId: string }): Promise<void>;
+  /** Buffers voice entries and flushes them to the Worker every ~5 s (smooths bursts). */
+  postVoiceLogs(guildId: string, entries: VoiceLogEntry[]): Promise<void>;
   postMusicState(guildId: string, state: MusicStateDto): Promise<void>;
   savePlaylist(guildId: string, payload: { ownerId: string; name: string; tracks: MusicTrack[] }): Promise<void>;
   getPlaylistTracks(guildId: string, name: string): Promise<MusicTrack[] | null>;
@@ -82,6 +96,26 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
     return res;
   }
 
+  // Voice logs are bursty (a full channel emptying fires many events at once):
+  // buffer per guild and flush every 5 s, batched ≤50 (the /internal cap).
+  const voiceBuffer = new Map<string, VoiceLogEntry[]>();
+  async function flushVoice(): Promise<void> {
+    for (const [guildId, entries] of voiceBuffer) {
+      if (entries.length === 0) {
+        voiceBuffer.delete(guildId);
+        continue;
+      }
+      const batch = entries.splice(0, 50);
+      try {
+        await call("POST", `/internal/guilds/${guildId}/voice-logs`, { entries: batch });
+      } catch (err) {
+        // Best-effort: drop the batch rather than let the buffer grow unbounded.
+        console.error(`voice-logs flush ${guildId} failed:`, err instanceof Error ? err.message : err);
+      }
+    }
+  }
+  setInterval(() => void flushVoice(), 5000);
+
   return {
     async getGuildConfig(guildId) {
       const res = await call("GET", `/internal/guilds/${guildId}/config`);
@@ -99,6 +133,11 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
     },
     async postXp(guildId, payload) {
       await call("POST", `/internal/guilds/${guildId}/xp`, payload);
+    },
+    async postVoiceLogs(guildId, entries) {
+      const buf = voiceBuffer.get(guildId) ?? [];
+      buf.push(...entries);
+      voiceBuffer.set(guildId, buf);
     },
     async postMusicState(guildId, state) {
       await call("POST", `/internal/guilds/${guildId}/music-state`, state);

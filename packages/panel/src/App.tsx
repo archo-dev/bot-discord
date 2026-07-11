@@ -10,6 +10,7 @@ import { ConfigPage } from "./pages/Config.js";
 import { CommandsPage } from "./pages/Commands.js";
 import { CommandEditorPage } from "./pages/CommandEditor.js";
 import { ModLogPage } from "./pages/ModLog.js";
+import { VoiceLogPage } from "./pages/VoiceLog.js";
 import { PanelAccessPage } from "./pages/PanelAccess.js";
 import { TicketsPage } from "./pages/Tickets.js";
 import { RolesPage } from "./pages/Roles.js";
@@ -70,6 +71,7 @@ export function App() {
         <Route path="levels" element={<LevelsPage />} />
         <Route path="music" element={<MusicPage />} />
         <Route path="modlog" element={<ModLogPage />} />
+        <Route path="voicelog" element={<VoiceLogPage />} />
         <Route path="access" element={<PanelAccessPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

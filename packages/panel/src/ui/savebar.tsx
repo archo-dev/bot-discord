@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useBlocker } from "react-router";
 import { Button, Spinner } from "./kit.js";
 import { Modal } from "./overlay.js";
+import { useCanWrite } from "../lib/access.js";
 
 /*
  * SaveBar « Nocturne 2 » (docs/design_system_v2.md §4.9).
@@ -41,6 +42,10 @@ export function SaveBar({
   onReset: () => void;
   errorMessage?: string;
 }) {
+  // Lecture seule (M15) : les champs sont désactivés en amont (fieldset), donc
+  // dirty ne devrait jamais passer à true — ceinture et bretelles : si ça
+  // arrive quand même, on n'offre que « Réinitialiser », jamais « Enregistrer ».
+  const canWrite = useCanWrite();
   // Après un enregistrement réussi (le refetch resynchronise le formulaire → dirty
   // repasse à false), on affiche « ✓ Enregistré » 1,5 s avant de disparaître.
   const [justSaved, setJustSaved] = useState(false);
@@ -84,7 +89,9 @@ export function SaveBar({
         ) : (
           <>
             <span className="text-sm font-semibold text-zinc-100">
-              {status === "pending" ? (
+              {!canWrite ? (
+                "Lecture seule — vos modifications ne peuvent pas être enregistrées"
+              ) : status === "pending" ? (
                 <span className="inline-flex items-center gap-2">
                   <Spinner className="h-3.5 w-3.5" /> Enregistrement en cours
                 </span>
@@ -97,9 +104,11 @@ export function SaveBar({
               <Button variant="ghost" size="sm" onClick={onReset} disabled={status === "pending"}>
                 Réinitialiser
               </Button>
-              <Button size="sm" onClick={onSave} loading={status === "pending"}>
-                Enregistrer
-              </Button>
+              {canWrite && (
+                <Button size="sm" onClick={onSave} loading={status === "pending"}>
+                  Enregistrer
+                </Button>
+              )}
             </span>
           </>
         )}

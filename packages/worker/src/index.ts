@@ -12,8 +12,9 @@ import { automodRouter } from "./api/automod.js";
 import { xpRouter } from "./api/xp.js";
 import { musicRouter } from "./api/music.js";
 import { membersRouter } from "./api/members.js";
+import { voiceLogsRouter } from "./api/voice-logs.js";
 import { internalRouter } from "./internal/routes.js";
-import { requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
+import { blockModeratorWrites, requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -28,6 +29,10 @@ const api = new Hono<AppContext>();
 api.use("*", requireSession);
 api.use("/guilds/:guildId", requireGuildAccess);
 api.use("/guilds/:guildId/*", requireGuildAccess);
+// Moderator grants are read-only: every write verb under a guild is 403
+// (see auth/guard.ts). GET/HEAD routes stay open to moderators.
+api.use("/guilds/:guildId", blockModeratorWrites);
+api.use("/guilds/:guildId/*", blockModeratorWrites);
 api.route("/", commandsRouter);
 api.route("/", moderationRouter);
 api.route("/", ticketsRouter);
@@ -37,6 +42,7 @@ api.route("/", automodRouter);
 api.route("/", xpRouter);
 api.route("/", musicRouter);
 api.route("/", membersRouter);
+api.route("/", voiceLogsRouter);
 api.route("/", guildsRouter);
 app.route("/api", api);
 

@@ -4,7 +4,7 @@
 > Règle : **un milestone = migration + API + panel + tests + commit + rapport.**
 > Avant chaque commit : `pnpm -r check` → `pnpm --filter '@bot/worker' test` → `pnpm --filter '@bot/panel' build`.
 >
-> Dernière mise à jour : 2026-07-09
+> Dernière mise à jour : 2026-07-11
 
 | # | Milestone | Statut | Commit |
 |---|---|---|---|
@@ -21,6 +21,8 @@
 | M12 | Auto-modération | ✅ Livré + déployé (test manuel restant) | `f67fec7` |
 | M13 | XP / Niveaux | ✅ Livré + déployé (test manuel restant) | `c2a0503` |
 | M14 | Musique | 🔶 Code livré + gateway VPS OK ; tunnel + deploy Worker restants | `503a909` |
+| M15 | Permissions panel (admin/modérateur) | ✅ Déployé (`3273621e`) ; test manuel 2ᵉ compte restant | — |
+| M16 | Surnom du bot par guilde | ✅ Déployé (`22d7ffb7`) ; permission Discord à vérifier par serveur | — |
 
 ---
 
@@ -160,3 +162,40 @@
 - [ ] **Validation finale `/play`** : bloquée le 2026-07-11 par un **rate-limit YouTube temporaire** (trop de requêtes de test → bot-check). La chaîne complète a été prouvée fonctionnelle juste avant. À revalider après refroidissement de l'IP (~1 h), sinon ré-exporter des cookies frais.
 
 ⚠️ Risque assumé : YouTube casse régulièrement — cookies à ré-exporter périodiquement, `yt-dlp -U` ponctuel.
+
+## 🔶 M15 — Permissions panel : admin (écriture) vs modérateur (lecture seule) — 21/21 tests worker
+
+Deux niveaux d'accès par grant `panel_access`. **Modérateur = strictement lecture seule** : tout consultable, aucune écriture (config, modération, musique incluses). La défense est côté serveur ; l'UI ne fait que refléter.
+
+- [x] Migration `0012_panel_access_levels.sql` : `ALTER TABLE panel_access ADD COLUMN level TEXT NOT NULL DEFAULT 'admin' CHECK (level IN ('admin','moderator'))` — grants existants ⇒ admin (rétro-compatible). **Écrite, pas encore appliquée en remote.**
+- [x] Worker `auth/guard.ts` : `GuildAccess = "manage_guild" | "panel_admin" | "panel_moderator"` ; `requireGuildAccess` résout le niveau max sur plusieurs grants (rôle via lookup membre REST seulement si ça peut élever le niveau). Nouveau middleware `blockModeratorWrites`.
+- [x] Worker `index.ts` : `blockModeratorWrites` monté **centralement** sur `/guilds/:guildId` et `/guilds/:guildId/*` → **403 `{error:"read_only_access"}`** si méthode ∈ {POST, PUT, PATCH, DELETE} et accès = `panel_moderator`. GET/HEAD restent ouverts. Les nouvelles routes d'écriture sont protégées par construction.
+- [x] Worker `api/guilds.ts` : GET `/guilds/:id` renvoie `access: "admin" | "moderator"` ; PUT `panel-access` accepte `level` par grant (gestion réservée à `requireManageGuild`).
+- [x] Worker `db/queries.ts` : `listPanelAccess`/`replacePanelAccess` portent `level`.
+- [x] Shared : `level` sur `PanelAccessEntry`, `access` sur `GuildOverview`.
+- [x] Panel `GuildLayout.tsx` : `AccessContext` (`canWrite`) + hook `lib/access.ts` (`useCanWrite`), badge « Lecture seule » dans l'en-tête.
+- [x] Panel lecture seule appliquée partout : `<fieldset disabled>` sur les formulaires (Config, Welcome, Levels, Automod, Tickets, CommandEditor) ; boutons d'action masqués/neutralisés (Roles, Music, ModLog, Commands). `SaveBar` s'auto-masque (dirty ne peut pas monter, champs désactivés).
+- [x] Panel `PanelAccess.tsx` : sélecteur de niveau **admin/modérateur par grant** (rôles + utilisateurs).
+- [x] Vérif : `pnpm -r check` vert (4 packages) ; `pnpm --filter @bot/worker test` → 21/21 ; `pnpm --filter @bot/panel build` OK.
+
+**Routes read-only (GET, ouvertes au modérateur)** : overview, channels, roles, mod-actions, warnings (lecture), tickets + transcripts, button-roles (lecture), welcome/log-settings/automod/xp/leaderboard (lecture), music-state, playlists, commands (lecture).
+**Routes admin uniquement (verbes d'écriture, 403 modérateur)** : config, auto-roles, welcome/log-settings/automod/xp (PUT), commands (POST/PUT/PATCH/DELETE + state), tickets settings/panel, button-roles (POST/DELETE), warnings (DELETE), music-control. `panel-access` (GET+PUT) reste `requireManageGuild`.
+
+- [ ] **Migration remote** : `pnpm migrate:remote` (0012) au déploiement.
+- [ ] **Déploiement** : `wrangler deploy` + build panel poussé.
+- [ ] **Test manuel restant** : créer un grant modérateur (rôle ou ID), se connecter avec ce compte → tout visible, badge « Lecture seule », aucune écriture possible (403 côté API). Vérifier qu'un compte admin/`Gérer le serveur` garde l'accès complet.
+
+## ✅ M16 — Surnom du bot par guilde (`22d7ffb7`) — 128/128 tests worker
+
+Surnom personnalisé du bot **par serveur**, appliqué via REST. La valeur est stockée en D1 **avant** l'appel Discord, donc le panel conserve le choix même si le bot n'a pas la permission.
+
+- [x] Migration `0013_guild_nickname.sql` : `ALTER TABLE guilds ADD COLUMN custom_nickname TEXT` (NULL = nom par défaut) — **appliquée en remote**.
+- [x] Worker `db/queries.ts` : `custom_nickname` sur `GuildRow`, `setGuildNickname(db, id, nickname)`.
+- [x] Worker `api/guilds.ts` : `customNickname` exposé dans le GET overview ; **`PATCH /api/guilds/:id/nickname`** (rate-limité 10/min) — zod `{nickname: string 1..32 | null}` → écrit D1 puis `PATCH /guilds/:id/members/@me {nick}`. **403 Discord ⇒ 409 `{error:"missing_permission"}`** (valeur stockée quand même). Le 403 est traité **avant** `handleGuildAccessLoss` pour ne pas marquer le bot « désinstallé » sur une simple permission manquante. `null` ⇒ reset.
+- [x] Shared : `customNickname` sur `GuildOverview`.
+- [x] Panel `Config.tsx` : carte « Surnom du bot » (dans le `fieldset` M15 → désactivée pour les modérateurs) — statuts « ✓ appliqué », « enregistré mais non appliqué » (permission), « échec ». Champ vide + Appliquer = reset.
+- [x] Tests `nickname.test.ts` : 200 appliqué (nick envoyé), 409 missing_permission (valeur stockée), null = reset.
+- [x] Vérif : `pnpm -r check` vert ; worker 128/128 ; build panel OK. Déployé `22d7ffb7`.
+
+- [ ] **Action manuelle utilisateur** : sur **chaque serveur**, vérifier que le rôle du bot a la permission **« Changer de pseudo »** (Change Nickname). Sans elle, le surnom est enregistré mais le badge « non appliqué » s'affiche.
+

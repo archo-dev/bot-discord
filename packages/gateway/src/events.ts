@@ -19,7 +19,7 @@ function truncate(text: string, max = 1000): string {
 }
 
 /** Guild-scoped channel lookup: a channel id from another guild resolves to nothing. */
-async function sendTo(guild: Guild, channelId: string | null, payload: { content?: string; embeds?: EmbedBuilder[] }): Promise<void> {
+export async function sendTo(guild: Guild, channelId: string | null, payload: { content?: string; embeds?: EmbedBuilder[] }): Promise<void> {
   if (!channelId) return;
   try {
     const channel = guild.channels.cache.get(channelId) ?? (await guild.channels.fetch(channelId).catch(() => null));
