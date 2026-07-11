@@ -242,7 +242,7 @@ Page **Statistiques** dans le panel : exploite les données collectées en M18. 
 
 - [x] **Presence activée le 2026-07-11** : Presence Intent ON au portail + `PRESENCE_ENABLED=true` dans le `.env` du gateway VPS + gateway M19 redéployé (bundle `5e1b0e4`) + restart. Vérifié : KV `gateway:status` contient `presence` avec des comptes réels (online/idle/dnd) → le donut s'affiche. (offline reste à 0 : Discord ne cache pas les présences hors-ligne.)
 
-## 🚧 M20 — Carte membre sur mentions — code complet, non déployé — 148/148 tests worker
+## ✅ M20 — Carte membre sur mentions (worker+panel `7cd0f228`, gateway bundle `4dc2185`) — 148/148 tests worker
 
 Quand un message **du bot** mentionne des membres, une petite fiche par membre mentionné est ajoutée (compte créé, arrivée, rôles, statut si dispo). Opt-in par serveur. Décision actée : **1 carte par mention unique, max 3**.
 
@@ -254,6 +254,7 @@ Quand un message **du bot** mentionne des membres, une petite fiche par membre m
 - [x] Tests worker `member-card.test.ts` (11) : `extractUserMentions` (dédup/ordre/exclusions), `buildMemberCardEmbed` (snowflake documenté, cap rôles, champs optionnels), `withMemberCards` (opt-in append, opt-out inchangé, sans mention, cap 3, plafond 10 embeds). Suite worker : 148/148.
 - [x] `pnpm check` vert sur shared/worker/gateway/panel.
 
-- [ ] **Déploiement** : `migrate:remote` (0016) → worker+panel → rebuild bundle gateway + restart systemd (VPS). Aucune action portail Discord (pas de nouvel intent/permission ; opt-in par serveur via le panel).
+- [x] **Déployé le 2026-07-12** : migration 0016 remote ✅ → worker+panel `7cd0f228` ✅ → gateway bundle `4dc2185` (build tsup + restart systemd, `gateway ready as Archodev#1241`) ✅. Aucune action portail Discord (pas de nouvel intent/permission ; opt-in par serveur via le panel).
+
 - [ ] **Vérif manuelle** : commande perso avec `<@id>` → carte ; toggle off → aucune carte ; message d'accueil qui mentionne le nouveau → carte avec statut si Presence actif.
 
