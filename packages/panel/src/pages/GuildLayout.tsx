@@ -1,33 +1,115 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { GuildOverview, MeResponse } from "@bot/shared";
 import { api, ApiError, avatarUrl, guildIconUrl } from "../lib/api.js";
 import { Icon, type IconName } from "../ui/icons.js";
+import { IconButton, ErrorCard } from "../ui/kit.js";
+import { Skeleton } from "../ui/skeleton.js";
 
-const nav: { to: string; label: string; icon: IconName; end?: boolean; subtitle?: string }[] = [
-  { to: "", label: "Aperçu", icon: "home", end: true, subtitle: "Bienvenue sur le dashboard de votre serveur." },
-  { to: "config", label: "Configuration", icon: "sliders" },
-  { to: "commands", label: "Commandes", icon: "command" },
-  { to: "tickets", label: "Tickets", icon: "ticket" },
-  { to: "roles", label: "Rôles", icon: "tag" },
-  { to: "welcome", label: "Bienvenue", icon: "wave" },
-  { to: "automod", label: "Auto-mod", icon: "shield" },
-  { to: "levels", label: "Niveaux", icon: "trophy" },
-  { to: "music", label: "Musique", icon: "music" },
-  { to: "modlog", label: "Mod-log", icon: "scroll" },
-  { to: "access", label: "Accès panel", icon: "key" },
+interface NavItem {
+  to: string;
+  label: string;
+  icon: IconName;
+  end?: boolean;
+  subtitle: string;
+}
+
+/* Sidebar groupée (D.S. v2 §4.13) — chaque page porte un sous-titre d'orientation. */
+const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
+  {
+    group: "Serveur",
+    items: [
+      { to: "", label: "Aperçu", icon: "home", end: true, subtitle: "Vue d'ensemble de l'activité et de la configuration du serveur." },
+      { to: "config", label: "Configuration", icon: "sliders", subtitle: "Réglages généraux du bot : salon de logs et seuil d'avertissements." },
+      { to: "access", label: "Accès panel", icon: "key", subtitle: "Choisissez qui peut accéder à ce panel en plus des gestionnaires du serveur." },
+    ],
+  },
+  {
+    group: "Engagement",
+    items: [
+      { to: "welcome", label: "Bienvenue", icon: "wave", subtitle: "Messages d'arrivée et de départ, auto-rôles et logs serveur." },
+      { to: "roles", label: "Rôles", icon: "tag", subtitle: "Publiez des messages à boutons pour que les membres choisissent leurs rôles." },
+      { to: "levels", label: "Niveaux", icon: "trophy", subtitle: "XP par message, récompenses de niveau et classement du serveur." },
+    ],
+  },
+  {
+    group: "Modération",
+    items: [
+      { to: "automod", label: "Auto-mod", icon: "shield", subtitle: "Filtres automatiques : spam, invitations, liens et mots interdits." },
+      { to: "modlog", label: "Mod-log", icon: "scroll", subtitle: "Historique des actions de modération et des avertissements." },
+      { to: "tickets", label: "Tickets", icon: "ticket", subtitle: "Support par tickets : réglages, panneau public et transcripts." },
+    ],
+  },
+  {
+    group: "Outils",
+    items: [
+      { to: "commands", label: "Commandes", icon: "command", subtitle: "Créez des commandes personnalisées avec conditions et actions." },
+      { to: "music", label: "Musique", icon: "music", subtitle: "État de la lecture en cours et contrôles du lecteur." },
+    ],
+  },
 ];
+
+const NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
+
+const FOCUSABLE = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export function GuildLayout({ me }: { me: MeResponse }) {
   const { guildId } = useParams<{ guildId: string }>();
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const drawerRef = useRef<HTMLElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   const overview = useQuery({
     queryKey: ["guild", guildId],
     queryFn: () => api<GuildOverview>(`/api/guilds/${guildId}`),
   });
+
+  const g = overview.data;
+
+  // Onglet actif → titre + sous-titre de la page
+  const base = `/guilds/${guildId}`;
+  const rel = location.pathname.startsWith(base) ? location.pathname.slice(base.length).replace(/^\//, "") : "";
+  const active = (NAV_ITEMS.find((n) => (n.end ? rel === "" : rel.startsWith(n.to) && n.to !== "")) ?? NAV_ITEMS[0])!;
+
+  // Titre de document par page (D.S. v2 / plan H4)
+  useEffect(() => {
+    document.title = g ? `${active.label} — ${g.name}` : active.label;
+    return () => {
+      document.title = "Panel du bot";
+    };
+  }, [active.label, g]);
+
+  // Drawer mobile : Échap + focus trap + restitution du focus (D.S. v2 §4.2)
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const panel = drawerRef.current;
+    panel?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setDrawerOpen(false);
+        return;
+      }
+      if (e.key !== "Tab" || !panel) return;
+      const focusables = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE));
+      if (focusables.length === 0) return;
+      const first = focusables[0]!;
+      const last = focusables[focusables.length - 1]!;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      menuButtonRef.current?.focus();
+    };
+  }, [drawerOpen]);
 
   if (overview.isError) {
     const err = overview.error;
@@ -37,78 +119,96 @@ export function GuildLayout({ me }: { me: MeResponse }) {
         : err instanceof ApiError && err.status === 403
           ? "Vous n'avez pas accès au panel de ce serveur."
           : "Erreur lors du chargement du serveur.";
+    const canRetry = !(err instanceof ApiError && (err.status === 403 || err.status === 404));
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
-        <p className="text-red-400">{message}</p>
-        <Link to="/" className="mt-4 inline-block text-indigo-400 hover:underline">
-          ← Retour à mes serveurs
-        </Link>
+      <div className="mx-auto max-w-md px-4 py-16">
+        <ErrorCard message={message} onRetry={canRetry ? () => void overview.refetch() : undefined} />
+        <div className="mt-4 text-center">
+          <Link to="/" className="text-sm text-indigo-400 hover:underline">
+            ← Retour à mes serveurs
+          </Link>
+        </div>
       </div>
     );
   }
 
-  const g = overview.data;
   const iconUrl = g ? guildIconUrl(g.id, g.icon, 128) : null;
-
-  // Onglet actif → titre de la page (comme « Aperçu » sur la maquette)
-  const base = `/guilds/${guildId}`;
-  const rel = location.pathname.startsWith(base) ? location.pathname.slice(base.length).replace(/^\//, "") : "";
-  const active = (nav.find((n) => (n.end ? rel === "" : rel.startsWith(n.to) && n.to !== "")) ?? nav[0])!;
 
   const sidebar = (
     <div className="flex h-full flex-col">
-      {/* En-tête serveur */}
-      <div className="flex items-center gap-2 px-4 py-4">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white">
-          <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden>
-            <path d="M20.32 4.37a19.8 19.8 0 0 0-4.89-1.52c-.21.38-.44.9-.6 1.29a18.3 18.3 0 0 0-5.5 0c-.16-.39-.4-.91-.61-1.29A19.7 19.7 0 0 0 3.83 4.37C.53 9.05-.32 13.58.1 18.06a19.9 19.9 0 0 0 6 3.03c.46-.63.87-1.3 1.22-2a13 13 0 0 1-1.87-.9l.37-.3a14.2 14.2 0 0 0 12.06 0l.37.3c-.6.36-1.23.66-1.88.9.35.7.76 1.37 1.22 2a19.8 19.8 0 0 0 6.03-3.03c.5-5.18-.84-9.68-3.55-13.66zM8.02 15.33c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.96-2.42 2.16-2.42 1.21 0 2.18 1.1 2.16 2.42 0 1.34-.96 2.42-2.16 2.42zm7.97 0c-1.18 0-2.15-1.08-2.15-2.42 0-1.33.95-2.42 2.15-2.42 1.22 0 2.18 1.1 2.16 2.42 0 1.34-.94 2.42-2.16 2.42z" />
-          </svg>
-        </span>
-        <span className="min-w-0 flex-1 truncate text-sm font-bold text-zinc-100">{g?.name ?? "…"}</span>
-        <Link to="/" title="Changer de serveur" className="text-zinc-500 transition hover:text-zinc-300">
-          <Icon.chevron />
-        </Link>
-      </div>
-
-      {/* Bannière serveur */}
-      <div className="px-4 pb-4">
-        <div className="overflow-hidden rounded-xl border border-zinc-800">
-          <div className="h-20 w-full bg-gradient-to-br from-indigo-600/40 to-indigo-950/40">
-            {iconUrl && <img src={iconUrl} alt="" className="h-full w-full object-cover opacity-60" />}
-          </div>
-        </div>
-        <div className="mt-3 px-0.5">
-          <div className="truncate text-sm font-semibold text-zinc-100">{g?.name ?? "…"}</div>
-          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-zinc-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
-            {g?.approximateMemberCount != null ? `${g.approximateMemberCount} membres` : "—"}
-          </div>
-        </div>
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
-        {nav.map((n) => (
-          <NavLink
-            key={n.to}
-            to={n.to}
-            end={n.end}
-            onClick={() => setDrawerOpen(false)}
-            className={({ isActive }) =>
-              `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
-                isActive
-                  ? "bg-indigo-500/15 font-semibold text-white"
-                  : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
-              }`
-            }
-          >
-            {({ isActive }) => (
+      {/* Carte serveur unifiée (D.S. v2 §4.13) : icône + nom (une fois) + membres + switch */}
+      <div className="px-3 pt-4 pb-2">
+        <div className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
+          {g ? (
+            iconUrl ? (
+              <img src={iconUrl} alt="" className="h-10 w-10 shrink-0 rounded-full" />
+            ) : (
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-950 text-sm font-bold text-indigo-300">
+                {g.name.slice(0, 2).toUpperCase()}
+              </span>
+            )
+          ) : (
+            <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+          )}
+          <div className="min-w-0 flex-1">
+            {g ? (
               <>
-                <span className={isActive ? "text-indigo-400" : "text-zinc-500"}>{Icon[n.icon]()}</span>
-                {n.label}
+                <div className="truncate text-sm font-semibold text-zinc-100">{g.name}</div>
+                <div className="mt-0.5 flex items-center gap-1.5 text-xs text-zinc-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-green-400" aria-hidden />
+                  {g.approximateMemberCount != null ? `${g.approximateMemberCount} membres` : "—"}
+                </div>
               </>
+            ) : (
+              <div className="space-y-1.5">
+                <Skeleton className="h-3.5 w-28" />
+                <Skeleton className="h-3 w-20" />
+              </div>
             )}
-          </NavLink>
+          </div>
+          <Link
+            to="/"
+            aria-label="Changer de serveur"
+            title="Changer de serveur"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+          >
+            <Icon.chevron />
+          </Link>
+        </div>
+      </div>
+
+      {/* Navigation groupée */}
+      <nav className="flex-1 overflow-y-auto px-3 py-2">
+        {NAV_GROUPS.map((group) => (
+          <div key={group.group} className="mt-4 first:mt-0">
+            <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+              {group.group}
+            </div>
+            <div className="space-y-0.5">
+              {group.items.map((n) => (
+                <NavLink
+                  key={n.to}
+                  to={n.to}
+                  end={n.end}
+                  onClick={() => setDrawerOpen(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                      isActive
+                        ? "bg-indigo-500/15 font-semibold text-white"
+                        : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                    }`
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      <span className={isActive ? "text-indigo-400" : "text-zinc-500"}>{Icon[n.icon]()}</span>
+                      {n.label}
+                    </>
+                  )}
+                </NavLink>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
 
@@ -119,13 +219,13 @@ export function GuildLayout({ me }: { me: MeResponse }) {
           <div className="truncate text-sm font-medium text-zinc-100">{me.globalName ?? me.username}</div>
           <div className="truncate text-xs text-zinc-500">@{me.username}</div>
         </div>
-        <button
+        <IconButton
+          label="Déconnexion"
+          danger
           onClick={() => fetch("/auth/logout", { method: "POST" }).then(() => window.location.reload())}
-          title="Déconnexion"
-          className="text-zinc-500 transition hover:text-red-400"
         >
           <Icon.logout />
-        </button>
+        </IconButton>
       </div>
     </div>
   );
@@ -134,7 +234,9 @@ export function GuildLayout({ me }: { me: MeResponse }) {
     <div className="min-h-screen lg:flex">
       {/* Sidebar desktop + drawer mobile */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-[264px] border-r border-zinc-800 bg-[#101320] transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${
+        ref={drawerRef}
+        aria-label="Navigation du serveur"
+        className={`fixed inset-y-0 left-0 z-[--z-drawer] w-[264px] border-r border-zinc-800 bg-[#101320] transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${
           drawerOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -142,7 +244,7 @@ export function GuildLayout({ me }: { me: MeResponse }) {
       </aside>
       {drawerOpen && (
         <div
-          className="fixed inset-0 z-30 bg-[rgba(6,7,14,0.72)] lg:hidden"
+          className="fixed inset-0 z-[25] bg-[rgba(6,7,14,0.72)] lg:hidden"
           onClick={() => setDrawerOpen(false)}
           aria-hidden
         />
@@ -153,6 +255,7 @@ export function GuildLayout({ me }: { me: MeResponse }) {
         <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <header className="mb-6 flex items-start gap-3">
             <button
+              ref={menuButtonRef}
               onClick={() => setDrawerOpen(true)}
               className="mt-0.5 rounded-lg p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200 lg:hidden"
               aria-label="Ouvrir le menu"
@@ -161,7 +264,7 @@ export function GuildLayout({ me }: { me: MeResponse }) {
             </button>
             <div className="min-w-0">
               <h1 className="text-[22px] font-bold tracking-tight text-zinc-100">{active.label}</h1>
-              {active.subtitle && <p className="mt-0.5 text-sm text-zinc-400">{active.subtitle}</p>}
+              <p className="mt-0.5 text-sm text-zinc-400">{active.subtitle}</p>
             </div>
             <span
               className={`ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
@@ -178,7 +281,10 @@ export function GuildLayout({ me }: { me: MeResponse }) {
             </span>
           </header>
 
-          <Outlet />
+          {/* Fondu 150 ms au changement de page (D.S. v2 §2.3) — la clé force le re-rendu animé */}
+          <div key={location.pathname} className="animate-page-in">
+            <Outlet />
+          </div>
         </div>
       </div>
     </div>

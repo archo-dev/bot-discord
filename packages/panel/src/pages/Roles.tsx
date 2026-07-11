@@ -3,7 +3,10 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ButtonRoleMessageDto, ChannelOption, RoleOption } from "@bot/shared";
 import { api } from "../lib/api.js";
-import { InfoCard } from "../ui/kit.js";
+import { Button, EmptyState, IconButton, InfoCard } from "../ui/kit.js";
+import { ConfirmModal } from "../ui/overlay.js";
+import { SkeletonList } from "../ui/skeleton.js";
+import { toast } from "../ui/toast.js";
 import { Icon } from "../ui/icons.js";
 
 const STYLE_OPTIONS = [
@@ -41,6 +44,7 @@ export function RolesPage() {
   const [title, setTitle] = useState("Choisissez vos rôles");
   const [description, setDescription] = useState("Cliquez sur un bouton pour recevoir (ou retirer) le rôle.");
   const [buttons, setButtons] = useState<DraftButton[]>([]);
+  const [toDelete, setToDelete] = useState<ButtonRoleMessageDto | null>(null);
 
   const textChannels = channels.data?.filter((ch) => ch.type !== 4) ?? [];
   const assignableRoles = roles.data?.filter((r) => !r.managed) ?? [];
@@ -56,15 +60,21 @@ export function RolesPage() {
           buttons: buttons.map((b) => ({ roleId: b.roleId, label: b.label, emoji: b.emoji || null, style: b.style })),
         }),
       }),
+    meta: { errorMessage: "Échec de la publication — vérifiez les permissions du bot dans le salon." },
     onSuccess: () => {
       setButtons([]);
+      toast.success(`Message publié dans #${textChannels.find((c) => c.id === channelId)?.name ?? "le salon"}`);
       void queryClient.invalidateQueries({ queryKey: ["button-roles", guildId] });
     },
   });
 
   const remove = useMutation({
     mutationFn: (id: number) => api(`/api/guilds/${guildId}/button-roles/${id}`, { method: "DELETE" }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["button-roles", guildId] }),
+    meta: { successMessage: "Message de rôles supprimé" },
+    onSuccess: () => {
+      setToDelete(null);
+      void queryClient.invalidateQueries({ queryKey: ["button-roles", guildId] });
+    },
   });
 
   const addButton = () => {
@@ -175,36 +185,36 @@ export function RolesPage() {
                   </option>
                 ))}
               </select>
-              <button
+              <IconButton
+                label="Retirer ce bouton"
+                danger
+                className="ml-auto"
                 onClick={() => setButtons((prev) => prev.filter((_, j) => j !== i))}
-                className="ml-auto text-zinc-500 hover:text-red-400"
-                title="Supprimer"
               >
                 ✕
-              </button>
+              </IconButton>
             </div>
           ))}
         </div>
 
         <div className="mt-4 flex items-center gap-3">
-          <button
-            onClick={() => publish.mutate()}
-            disabled={publish.isPending || !canPublish}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {publish.isPending ? "Publication…" : "Publier le message"}
-          </button>
-          {publish.isSuccess && <span className="text-sm text-green-400">✓ Publié</span>}
-          {publish.isError && (
-            <span className="text-sm text-red-400">Échec — vérifiez les permissions du bot dans le salon.</span>
-          )}
+          <Button onClick={() => publish.mutate()} disabled={!canPublish} loading={publish.isPending}>
+            Publier le message
+          </Button>
         </div>
       </section>
 
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
         <h2 className="font-semibold">Messages publiés</h2>
         <div className="mt-3 divide-y divide-zinc-800">
-          {messages.data?.length === 0 && <p className="py-3 text-sm text-zinc-500">Aucun message de rôles.</p>}
+          {messages.isPending && <SkeletonList rows={2} />}
+          {messages.data?.length === 0 && (
+            <EmptyState
+              icon={<Icon.tag />}
+              title="Aucun message de rôles"
+              description="Composez un message ci-dessus puis publiez-le : il apparaîtra ici avec ses boutons."
+            />
+          )}
           {messages.data?.map((m) => (
             <div key={m.id} className="py-3">
               <div className="flex items-center gap-3">
@@ -213,11 +223,7 @@ export function RolesPage() {
                   #{textChannels.find((c) => c.id === m.channelId)?.name ?? m.channelId}
                 </span>
                 <button
-                  onClick={() => {
-                    if (confirm("Supprimer ce message de rôles (le message Discord sera aussi supprimé) ?")) {
-                      remove.mutate(m.id);
-                    }
-                  }}
+                  onClick={() => setToDelete(m)}
                   className="ml-auto text-sm text-red-400 hover:underline"
                 >
                   Supprimer
@@ -235,6 +241,20 @@ export function RolesPage() {
           ))}
         </div>
       </section>
+
+      <ConfirmModal
+        open={toDelete !== null}
+        title="Supprimer le message de rôles"
+        subject={
+          <>
+            Supprimer <b className="text-zinc-100">« {toDelete?.title} »</b> ?
+          </>
+        }
+        consequence="Le message Discord et ses boutons seront aussi supprimés. Les rôles déjà attribués sont conservés."
+        loading={remove.isPending}
+        onCancel={() => setToDelete(null)}
+        onConfirm={() => toDelete && remove.mutate(toDelete.id)}
+      />
 
       <InfoCard icon={<Icon.tag />} title="Astuce">
         Le rôle du bot doit être placé <b>au-dessus</b> des rôles distribués (Paramètres du serveur → Rôles), sinon

@@ -40,8 +40,12 @@ export function ModActionIcon({ action, size = 36 }: { action: string; size?: nu
   );
 }
 
+function parseUtc(iso: string): Date {
+  return new Date(iso.endsWith("Z") ? iso : iso + "Z");
+}
+
 export function relativeTime(iso: string): string {
-  const then = new Date(iso.endsWith("Z") ? iso : iso + "Z").getTime();
+  const then = parseUtc(iso).getTime();
   const diff = Math.max(0, Date.now() - then);
   const m = Math.floor(diff / 60000);
   if (m < 1) return "à l'instant";
@@ -49,5 +53,20 @@ export function relativeTime(iso: string): string {
   const h = Math.floor(m / 60);
   if (h < 24) return `il y a ${h} h`;
   const d = Math.floor(h / 24);
-  return `il y a ${d} j`;
+  if (d <= 7) return `il y a ${d} j`;
+  // Au-delà de 7 jours : date absolue courte (D.S. v2 §6.7)
+  return parseUtc(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+}
+
+export function absoluteDate(iso: string): string {
+  return parseUtc(iso).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" });
+}
+
+/** Date relative doublée de la date absolue au survol (D.S. v2 §6.7). */
+export function TimeAgo({ iso, className = "" }: { iso: string; className?: string }) {
+  return (
+    <time dateTime={iso} title={absoluteDate(iso)} className={className}>
+      {relativeTime(iso)}
+    </time>
+  );
 }

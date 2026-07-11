@@ -12,7 +12,9 @@ import {
   type ChannelOption,
 } from "@bot/shared";
 import { api, ApiError } from "../lib/api.js";
-import { Toggle } from "../ui/kit.js";
+import { Button, Toggle } from "../ui/kit.js";
+import { SkeletonSettingsPage } from "../ui/skeleton.js";
+import { TimeAgo } from "../ui/mod-meta.js";
 
 const PERMISSION_OPTIONS = [
   { value: "", label: "Tout le monde" },
@@ -387,16 +389,21 @@ export function CommandEditorPage() {
         ? api(`/api/guilds/${guildId}/commands/${commandId}`, { method: "PUT", body: JSON.stringify(payload) })
         : api(`/api/guilds/${guildId}/commands`, { method: "POST", body: JSON.stringify(payload) });
     },
+    // L'erreur est affichée dans la page (bloc rouge) : pas de toast global en doublon
+    meta: {
+      successMessage: isEditing ? `Commande /${form.name} enregistrée` : `Commande /${form.name} créée`,
+      silentError: true,
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["commands", guildId] });
       void navigate(`/guilds/${guildId}/commands`);
     },
     onError: (err) => {
       if (err instanceof ApiError) {
+        // duplicate_name s'affiche sous le champ Nom (E5), pas dans le bloc global
+        if (err.code === "duplicate_name") return;
         setError(
-          err.code === "duplicate_name"
-            ? "Une commande porte déjà ce nom sur ce serveur."
-            : err.code.startsWith("invalid_logic")
+          err.code.startsWith("invalid_logic")
               ? `Logique invalide : ${err.code.slice("invalid_logic: ".length)}`
               : err.code.startsWith("discord_error")
                 ? `Erreur Discord : ${err.code.slice("discord_error: ".length)}`
@@ -408,9 +415,15 @@ export function CommandEditorPage() {
     },
   });
 
+  const nameError =
+    save.error instanceof ApiError && save.error.code === "duplicate_name"
+      ? "Une commande porte déjà ce nom sur ce serveur."
+      : undefined;
   const nameValid = /^[a-z0-9_-]{1,32}$/.test(form.name);
   const hasResponse = form.replyContent.trim() !== "" || form.embedEnabled;
   const canSave = nameValid && form.description.trim() !== "" && (hasResponse || form.extraActions.length > 0);
+
+  if (isEditing && existing.isPending) return <SkeletonSettingsPage cards={2} />;
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -436,12 +449,17 @@ export function CommandEditorPage() {
           <label className="text-sm text-zinc-300">
             Nom de la commande
             <input
-              className={`${inputCls} mt-1 ${form.name && !nameValid ? "border-red-700" : ""}`}
+              className={`${inputCls} mt-1 ${(form.name && !nameValid) || nameError ? "border-red-700" : ""}`}
               value={form.name}
               onChange={(e) => set("name", e.target.value.toLowerCase())}
               placeholder="bienvenue"
+              aria-invalid={nameError ? true : undefined}
             />
-            <span className="text-xs text-zinc-500">1-32 caractères : a-z, 0-9, - et _</span>
+            {nameError ? (
+              <span className="text-xs text-red-400">{nameError}</span>
+            ) : (
+              <span className="text-xs text-zinc-500">1-32 caractères : a-z, 0-9, - et _</span>
+            )}
           </label>
           <label className="text-sm text-zinc-300">
             Description
@@ -637,22 +655,19 @@ export function CommandEditorPage() {
       {error && <p className="rounded-lg bg-red-950/40 px-4 py-3 text-sm text-red-300">{error}</p>}
 
       <div className="flex items-center gap-3">
-        <button
+        <Button
           onClick={() => {
             setError(null);
             save.mutate();
           }}
-          disabled={!canSave || save.isPending}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={!canSave}
+          loading={save.isPending}
         >
-          {save.isPending ? "Enregistrement…" : isEditing ? "Enregistrer les modifications" : "Créer la commande"}
-        </button>
-        <button
-          onClick={() => void navigate(`/guilds/${guildId}/commands`)}
-          className="inline-flex h-10 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 px-4 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-700"
-        >
+          {isEditing ? "Enregistrer les modifications" : "Créer la commande"}
+        </Button>
+        <Button variant="secondary" onClick={() => void navigate(`/guilds/${guildId}/commands`)}>
           Annuler
-        </button>
+        </Button>
         {!canSave && form.name && (
           <span className="text-xs text-zinc-500">Nom valide, description et au moins une réponse/action requis.</span>
         )}
@@ -678,7 +693,7 @@ export function CommandEditorPage() {
                 <span className="text-zinc-400">
                   par <code className="text-zinc-300">{rev.changedBy}</code>
                 </span>
-                <span className="ml-auto text-xs text-zinc-500">{rev.changedAt} UTC</span>
+                <TimeAgo iso={rev.changedAt} className="ml-auto text-xs text-zinc-500" />
               </li>
             ))}
           </ul>

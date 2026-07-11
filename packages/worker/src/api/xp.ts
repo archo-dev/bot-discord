@@ -7,6 +7,7 @@ import { DiscordAPIError } from "../discord/rest.js";
 import { assertChannelsInGuild } from "./welcome.js";
 import type { AppContext } from "../auth/guard.js";
 import { rateLimit } from "../ratelimit.js";
+import { invalidBody } from "./validation.js";
 
 // Session + guild-access middlewares are applied once, centrally, in index.ts.
 export const xpRouter = new Hono<AppContext>();
@@ -47,7 +48,7 @@ const xpSchema = z
 xpRouter.put("/guilds/:guildId/xp-settings", rateLimit({ name: "xp", limit: 20 }), async (c) => {
   const guildId = c.req.param("guildId");
   const parsed = xpSchema.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
+  if (!parsed.success) return invalidBody(c, parsed.error);
   try {
     if (!(await assertChannelsInGuild(c.env, guildId, [parsed.data.announceChannelId]))) {
       return c.json({ error: "channel_not_in_guild" }, 400);

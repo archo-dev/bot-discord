@@ -3,9 +3,12 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ModActionDto, Paginated, WarningDto } from "@bot/shared";
 import { api } from "../lib/api.js";
-import { Badge, Button, Card, InfoCard, Tabs, TableWrap } from "../ui/kit.js";
+import { Badge, Button, Card, EmptyState, ErrorCard, InfoCard, Pagination, Tabs, TableWrap } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
-import { actionMeta, ModActionIcon, relativeTime } from "../ui/mod-meta.js";
+import { SkeletonList } from "../ui/skeleton.js";
+import { UserCell } from "../ui/cells.js";
+import { ConfirmModal } from "../ui/overlay.js";
+import { actionMeta, ModActionIcon, TimeAgo } from "../ui/mod-meta.js";
 
 const ACTION_FILTERS: { value: string; label: string }[] = [
   { value: "", label: "Toutes les actions" },
@@ -55,8 +58,29 @@ function ModActions() {
         </select>
       }
     >
-      {items.length === 0 ? (
-        <p className="text-sm text-zinc-500">Aucune action enregistrée.</p>
+      {actions.isPending ? (
+        <SkeletonList rows={6} />
+      ) : actions.isError ? (
+        <ErrorCard message="Impossible de charger les actions de modération." onRetry={() => void actions.refetch()} />
+      ) : items.length === 0 ? (
+        actionFilter ? (
+          <EmptyState
+            icon={<Icon.scroll />}
+            title="Aucun résultat pour ce filtre"
+            description={`Aucune action « ${ACTION_FILTERS.find((f) => f.value === actionFilter)?.label ?? actionFilter} » enregistrée.`}
+            action={
+              <Button variant="secondary" size="sm" onClick={() => setActionFilter("")}>
+                Effacer le filtre
+              </Button>
+            }
+          />
+        ) : (
+          <EmptyState
+            icon={<Icon.scroll />}
+            title="Aucune action pour le moment"
+            description="Les actions de modération apparaîtront ici dès le premier /warn, /mute ou /ban."
+          />
+        )
       ) : (
         <TableWrap>
           <thead>
@@ -78,40 +102,24 @@ function ModActions() {
                   </div>
                 </td>
                 <td className="py-2.5 pr-4">
-                  {a.targetId ? <code className="text-zinc-300">{a.targetId}</code> : <span className="text-zinc-600">—</span>}
+                  {a.targetId ? <UserCell userId={a.targetId} /> : <span className="text-zinc-600">—</span>}
                 </td>
-                <td className="py-2.5 pr-4 text-zinc-400">
-                  {a.moderatorId === "system" ? "🤖 système" : <code>{a.moderatorId}</code>}
+                <td className="py-2.5 pr-4">
+                  <UserCell userId={a.moderatorId} />
                 </td>
-                <td className="max-w-[16rem] truncate py-2.5 pr-4 text-zinc-400">{a.reason ?? "—"}</td>
-                <td className="whitespace-nowrap py-2.5 pr-4 text-right text-zinc-500">{relativeTime(a.createdAt)}</td>
+                <td className="max-w-[16rem] truncate py-2.5 pr-4 text-zinc-400" title={a.reason ?? undefined}>
+                  {a.reason ?? "—"}
+                </td>
+                <td className="whitespace-nowrap py-2.5 pr-4 text-right text-zinc-500">
+                  <TimeAgo iso={a.createdAt} />
+                </td>
               </tr>
             ))}
           </tbody>
         </TableWrap>
       )}
 
-      {totalPages > 1 && (
-        <div className="mt-4 flex items-center justify-center gap-3 text-sm">
-          <button
-            disabled={page <= 1}
-            onClick={() => setPage((p) => p - 1)}
-            className="rounded-lg border border-zinc-700 px-3 py-1 disabled:opacity-40"
-          >
-            ←
-          </button>
-          <span className="text-zinc-400">
-            {page} / {totalPages}
-          </span>
-          <button
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => p + 1)}
-            className="rounded-lg border border-zinc-700 px-3 py-1 disabled:opacity-40"
-          >
-            →
-          </button>
-        </div>
-      )}
+      <Pagination page={page} totalPages={totalPages} total={actions.data?.total} onPage={setPage} />
     </Card>
   );
 }
@@ -120,6 +128,7 @@ function Warnings() {
   const { guildId } = useParams<{ guildId: string }>();
   const queryClient = useQueryClient();
   const [userFilter, setUserFilter] = useState("");
+  const [toRevoke, setToRevoke] = useState<WarningDto | null>(null);
 
   const warnings = useQuery({
     queryKey: ["warnings", guildId, userFilter],
@@ -128,7 +137,9 @@ function Warnings() {
 
   const revoke = useMutation({
     mutationFn: (id: number) => api(`/api/guilds/${guildId}/warnings/${id}`, { method: "DELETE" }),
+    meta: { successMessage: "Avertissement révoqué" },
     onSuccess: () => {
+      setToRevoke(null);
       void queryClient.invalidateQueries({ queryKey: ["warnings", guildId] });
       void queryClient.invalidateQueries({ queryKey: ["mod-actions", guildId] });
     },
@@ -148,8 +159,28 @@ function Warnings() {
         />
       }
     >
-      {items.length === 0 ? (
-        <p className="text-sm text-zinc-500">Aucun avertissement.</p>
+      {warnings.isPending ? (
+        <SkeletonList rows={4} />
+      ) : warnings.isError ? (
+        <ErrorCard message="Impossible de charger les avertissements." onRetry={() => void warnings.refetch()} />
+      ) : items.length === 0 ? (
+        userFilter ? (
+          <EmptyState
+            icon={<Icon.shield />}
+            title="Aucun avertissement pour cet utilisateur"
+            action={
+              <Button variant="secondary" size="sm" onClick={() => setUserFilter("")}>
+                Effacer le filtre
+              </Button>
+            }
+          />
+        ) : (
+          <EmptyState
+            icon={<Icon.shield />}
+            title="Aucun avertissement"
+            description="Les avertissements donnés avec /warn apparaîtront ici, avec leur statut actif ou révoqué."
+          />
+        )
       ) : (
         <TableWrap>
           <thead>
@@ -167,18 +198,22 @@ function Warnings() {
               <tr key={w.id} className={w.revokedAt ? "opacity-50" : ""}>
                 <td className="py-2.5 pr-4 text-zinc-500">#{w.id}</td>
                 <td className="py-2.5 pr-4">
-                  <code className="text-zinc-300">{w.userId}</code>
+                  <UserCell userId={w.userId} />
                 </td>
-                <td className="max-w-[16rem] truncate py-2.5 pr-4 text-zinc-400">{w.reason ?? "(sans raison)"}</td>
-                <td className="py-2.5 pr-4 text-zinc-400">
-                  <code>{w.moderatorId}</code>
+                <td className="max-w-[16rem] truncate py-2.5 pr-4 text-zinc-400" title={w.reason ?? undefined}>
+                  {w.reason ?? "(sans raison)"}
                 </td>
-                <td className="whitespace-nowrap py-2.5 pr-4 text-zinc-500">{relativeTime(w.createdAt)}</td>
+                <td className="py-2.5 pr-4">
+                  <UserCell userId={w.moderatorId} />
+                </td>
+                <td className="whitespace-nowrap py-2.5 pr-4 text-zinc-500">
+                  <TimeAgo iso={w.createdAt} />
+                </td>
                 <td className="py-2.5 pr-4 text-right">
                   {w.revokedAt ? (
                     <Badge tone="neutral">Révoqué</Badge>
                   ) : (
-                    <Button size="sm" variant="secondary" disabled={revoke.isPending} onClick={() => revoke.mutate(w.id)}>
+                    <Button size="sm" variant="secondary" onClick={() => setToRevoke(w)}>
                       Révoquer
                     </Button>
                   )}
@@ -188,6 +223,22 @@ function Warnings() {
           </tbody>
         </TableWrap>
       )}
+
+      <ConfirmModal
+        open={toRevoke !== null}
+        title="Révoquer cet avertissement ?"
+        subject={
+          <>
+            L'avertissement <b className="text-zinc-100">#{toRevoke?.id}</b> sera retiré du décompte actif de
+            l'utilisateur.
+          </>
+        }
+        consequence="La révocation est enregistrée dans le mod-log et ne peut pas être annulée."
+        confirmLabel="Révoquer"
+        loading={revoke.isPending}
+        onCancel={() => setToRevoke(null)}
+        onConfirm={() => toRevoke && revoke.mutate(toRevoke.id)}
+      />
     </Card>
   );
 }

@@ -2,9 +2,11 @@ import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { ChannelOption, GuildOverview, ModActionDto, Paginated } from "@bot/shared";
 import { api } from "../lib/api.js";
-import { Card, StatCard } from "../ui/kit.js";
+import { Badge, Card, EmptyState, ErrorCard, InfoTile, StatCard } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
-import { actionMeta, ModActionIcon, relativeTime } from "../ui/mod-meta.js";
+import { SkeletonDashboard, SkeletonList } from "../ui/skeleton.js";
+import { UserCell } from "../ui/cells.js";
+import { actionMeta, ModActionIcon, TimeAgo } from "../ui/mod-meta.js";
 
 export function Dashboard() {
   const { guildId } = useParams<{ guildId: string }>();
@@ -21,24 +23,20 @@ export function Dashboard() {
     queryFn: () => api<Paginated<ModActionDto>>(`/api/guilds/${guildId}/mod-actions?page=1`),
   });
 
-  const g = overview.data;
-  if (!g) return <p className="text-zinc-400">Chargement…</p>;
+  if (overview.isPending) return <SkeletonDashboard />;
+  if (overview.isError) {
+    return <ErrorCard message="Impossible de charger l'aperçu du serveur." onRetry={() => void overview.refetch()} />;
+  }
 
+  const g = overview.data;
   const logChannel = channels.data?.find((ch) => ch.id === g.logChannelId);
   const recent = actions.data?.items.slice(0, 5) ?? [];
 
   return (
     <div className="space-y-5">
-      {/* Rangée KPI */}
+      {/* Rangée KPI : StatCard = numérique, InfoTile = état/config (D.S. v2 §4.10) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard color="violet" icon={<Icon.users />} value={g.approximateMemberCount ?? "?"} label="Membres" />
-        <StatCard
-          color="blue"
-          icon={<Icon.hash />}
-          value={g.logChannelId ? `#${logChannel?.name ?? "logs"}` : "—"}
-          label="Salon de logs"
-          hint={g.logChannelId ? undefined : "À configurer"}
-        />
         <StatCard
           color="amber"
           icon={<Icon.shield />}
@@ -46,12 +44,25 @@ export function Dashboard() {
           label="Seuil d'avertissements"
           hint={`→ mute auto ${g.warnTimeoutMinutes} min`}
         />
-        <StatCard
+        <InfoTile
+          color="blue"
+          icon={<Icon.hash />}
+          value={g.logChannelId ? `#${logChannel?.name ?? "logs"}` : "Aucun salon"}
+          label="Salon de logs"
+          badge={g.logChannelId ? undefined : <Badge tone="warning">À configurer</Badge>}
+          to={g.logChannelId ? undefined : `/guilds/${guildId}/config`}
+        />
+        <InfoTile
           color={g.gatewayConnected ? "green" : "gray"}
           icon={<Icon.bolt />}
-          value={g.gatewayConnected ? "En ligne" : "HTTP"}
+          value={g.gatewayConnected ? "En ligne" : "Mode HTTP"}
           label="Statut du bot"
-          hint={g.gatewayConnected ? "Gateway connectée" : "Slash commands"}
+          badge={
+            <span
+              className={`h-2 w-2 rounded-full ${g.gatewayConnected ? "bg-green-400" : "bg-zinc-600"}`}
+              aria-hidden
+            />
+          }
         />
       </div>
 
@@ -67,8 +78,14 @@ export function Dashboard() {
             </Link>
           }
         >
-          {recent.length === 0 ? (
-            <p className="text-sm text-zinc-500">Aucune action de modération enregistrée pour le moment.</p>
+          {actions.isPending ? (
+            <SkeletonList rows={5} />
+          ) : recent.length === 0 ? (
+            <EmptyState
+              icon={<Icon.scroll />}
+              title="Aucune action pour le moment"
+              description="Les actions de modération apparaîtront ici dès le premier /warn, /mute ou /ban."
+            />
           ) : (
             <ul className="divide-y divide-white/5">
               {recent.map((a) => (
@@ -76,12 +93,12 @@ export function Dashboard() {
                   <ModActionIcon action={a.action} />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-semibold text-zinc-100">{actionMeta(a.action).label}</div>
-                    <div className="truncate text-xs text-zinc-500">
-                      {a.targetId ? <code>{a.targetId}</code> : "—"}
-                      {a.reason ? ` · ${a.reason}` : ""}
+                    <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-zinc-400">
+                      {a.targetId ? <UserCell userId={a.targetId} /> : <span className="text-zinc-600">—</span>}
+                      {a.reason && <span className="truncate" title={a.reason}>· {a.reason}</span>}
                     </div>
                   </div>
-                  <span className="shrink-0 text-xs text-zinc-500">{relativeTime(a.createdAt)}</span>
+                  <TimeAgo iso={a.createdAt} className="shrink-0 text-xs text-zinc-500" />
                 </li>
               ))}
             </ul>

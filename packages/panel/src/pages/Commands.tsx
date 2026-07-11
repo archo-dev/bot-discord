@@ -1,13 +1,18 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CustomCommandDto } from "@bot/shared";
 import { api } from "../lib/api.js";
-import { Badge, InfoCard, Toggle } from "../ui/kit.js";
+import { Badge, EmptyState, InfoCard, Toggle } from "../ui/kit.js";
+import { ConfirmModal } from "../ui/overlay.js";
+import { SkeletonList } from "../ui/skeleton.js";
+import { toast } from "../ui/toast.js";
 import { Icon } from "../ui/icons.js";
 
 export function CommandsPage() {
   const { guildId } = useParams<{ guildId: string }>();
   const queryClient = useQueryClient();
+  const [toDelete, setToDelete] = useState<CustomCommandDto | null>(null);
 
   const commands = useQuery({
     queryKey: ["commands", guildId],
@@ -22,12 +27,19 @@ export function CommandsPage() {
         method: "PATCH",
         body: JSON.stringify({ enabled: !cmd.enabled }),
       }),
-    onSuccess: invalidate,
+    onSuccess: (_data, cmd) => {
+      invalidate();
+      toast.success(`/${cmd.name} ${cmd.enabled ? "désactivée" : "activée"}`);
+    },
   });
 
   const remove = useMutation({
     mutationFn: (cmd: CustomCommandDto) => api(`/api/guilds/${guildId}/commands/${cmd.id}`, { method: "DELETE" }),
-    onSuccess: invalidate,
+    onSuccess: (_data, cmd) => {
+      invalidate();
+      setToDelete(null);
+      toast.success(`/${cmd.name} supprimée`);
+    },
   });
 
   return (
@@ -44,10 +56,26 @@ export function CommandsPage() {
         </Link>
       </div>
 
-      {commands.isPending && <p className="text-zinc-400">Chargement…</p>}
+      {commands.isPending && (
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 px-4">
+          <SkeletonList rows={4} />
+        </div>
+      )}
       {commands.data?.length === 0 && (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 text-zinc-400">
-          Aucune commande personnalisée pour le moment. Créez-en une !
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+          <EmptyState
+            icon={<Icon.command />}
+            title="Aucune commande personnalisée"
+            description="Créez votre première commande : le bot l'enregistre sur Discord en quelques secondes, sans redémarrage."
+            action={
+              <Link
+                to="new"
+                className="inline-flex h-9 items-center rounded-lg border border-zinc-700 bg-zinc-800 px-3 text-[13px] font-semibold text-zinc-100 transition hover:bg-zinc-700"
+              >
+                Créer une commande
+              </Link>
+            }
+          />
         </div>
       )}
 
@@ -83,9 +111,7 @@ export function CommandsPage() {
               Modifier
             </Link>
             <button
-              onClick={() => {
-                if (confirm(`Supprimer /${cmd.name} ?`)) remove.mutate(cmd);
-              }}
+              onClick={() => setToDelete(cmd)}
               className="inline-flex h-8 items-center rounded-lg px-3 text-[13px] font-medium text-red-400 transition hover:bg-red-950/50"
             >
               Supprimer
@@ -93,9 +119,20 @@ export function CommandsPage() {
           </li>
         ))}
       </ul>
-      {(toggle.isError || remove.isError) && (
-        <p className="mt-3 text-sm text-red-400">L'opération a échoué — réessayez.</p>
-      )}
+
+      <ConfirmModal
+        open={toDelete !== null}
+        title="Supprimer la commande"
+        subject={
+          <>
+            Supprimer <b className="text-zinc-100">/{toDelete?.name}</b> ?
+          </>
+        }
+        consequence="La commande sera aussi retirée de Discord. Cette action est définitive."
+        loading={remove.isPending}
+        onCancel={() => setToDelete(null)}
+        onConfirm={() => toDelete && remove.mutate(toDelete)}
+      />
 
       <div className="mt-6">
         <InfoCard icon={<Icon.command />} title="Bon à savoir">

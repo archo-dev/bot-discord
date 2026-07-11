@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ChannelOption, LeaderboardEntry, RoleOption, XpSettingsDto } from "@bot/shared";
-import { api } from "../lib/api.js";
-import { InfoCard, Toggle } from "../ui/kit.js";
+import { api, fieldError } from "../lib/api.js";
+import { EmptyState, IconButton, InfoCard, Toggle } from "../ui/kit.js";
+import { SaveBar, useDirty } from "../ui/savebar.js";
+import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { Icon } from "../ui/icons.js";
 
 export function LevelsPage() {
@@ -38,10 +40,14 @@ export function LevelsPage() {
       if (!s) return;
       await api(`/api/guilds/${guildId}/xp-settings`, { method: "PUT", body: JSON.stringify(s) });
     },
+    meta: { silentError: true },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["xp-settings", guildId] }),
   });
 
-  if (settings.isPending || !s) return <p className="text-zinc-400">Chargement…</p>;
+  const dirty = useDirty(s, settings.data);
+  const resetForm = () => settings.data && setS(settings.data);
+
+  if (settings.isPending || !s) return <SkeletonSettingsPage cards={2} />;
 
   const set = (patch: Partial<XpSettingsDto>) => setS((prev) => (prev ? { ...prev, ...patch } : prev));
   const assignableRoles = roles.data?.filter((r) => !r.managed) ?? [];
@@ -67,6 +73,9 @@ export function LevelsPage() {
               onChange={(e) => set({ xpMin: Number(e.target.value) })}
               className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
             />
+            {fieldError(save.error, "xpMin") && (
+              <span className="mt-1 block text-xs text-red-400">{fieldError(save.error, "xpMin")}</span>
+            )}
           </label>
           <label className="text-sm text-zinc-300">
             XP max
@@ -78,6 +87,9 @@ export function LevelsPage() {
               onChange={(e) => set({ xpMax: Number(e.target.value) })}
               className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
             />
+            {fieldError(save.error, "xpMax") && (
+              <span className="mt-1 block text-xs text-red-400">{fieldError(save.error, "xpMax")}</span>
+            )}
           </label>
           <label className="text-sm text-zinc-300">
             Cooldown (s)
@@ -89,6 +101,9 @@ export function LevelsPage() {
               onChange={(e) => set({ cooldownSeconds: Number(e.target.value) })}
               className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
             />
+            {fieldError(save.error, "cooldownSeconds") && (
+              <span className="mt-1 block text-xs text-red-400">{fieldError(save.error, "cooldownSeconds")}</span>
+            )}
           </label>
         </div>
         <div className="flex items-center gap-3 text-sm text-zinc-300">
@@ -147,12 +162,9 @@ export function LevelsPage() {
                   </option>
                 ))}
               </select>
-              <button
-                onClick={() => set({ rewards: s.rewards.filter((_, j) => j !== i) })}
-                className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-400 transition hover:border-red-500 hover:text-red-300"
-              >
+              <IconButton label="Retirer cette récompense" danger onClick={() => set({ rewards: s.rewards.filter((_, j) => j !== i) })}>
                 ✕
-              </button>
+              </IconButton>
             </div>
           ))}
           <button
@@ -167,18 +179,6 @@ export function LevelsPage() {
           </button>
         </div>
       </section>
-
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => save.mutate()}
-          disabled={save.isPending}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {save.isPending ? "Enregistrement…" : "Enregistrer"}
-        </button>
-        {save.isSuccess && <span className="text-sm text-green-400">✓ Enregistré</span>}
-        {save.isError && <span className="text-sm text-red-400">Échec de l'enregistrement</span>}
-      </div>
 
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
         <h2 className="font-semibold">Classement</h2>
@@ -212,7 +212,11 @@ export function LevelsPage() {
             </table>
           </div>
         ) : (
-          <p className="mt-2 text-sm text-zinc-400">Personne n'a encore gagné d'XP.</p>
+          <EmptyState
+            icon={<Icon.trophy />}
+            title="Personne n'a encore gagné d'XP"
+            description="Le classement se remplit dès que les membres écrivent des messages (le gain d'XP nécessite le service Gateway)."
+          />
         )}
       </section>
 
@@ -220,6 +224,13 @@ export function LevelsPage() {
         Les rôles récompense sont rattrapés : un membre reçoit tous les rôles jusqu'à son niveau actuel, pas seulement
         le dernier. Le gain d'XP nécessite le service Gateway.
       </InfoCard>
+
+      <SaveBar
+        dirty={dirty}
+        status={save.isPending ? "pending" : save.isError ? "error" : save.isSuccess ? "success" : "idle"}
+        onSave={() => save.mutate()}
+        onReset={resetForm}
+      />
     </div>
   );
 }

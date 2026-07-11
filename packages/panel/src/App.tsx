@@ -17,6 +17,8 @@ import { WelcomePage } from "./pages/Welcome.js";
 import { AutomodPage } from "./pages/Automod.js";
 import { LevelsPage } from "./pages/Levels.js";
 import { MusicPage } from "./pages/Music.js";
+import { ErrorCard } from "./ui/kit.js";
+import { Skeleton, SkeletonGuildGrid } from "./ui/skeleton.js";
 
 export function App() {
   const me = useQuery({
@@ -26,14 +28,28 @@ export function App() {
   });
 
   if (me.isPending) {
-    return <div className="flex min-h-screen items-center justify-center text-zinc-400">Chargement…</div>;
+    // Squelette de la destination la plus probable (liste des serveurs) — zéro layout shift
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-8 sm:py-10" aria-busy="true">
+        <div className="mb-8 flex items-center justify-between">
+          <Skeleton className="h-8 w-44" />
+          <Skeleton className="h-8 w-8 rounded-full" />
+        </div>
+        <SkeletonGuildGrid />
+      </div>
+    );
   }
 
   if (me.isError) {
     if (me.error instanceof ApiError && me.error.status === 401) return <Login />;
     return (
-      <div className="flex min-h-screen items-center justify-center text-red-400">
-        Erreur de connexion au serveur — réessayez plus tard.
+      <div className="mx-auto flex min-h-screen max-w-md items-center px-4">
+        <div className="w-full">
+          <ErrorCard
+            message="Erreur de connexion au serveur — réessayez plus tard."
+            onRetry={() => void me.refetch()}
+          />
+        </div>
       </div>
     );
   }

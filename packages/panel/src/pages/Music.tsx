@@ -2,8 +2,9 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MusicStateDto, PlaylistSummaryDto } from "@bot/shared";
 import { api } from "../lib/api.js";
-import { Badge, Button, Card, InfoCard } from "../ui/kit.js";
+import { Badge, Button, Card, EmptyState, ErrorCard, InfoCard } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
+import { Skeleton, SkeletonList } from "../ui/skeleton.js";
 
 function formatDuration(totalSeconds: number): string {
   const sec = Math.floor(totalSeconds % 60);
@@ -37,6 +38,7 @@ export function MusicPage() {
   const control = useMutation({
     mutationFn: (action: "pause" | "resume" | "skip" | "stop") =>
       api(`/api/guilds/${guildId}/music-control`, { method: "POST", body: JSON.stringify({ action }) }),
+    meta: { errorMessage: "Contrôle indisponible — gateway hors ligne ?" },
     onSuccess: () => setTimeout(() => void queryClient.invalidateQueries({ queryKey: ["music-state", guildId] }), 500),
   });
 
@@ -56,7 +58,18 @@ export function MusicPage() {
           ) : undefined
         }
       >
-        {current ? (
+        {state.isPending ? (
+          <div className="flex gap-4" aria-busy="true">
+            <Skeleton className="h-20 w-20 rounded-lg" />
+            <div className="flex-1 space-y-2 pt-1">
+              <Skeleton className="h-4 w-56 max-w-full" />
+              <Skeleton className="h-3 w-32" />
+              <Skeleton className="mt-4 h-1.5 w-full rounded-full" />
+            </div>
+          </div>
+        ) : state.isError ? (
+          <ErrorCard message="Impossible de charger l'état de lecture." onRetry={() => void state.refetch()} />
+        ) : current ? (
           <div>
             <div className="flex gap-4">
               {current.thumbnail && (
@@ -101,9 +114,16 @@ export function MusicPage() {
             {control.isError && <p className="mt-2 text-sm text-red-400">Contrôle indisponible (gateway hors ligne ?).</p>}
           </div>
         ) : (
-          <p className="text-sm text-zinc-400">
-            Rien en lecture. Lance une musique sur Discord avec <code className="text-zinc-300">/play</code>.
-          </p>
+          <EmptyState
+            icon={<Icon.music />}
+            title="Rien en lecture"
+            description={
+              <>
+                Lancez une musique sur Discord avec <code className="text-zinc-300">/play</code> — l'état apparaîtra ici
+                en temps réel.
+              </>
+            }
+          />
         )}
       </Card>
 
@@ -122,7 +142,9 @@ export function MusicPage() {
       )}
 
       <Card title="Playlists enregistrées">
-        {playlists.data && playlists.data.length > 0 ? (
+        {playlists.isPending ? (
+          <SkeletonList rows={3} />
+        ) : playlists.data && playlists.data.length > 0 ? (
           <ul className="space-y-1.5 text-sm text-zinc-300">
             {playlists.data.map((p) => (
               <li key={p.name} className="flex justify-between">
@@ -134,9 +156,16 @@ export function MusicPage() {
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-zinc-400">
-            Aucune playlist. Sur Discord : <code className="text-zinc-300">/playlist save nom</code>.
-          </p>
+          <EmptyState
+            icon={<Icon.music />}
+            title="Aucune playlist enregistrée"
+            description={
+              <>
+                Sauvegardez la file en cours depuis Discord avec{" "}
+                <code className="text-zinc-300">/playlist save nom</code>.
+              </>
+            }
+          />
         )}
       </Card>
 

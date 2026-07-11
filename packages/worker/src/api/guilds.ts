@@ -24,6 +24,7 @@ import {
 import { discordJson } from "../discord/rest.js";
 import { getUserGuilds, handleGuildAccessLoss, requireManageGuild, type AppContext } from "../auth/guard.js";
 import { rateLimit } from "../ratelimit.js";
+import { invalidBody } from "./validation.js";
 
 // Session + guild-access middlewares are applied once, centrally, in index.ts.
 export const guildsRouter = new Hono<AppContext>();
@@ -128,7 +129,7 @@ const configPatchSchema = z.object({
 guildsRouter.patch("/guilds/:guildId/config", rateLimit({ name: "config", limit: 20 }), async (c) => {
   const guildId = c.req.param("guildId");
   const parsed = configPatchSchema.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
+  if (!parsed.success) return invalidBody(c, parsed.error);
   const patch: GuildConfigPatch = parsed.data;
   await updateGuildConfig(c.env.DB, guildId, {
     ...("logChannelId" in patch ? { log_channel_id: patch.logChannelId ?? null } : {}),
@@ -216,7 +217,7 @@ const panelAccessSchema = z
 
 guildsRouter.put("/guilds/:guildId/panel-access", requireManageGuild, rateLimit({ name: "panel-access", limit: 10 }), async (c) => {
   const parsed = panelAccessSchema.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
+  if (!parsed.success) return invalidBody(c, parsed.error);
   await replacePanelAccess(c.env.DB, c.req.param("guildId"), parsed.data, c.get("session").userId);
   return c.json({ ok: true });
 });
@@ -237,7 +238,7 @@ const autoRolesSchema = z.array(z.string().regex(/^\d{5,20}$/)).max(10);
 
 guildsRouter.put("/guilds/:guildId/auto-roles", rateLimit({ name: "auto-roles", limit: 10 }), async (c) => {
   const parsed = autoRolesSchema.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
+  if (!parsed.success) return invalidBody(c, parsed.error);
   await replaceAutoRoles(c.env.DB, c.req.param("guildId"), parsed.data);
   return c.json({ ok: true, gatewayRequired: true });
 });

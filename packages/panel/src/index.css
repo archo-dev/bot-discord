@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* Inter variable self-hostée (D.S. v2 §2.5) */
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 /*
  * Design system « Nocturne » (docs/design_system.md).
  * Tailwind v4 : on remappe les échelles zinc/indigo/sémantiques vers les teintes
@@ -82,6 +91,36 @@
   --text-primary: #f3f4f8;
   --text-secondary: #9ba1b0;
   --text-muted: #6b7180;
+
+  /* --- Tokens v2 (docs/design_system_v2.md §2) --- */
+
+  /* Sémantique info */
+  --info: #3e7afc;
+  --info-subtle: rgba(62, 122, 252, 0.14);
+  --info-text: #7aa6fd;
+
+  /* State layers (survol/pression unifiés) */
+  --state-hover: rgba(255, 255, 255, 0.04);
+  --state-pressed: rgba(255, 255, 255, 0.07);
+  --state-selected: var(--primary-subtle);
+
+  /* Motion */
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 240ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Z-index */
+  --z-sticky: 10;
+  --z-drawer: 30;
+  --z-modal: 40;
+  --z-toast: 50;
+  --z-tooltip: 60;
+
+  /* Élévation */
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.55);
 }
 
 body {
@@ -121,6 +160,96 @@ body {
 }
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* --- Animations des primitives v2 (Modal, Toast, Skeleton, SaveBar) --- */
+
+/* Entrée d'overlay : fade + translation 8 px (D.S. v2 §2.3) */
+@keyframes overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes panel-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes savebar-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* Shimmer du skeleton : dégradé translaté sur --surface-2 */
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.animate-overlay-in {
+  animation: overlay-fade-in var(--motion-slow) var(--ease-standard);
+}
+.animate-panel-in {
+  animation: panel-pop-in var(--motion-slow) var(--ease-standard);
+}
+.animate-toast-in {
+  animation: toast-slide-in var(--motion-slow) var(--ease-standard);
+}
+.animate-savebar-in {
+  animation: savebar-slide-up var(--motion-base) var(--ease-standard);
+}
+
+.skeleton {
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--surface-2) 40%, var(--surface-3) 50%, var(--surface-2) 60%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: var(--surface-2);
+  }
+}
+
+/* Fondu discret au changement de page */
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-page-in {
+  animation: page-fade-in 150ms var(--ease-standard);
 }
 
 /* Coupe les animations non essentielles si l'utilisateur le demande */

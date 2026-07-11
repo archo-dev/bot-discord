@@ -13,6 +13,7 @@ import {
 import { discordJson, discordRequest, DiscordAPIError } from "../discord/rest.js";
 import type { AppContext } from "../auth/guard.js";
 import { rateLimit } from "../ratelimit.js";
+import { invalidBody } from "./validation.js";
 
 // Session + guild-access middlewares are applied once, centrally, in index.ts.
 export const buttonRolesRouter = new Hono<AppContext>();
@@ -58,7 +59,7 @@ const createSchema = z.object({
 buttonRolesRouter.post("/guilds/:guildId/button-roles", rateLimit({ name: "button-roles", limit: 10 }), async (c) => {
   const guildId = c.req.param("guildId");
   const parsed = createSchema.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
+  if (!parsed.success) return invalidBody(c, parsed.error);
   const input = parsed.data;
 
   try {

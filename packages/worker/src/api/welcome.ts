@@ -13,6 +13,7 @@ import { discordJson, DiscordAPIError } from "../discord/rest.js";
 import type { AppContext } from "../auth/guard.js";
 import type { Env } from "../env.js";
 import { rateLimit } from "../ratelimit.js";
+import { invalidBody } from "./validation.js";
 
 // Session + guild-access middlewares are applied once, centrally, in index.ts.
 export const welcomeRouter = new Hono<AppContext>();
@@ -68,7 +69,7 @@ const welcomeSchema = z.object({
 welcomeRouter.put("/guilds/:guildId/welcome", rateLimit({ name: "welcome", limit: 20 }), async (c) => {
   const guildId = c.req.param("guildId");
   const parsed = welcomeSchema.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
+  if (!parsed.success) return invalidBody(c, parsed.error);
   try {
     if (!(await assertChannelsInGuild(c.env, guildId, [parsed.data.welcomeChannelId, parsed.data.leaveChannelId]))) {
       return c.json({ error: "channel_not_in_guild" }, 400);
@@ -97,7 +98,7 @@ const logSchema = z.object({
 welcomeRouter.put("/guilds/:guildId/log-settings", rateLimit({ name: "welcome", limit: 20 }), async (c) => {
   const guildId = c.req.param("guildId");
   const parsed = logSchema.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
+  if (!parsed.success) return invalidBody(c, parsed.error);
   try {
     if (!(await assertChannelsInGuild(c.env, guildId, [parsed.data.channelId]))) {
       return c.json({ error: "channel_not_in_guild" }, 400);

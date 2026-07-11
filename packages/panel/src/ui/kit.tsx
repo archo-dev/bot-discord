@@ -1,4 +1,6 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
+import { cloneElement, isValidElement, useId } from "react";
+import type { ButtonHTMLAttributes, InputHTMLAttributes, KeyboardEvent, ReactElement, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
+import { Link } from "react-router";
 
 /*
  * Kit de composants « Nocturne » — implémente docs/design_system.md §5.
@@ -55,13 +57,36 @@ const buttonSizes: Record<ButtonSize, string> = {
   lg: "h-[46px] px-5 text-sm",
 };
 
+/** Spinner 16 px pour l'état loading des boutons. */
+export function Spinner({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={`animate-spin ${className}`} fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" strokeWidth="4" />
+      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function Button({
   variant = "primary",
   size = "md",
   className = "",
+  loading = false,
+  children,
+  disabled,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; size?: ButtonSize }) {
-  return <button className={`${buttonBase} ${buttonVariants[variant]} ${buttonSizes[size]} ${className}`} {...props} />;
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; size?: ButtonSize; loading?: boolean }) {
+  // État loading (D.S. v2 §3) : spinner, label stable, bouton désactivé.
+  return (
+    <button
+      className={`${buttonBase} ${buttonVariants[variant]} ${buttonSizes[size]} ${className}`}
+      disabled={disabled || loading}
+      {...props}
+    >
+      {loading && <Spinner />}
+      {children}
+    </button>
+  );
 }
 
 /* --- 5.7 / 5.8 Champs --- */
@@ -84,13 +109,41 @@ export function Select({ className = "", children, ...props }: SelectHTMLAttribu
   );
 }
 
-/** Label + champ empilés (le libellé en éyebrow). */
-export function Field({ label, hint, children }: { label: ReactNode; hint?: ReactNode; children: ReactNode }) {
+/** Label + champ empilés (le libellé en éyebrow).
+ * `error` (D.S. v2 §3) : bordure danger sur le champ, message 12 px dessous,
+ * `aria-invalid` + `aria-describedby` posés sur l'enfant unique. */
+export function Field({
+  label,
+  hint,
+  error,
+  children,
+}: {
+  label: ReactNode;
+  hint?: ReactNode;
+  error?: ReactNode;
+  children: ReactNode;
+}) {
+  const errorId = useId();
+  const child =
+    error && isValidElement(children)
+      ? cloneElement(children as ReactElement<Record<string, unknown>>, {
+          "aria-invalid": true,
+          "aria-describedby": errorId,
+        })
+      : children;
   return (
     <label className="block">
       <span className="mb-1.5 block text-[13px] font-medium text-zinc-300">{label}</span>
-      {children}
-      {hint && <span className="mt-1 block text-xs text-zinc-500">{hint}</span>}
+      <span className={error ? "block [&_input]:border-red-500/70 [&_select]:border-red-500/70 [&_textarea]:border-red-500/70" : "block"}>
+        {child}
+      </span>
+      {error ? (
+        <span id={errorId} className="mt-1 block text-xs text-red-400">
+          {error}
+        </span>
+      ) : (
+        hint && <span className="mt-1 block text-xs text-zinc-500">{hint}</span>
+      )}
     </label>
   );
 }
@@ -151,7 +204,7 @@ export function Chip({
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`inline-flex h-8 items-center rounded-full border px-3.5 text-[13px] font-medium transition ${
+      className={`relative inline-flex h-8 items-center rounded-full border px-3.5 text-[13px] font-medium transition before:absolute before:-inset-y-1 before:-inset-x-0.5 before:content-[''] ${
         selected
           ? "border-indigo-500/55 bg-indigo-950 text-indigo-200"
           : "border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
@@ -222,7 +275,46 @@ export function StatCard({
   );
 }
 
-/* --- Onglets in-page (comme la page « Modération » de design2) --- */
+/* --- v2 §4.10 InfoTile : tuile d'état/config (pendant de StatCard, valeur 15 px) --- */
+export function InfoTile({
+  icon,
+  color = "gray",
+  value,
+  label,
+  badge,
+  to,
+}: {
+  icon: ReactNode;
+  color?: VizColor;
+  value: ReactNode;
+  label: ReactNode;
+  badge?: ReactNode;
+  to?: string;
+}) {
+  const body = (
+    <div className="flex items-center gap-3">
+      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white ${vizBg[color]}`}>
+        {icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[15px] font-semibold text-zinc-100">{value}</div>
+        <div className="mt-0.5 truncate text-[13px] text-zinc-400">{label}</div>
+      </div>
+      {badge && <div className="shrink-0">{badge}</div>}
+    </div>
+  );
+  const cls = "block rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm";
+  if (to) {
+    return (
+      <Link to={to} className={`${cls} transition hover:bg-[--state-hover]`}>
+        {body}
+      </Link>
+    );
+  }
+  return <div className={cls}>{body}</div>;
+}
+
+/* --- Onglets in-page — pattern ARIA Tabs complet (D.S. v2 §3) : rôles + flèches ←/→ --- */
 export function Tabs<T extends string>({
   tabs,
   active,
@@ -232,12 +324,29 @@ export function Tabs<T extends string>({
   active: T;
   onChange: (id: T) => void;
 }) {
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const i = tabs.findIndex((t) => t.id === active);
+    const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length]!;
+    onChange(next.id);
+    const el = e.currentTarget.querySelector<HTMLElement>(`[data-tab-id="${next.id}"]`);
+    el?.focus();
+  };
   return (
-    <div className="no-scrollbar -mx-5 mb-5 flex gap-1 overflow-x-auto border-b border-zinc-800 px-5 sm:mx-0 sm:px-0">
+    <div
+      role="tablist"
+      onKeyDown={onKeyDown}
+      className="no-scrollbar -mx-5 mb-5 flex gap-1 overflow-x-auto border-b border-zinc-800 px-5 sm:mx-0 sm:px-0"
+    >
       {tabs.map((t) => (
         <button
           key={t.id}
           type="button"
+          role="tab"
+          data-tab-id={t.id}
+          aria-selected={active === t.id}
+          tabIndex={active === t.id ? 0 : -1}
           onClick={() => onChange(t.id)}
           className={`shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm transition ${
             active === t.id
@@ -276,9 +385,147 @@ export function InfoCard({ icon, title, children }: { icon: ReactNode; title: Re
   );
 }
 
-/* Ligne de retour de sauvegarde (succès/erreur) — réutilisée par les pages de réglages. */
+/* Ligne de retour de sauvegarde (succès/erreur) — réutilisée par les pages de réglages.
+ * @deprecated v2 : préférer SaveBar (formulaires) ou les toasts (actions ponctuelles). */
 export function SaveFeedback({ status }: { status: "idle" | "pending" | "success" | "error" }) {
   if (status === "success") return <span className="text-sm text-green-400">✓ Enregistré</span>;
   if (status === "error") return <span className="text-sm text-red-400">Échec de l'enregistrement</span>;
   return null;
+}
+
+/* --- v2 §4.5 État vide --- */
+export function EmptyState({
+  icon,
+  title,
+  description,
+  action,
+}: {
+  icon: ReactNode;
+  title: ReactNode;
+  description?: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center py-8 text-center">
+      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[--surface-2] text-zinc-500" aria-hidden>
+        {icon}
+      </span>
+      <p className="mt-3 text-sm font-semibold text-zinc-100">{title}</p>
+      {description && <p className="mt-1 max-w-sm text-[13px] leading-relaxed text-zinc-400">{description}</p>}
+      {action && <div className="mt-4">{action}</div>}
+    </div>
+  );
+}
+
+/* --- v2 §5 Erreur de lecture : icône danger + message clair + « Réessayer » --- */
+export function ErrorCard({
+  message = "Impossible de charger les données.",
+  onRetry,
+}: {
+  message?: ReactNode;
+  onRetry?: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center rounded-xl border border-zinc-800 bg-zinc-900 py-8 text-center">
+      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-red-950 text-red-400" aria-hidden>
+        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+          <path d="M12 9v4" />
+          <path d="M12 17h.01" />
+          <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" strokeLinejoin="round" />
+        </svg>
+      </span>
+      <p className="mt-3 text-sm text-zinc-300">{message}</p>
+      {onRetry && (
+        <Button variant="secondary" size="sm" className="mt-4" onClick={onRetry}>
+          Réessayer
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/* --- v2 §4.6 Bouton icône (aria-label obligatoire) --- */
+export function IconButton({
+  label,
+  danger = false,
+  className = "",
+  children,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; danger?: boolean }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 disabled:cursor-not-allowed disabled:opacity-40 ${
+        danger ? "hover:bg-red-950/50 hover:text-red-400" : "hover:bg-zinc-800 hover:text-zinc-200"
+      } ${className}`}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+/* --- v2 §4.7 Tooltip (CSS pur : survol + focus-within) --- */
+export function Tooltip({ content, children }: { content: ReactNode; children: ReactNode }) {
+  return (
+    <span className="group/tt relative inline-flex">
+      {children}
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute bottom-full left-1/2 z-[--z-tooltip] mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md bg-[--surface-3] px-2.5 py-1.5 text-xs text-zinc-100 opacity-0 shadow-[--shadow-md] transition-opacity delay-300 group-hover/tt:opacity-100 group-focus-within/tt:opacity-100 group-focus-within/tt:delay-0"
+      >
+        {content}
+      </span>
+    </span>
+  );
+}
+
+/* --- v2 §4.8 Pagination --- */
+const pgArrow =
+  "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-700 text-zinc-300 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40";
+
+export function Pagination({
+  page,
+  totalPages,
+  total,
+  onPage,
+}: {
+  page: number;
+  totalPages: number;
+  total?: number;
+  onPage: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="mt-4 flex items-center justify-end gap-3 text-[13px] text-zinc-400">
+      <span style={{ fontFeatureSettings: '"tnum" 1' }}>
+        {total != null && (
+          <>
+            <span className="font-semibold text-zinc-300">{total}</span> résultat{total > 1 ? "s" : ""} ·{" "}
+          </>
+        )}
+        page {page}/{totalPages}
+      </span>
+      <button
+        type="button"
+        aria-label="Page précédente"
+        disabled={page <= 1}
+        onClick={() => onPage(page - 1)}
+        className={pgArrow}
+      >
+        ‹
+      </button>
+      <button
+        type="button"
+        aria-label="Page suivante"
+        disabled={page >= totalPages}
+        onClick={() => onPage(page + 1)}
+        className={pgArrow}
+      >
+        ›
+      </button>
+    </div>
+  );
 }

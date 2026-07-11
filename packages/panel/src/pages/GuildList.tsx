@@ -1,13 +1,21 @@
+import { useEffect } from "react";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { GuildSummary, MeResponse } from "@bot/shared";
 import { api, avatarUrl, guildIconUrl } from "../lib/api.js";
+import { EmptyState, ErrorCard } from "../ui/kit.js";
+import { Icon } from "../ui/icons.js";
+import { SkeletonGuildGrid } from "../ui/skeleton.js";
 
 export function GuildList({ me }: { me: MeResponse }) {
   const guilds = useQuery({
     queryKey: ["guilds"],
     queryFn: () => api<GuildSummary[]>("/api/guilds"),
   });
+
+  useEffect(() => {
+    document.title = "Mes serveurs — Panel du bot";
+  }, []);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:py-10">
@@ -25,17 +33,24 @@ export function GuildList({ me }: { me: MeResponse }) {
         </div>
       </header>
 
-      {guilds.isPending && <p className="text-zinc-400">Chargement des serveurs…</p>}
-      {guilds.isError && <p className="text-red-400">Impossible de charger vos serveurs.</p>}
+      {guilds.isPending && <SkeletonGuildGrid />}
+      {guilds.isError && (
+        <ErrorCard message="Impossible de charger vos serveurs." onRetry={() => void guilds.refetch()} />
+      )}
 
       {guilds.data && guilds.data.length === 0 && (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 text-zinc-300">
-          <p>Aucun serveur géré avec le bot installé.</p>
-          <p className="mt-2 text-sm text-zinc-400">
-            Le panel liste uniquement les serveurs où vous avez la permission « Gérer le serveur » et où le bot est
-            présent. Invitez d'abord le bot, puis utilisez une commande (ex. <code>/ping</code>) pour qu'il
-            s'enregistre.
-          </p>
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+          <EmptyState
+            icon={<Icon.users />}
+            title="Aucun serveur géré avec le bot installé"
+            description={
+              <>
+                Le panel liste uniquement les serveurs où vous avez la permission « Gérer le serveur » et où le bot est
+                présent. Invitez d'abord le bot, puis utilisez une commande (ex. <code>/ping</code>) pour qu'il
+                s'enregistre.
+              </>
+            }
+          />
         </div>
       )}
 

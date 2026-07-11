@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ChannelOption, LogSettingsDto, WelcomeSettingsDto } from "@bot/shared";
-import { api } from "../lib/api.js";
+import { api, fieldError } from "../lib/api.js";
 import { InfoCard, Toggle } from "../ui/kit.js";
+import { SaveBar, useDirty } from "../ui/savebar.js";
+import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { Icon } from "../ui/icons.js";
 
 const MESSAGE_VARIABLES = ["{mention}", "{user}", "{user.id}", "{server}", "{membercount}"] as const;
@@ -39,7 +41,7 @@ function ChannelSelect(props: {
   );
 }
 
-function MessageEditor(props: { value: string; onChange: (v: string) => void }) {
+function MessageEditor(props: { value: string; onChange: (v: string) => void; error?: string }) {
   return (
     <div>
       <textarea
@@ -47,8 +49,12 @@ function MessageEditor(props: { value: string; onChange: (v: string) => void }) 
         onChange={(e) => props.onChange(e.target.value)}
         rows={3}
         maxLength={2000}
-        className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
+        aria-invalid={props.error ? true : undefined}
+        className={`mt-1 w-full rounded-lg border bg-zinc-950 px-3 py-2 text-sm ${
+          props.error ? "border-red-500/70" : "border-zinc-700"
+        }`}
       />
+      {props.error && <p className="mt-1 text-xs text-red-400">{props.error}</p>}
       <div className="mt-2 flex flex-wrap gap-1">
         {MESSAGE_VARIABLES.map((v) => (
           <button
@@ -140,13 +146,52 @@ export function WelcomePage() {
         }),
       });
     },
+    meta: { silentError: true },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["welcome", guildId] });
       void queryClient.invalidateQueries({ queryKey: ["log-settings", guildId] });
     },
   });
 
-  if (welcome.isPending || logs.isPending) return <p className="text-zinc-400">Chargement…</p>;
+  const initial =
+    welcome.data && logs.data
+      ? {
+          welcomeEnabled: welcome.data.welcomeEnabled,
+          welcomeChannelId: welcome.data.welcomeChannelId ?? "",
+          welcomeMessage: welcome.data.welcomeMessage,
+          leaveEnabled: welcome.data.leaveEnabled,
+          leaveChannelId: welcome.data.leaveChannelId ?? "",
+          leaveMessage: welcome.data.leaveMessage,
+          logChannelId: logs.data.channelId ?? "",
+          toggles: LOG_TOGGLES.map((t) => logs.data[t.key]),
+        }
+      : undefined;
+  const dirty = useDirty(
+    {
+      welcomeEnabled,
+      welcomeChannelId,
+      welcomeMessage,
+      leaveEnabled,
+      leaveChannelId,
+      leaveMessage,
+      logChannelId,
+      toggles: LOG_TOGGLES.map((t) => logToggles[t.key] ?? false),
+    },
+    initial,
+  );
+  const resetForm = () => {
+    if (!welcome.data || !logs.data) return;
+    setWelcomeEnabled(welcome.data.welcomeEnabled);
+    setWelcomeChannelId(welcome.data.welcomeChannelId ?? "");
+    setWelcomeMessage(welcome.data.welcomeMessage);
+    setLeaveEnabled(welcome.data.leaveEnabled);
+    setLeaveChannelId(welcome.data.leaveChannelId ?? "");
+    setLeaveMessage(welcome.data.leaveMessage);
+    setLogChannelId(logs.data.channelId ?? "");
+    setLogToggles(Object.fromEntries(LOG_TOGGLES.map((t) => [t.key, logs.data[t.key]])));
+  };
+
+  if (welcome.isPending || logs.isPending) return <SkeletonSettingsPage cards={3} />;
 
   return (
     <div className="max-w-2xl space-y-8">
@@ -165,7 +210,11 @@ export function WelcomePage() {
         </label>
         <label className="mt-3 block text-sm text-zinc-300">
           Message
-          <MessageEditor value={welcomeMessage} onChange={setWelcomeMessage} />
+          <MessageEditor
+            value={welcomeMessage}
+            onChange={setWelcomeMessage}
+            error={fieldError(save.error, "welcomeMessage")}
+          />
         </label>
       </section>
 
@@ -183,7 +232,7 @@ export function WelcomePage() {
         </label>
         <label className="mt-3 block text-sm text-zinc-300">
           Message
-          <MessageEditor value={leaveMessage} onChange={setLeaveMessage} />
+          <MessageEditor value={leaveMessage} onChange={setLeaveMessage} error={fieldError(save.error, "leaveMessage")} />
         </label>
       </section>
 
@@ -209,22 +258,17 @@ export function WelcomePage() {
         </div>
       </section>
 
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => save.mutate()}
-          disabled={save.isPending}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {save.isPending ? "Enregistrement…" : "Enregistrer"}
-        </button>
-        {save.isSuccess && <span className="text-sm text-green-400">✓ Enregistré</span>}
-        {save.isError && <span className="text-sm text-red-400">Échec de l'enregistrement</span>}
-      </div>
-
       <InfoCard icon={<Icon.wave />} title="Bon à savoir">
         Variables disponibles : <code>{"{mention}"}</code> <code>{"{user}"}</code> <code>{"{server}"}</code>{" "}
         <code>{"{membercount}"}</code>. L'envoi des messages et des logs nécessite le service Gateway.
       </InfoCard>
+
+      <SaveBar
+        dirty={dirty}
+        status={save.isPending ? "pending" : save.isError ? "error" : save.isSuccess ? "success" : "idle"}
+        onSave={() => save.mutate()}
+        onReset={resetForm}
+      />
     </div>
   );
 }

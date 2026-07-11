@@ -3,7 +3,9 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PanelAccessEntry, RoleOption } from "@bot/shared";
 import { api, ApiError } from "../lib/api.js";
-import { Button, Card, Chip, InfoCard, Input, SaveFeedback } from "../ui/kit.js";
+import { Button, Card, Chip, InfoCard, Input } from "../ui/kit.js";
+import { SaveBar, useDirty } from "../ui/savebar.js";
+import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { Icon } from "../ui/icons.js";
 
 export function PanelAccessPage() {
@@ -40,8 +42,30 @@ export function PanelAccessPage() {
           ...userIds.map((id) => ({ subjectType: "user", subjectId: id })),
         ]),
       }),
+    meta: { silentError: true },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["panel-access", guildId] }),
   });
+
+  const initial = entries.data
+    ? {
+        roles: entries.data
+          .filter((e) => e.subjectType === "role")
+          .map((e) => e.subjectId)
+          .sort(),
+        users: entries.data
+          .filter((e) => e.subjectType === "user")
+          .map((e) => e.subjectId)
+          .sort(),
+      }
+    : undefined;
+  const dirty = useDirty({ roles: [...selectedRoles].sort(), users: [...userIds].sort() }, initial);
+  const resetForm = () => {
+    if (!entries.data) return;
+    setSelectedRoles(entries.data.filter((e) => e.subjectType === "role").map((e) => e.subjectId));
+    setUserIds(entries.data.filter((e) => e.subjectType === "user").map((e) => e.subjectId));
+  };
+
+  if (entries.isPending) return <SkeletonSettingsPage cards={2} />;
 
   if (entries.isError && entries.error instanceof ApiError && entries.error.status === 403) {
     return (
@@ -111,18 +135,18 @@ export function PanelAccessPage() {
         </ul>
       </Card>
 
-      <div className="flex items-center gap-3">
-        <Button onClick={() => save.mutate()} disabled={save.isPending}>
-          {save.isPending ? "Enregistrement…" : "Enregistrer"}
-        </Button>
-        {save.isSuccess && <SaveFeedback status="success" />}
-        {save.isError && <span className="text-sm text-red-400">Échec (permission « Gérer le serveur » requise)</span>}
-      </div>
-
       <InfoCard icon={<Icon.key />} title="Bon à savoir">
         Les membres avec la permission « Gérer le serveur » ont <b>toujours</b> accès au panel. Ajoute ici des
         rôles ou des utilisateurs supplémentaires sans leur donner cette permission Discord.
       </InfoCard>
+
+      <SaveBar
+        dirty={dirty}
+        status={save.isPending ? "pending" : save.isError ? "error" : save.isSuccess ? "success" : "idle"}
+        onSave={() => save.mutate()}
+        onReset={resetForm}
+        errorMessage="Échec — la permission « Gérer le serveur » est requise."
+      />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import type { AutomodSettingsDto } from "@bot/shared";
 import { getAutomodSettings, upsertAutomodSettings, type AutomodSettingsRow } from "../db/queries.js";
 import type { AppContext } from "../auth/guard.js";
 import { rateLimit } from "../ratelimit.js";
+import { invalidBody } from "./validation.js";
 
 // Session + guild-access middlewares are applied once, centrally, in index.ts.
 export const automodRouter = new Hono<AppContext>();
@@ -52,7 +53,7 @@ const automodSchema = z.object({
 automodRouter.put("/guilds/:guildId/automod", rateLimit({ name: "automod", limit: 20 }), async (c) => {
   const guildId = c.req.param("guildId");
   const parsed = automodSchema.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
+  if (!parsed.success) return invalidBody(c, parsed.error);
   await upsertAutomodSettings(c.env.DB, guildId, parsed.data);
   return c.json(automodRowToDto(await getAutomodSettings(c.env.DB, guildId)));
 });

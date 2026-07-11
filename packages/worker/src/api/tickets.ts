@@ -11,6 +11,7 @@ import {
 import { discordJson, DiscordAPIError } from "../discord/rest.js";
 import type { AppContext } from "../auth/guard.js";
 import { rateLimit } from "../ratelimit.js";
+import { invalidBody } from "./validation.js";
 
 // Session + guild-access middlewares are applied once, centrally, in index.ts.
 export const ticketsRouter = new Hono<AppContext>();
@@ -52,7 +53,7 @@ ticketsRouter.put(
   rateLimit({ name: "tickets-settings", limit: 20 }),
   async (c) => {
     const parsed = settingsSchema.safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
+    if (!parsed.success) return invalidBody(c, parsed.error);
     await upsertTicketSettings(c.env.DB, c.req.param("guildId"), parsed.data);
     return c.json({ ok: true });
   },
@@ -70,7 +71,7 @@ ticketsRouter.post(
   async (c) => {
     const guildId = c.req.param("guildId");
     const parsed = publishSchema.safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
+    if (!parsed.success) return invalidBody(c, parsed.error);
 
     const settings = await getTicketSettings(c.env.DB, guildId);
     if (!settings?.category_id) return c.json({ error: "not_configured" }, 400);

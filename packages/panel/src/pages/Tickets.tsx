@@ -2,8 +2,14 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ChannelOption, Paginated, RoleOption, TicketDto, TicketSettingsDto } from "@bot/shared";
-import { api } from "../lib/api.js";
-import { Badge, Button, Card, Chip, Field, InfoCard, Input, SaveFeedback, Select, Textarea, Toggle } from "../ui/kit.js";
+import { api, fieldError } from "../lib/api.js";
+import { Badge, Button, Card, Chip, EmptyState, ErrorCard, Field, InfoCard, Input, Pagination, Select, Textarea, Toggle } from "../ui/kit.js";
+import { Modal } from "../ui/overlay.js";
+import { UserCell } from "../ui/cells.js";
+import { TimeAgo } from "../ui/mod-meta.js";
+import { SaveBar, useDirty } from "../ui/savebar.js";
+import { Skeleton, SkeletonList, SkeletonSettingsPage } from "../ui/skeleton.js";
+import { toast } from "../ui/toast.js";
 import { Icon } from "../ui/icons.js";
 
 const STATUS_LABELS = { open: "Ouvert", closed: "Fermé" } as const;
@@ -58,6 +64,7 @@ export function TicketsPage() {
           transcriptChannelId: transcriptChannelId || null,
         }),
       }),
+    meta: { silentError: true },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["ticket-settings", guildId] }),
   });
 
@@ -67,10 +74,36 @@ export function TicketsPage() {
         method: "POST",
         body: JSON.stringify({ channelId: panelChannelId, title: panelTitle, description: panelDescription }),
       }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["ticket-settings", guildId] }),
+    meta: {
+      errorMessage: "Échec de la publication — configurez d'abord la catégorie et vérifiez les permissions du bot.",
+    },
+    onSuccess: () => {
+      toast.success(`Panneau publié dans #${textChannels.find((c) => c.id === panelChannelId)?.name ?? "le salon"}`);
+      void queryClient.invalidateQueries({ queryKey: ["ticket-settings", guildId] });
+    },
   });
 
-  if (settings.isPending) return <p className="text-zinc-400">Chargement…</p>;
+  const initial = settings.data
+    ? {
+        enabled: settings.data.enabled,
+        categoryId: settings.data.categoryId ?? "",
+        staffRoleIds: [...settings.data.staffRoleIds].sort(),
+        transcriptChannelId: settings.data.transcriptChannelId ?? "",
+      }
+    : undefined;
+  const dirty = useDirty(
+    { enabled, categoryId, staffRoleIds: [...staffRoleIds].sort(), transcriptChannelId },
+    initial,
+  );
+  const resetForm = () => {
+    if (!settings.data) return;
+    setEnabled(settings.data.enabled);
+    setCategoryId(settings.data.categoryId ?? "");
+    setStaffRoleIds(settings.data.staffRoleIds);
+    setTranscriptChannelId(settings.data.transcriptChannelId ?? "");
+  };
+
+  if (settings.isPending) return <SkeletonSettingsPage cards={3} />;
 
   return (
     <div className="max-w-3xl space-y-8">
@@ -123,12 +156,6 @@ export function TicketsPage() {
           </div>
         </div>
 
-        <div className="mt-5 flex items-center gap-3">
-          <Button onClick={() => saveSettings.mutate()} disabled={saveSettings.isPending}>
-            {saveSettings.isPending ? "Enregistrement…" : "Enregistrer"}
-          </Button>
-          <SaveFeedback status={saveSettings.isPending ? "pending" : saveSettings.isSuccess ? "success" : saveSettings.isError ? "error" : "idle"} />
-        </div>
       </Card>
 
       <Card
@@ -153,10 +180,10 @@ export function TicketsPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Titre">
+          <Field label="Titre" error={fieldError(publishPanel.error, "title")}>
             <Input value={panelTitle} onChange={(e) => setPanelTitle(e.target.value)} maxLength={256} />
           </Field>
-          <Field label="Description">
+          <Field label="Description" error={fieldError(publishPanel.error, "description")}>
             <Textarea
               value={panelDescription}
               onChange={(e) => setPanelDescription(e.target.value)}
@@ -166,15 +193,9 @@ export function TicketsPage() {
           </Field>
         </div>
         <div className="mt-4 flex items-center gap-3">
-          <Button onClick={() => publishPanel.mutate()} disabled={publishPanel.isPending || !panelChannelId}>
-            {publishPanel.isPending ? "Publication…" : "Publier le panneau"}
+          <Button onClick={() => publishPanel.mutate()} disabled={!panelChannelId} loading={publishPanel.isPending}>
+            Publier le panneau
           </Button>
-          {publishPanel.isSuccess && <SaveFeedback status="success" />}
-          {publishPanel.isError && (
-            <span className="text-sm text-red-400">
-              Échec — configurez d'abord la catégorie, et vérifiez les permissions du bot dans le salon.
-            </span>
-          )}
         </div>
       </Card>
 
@@ -184,6 +205,13 @@ export function TicketsPage() {
         Configure d'abord une <b>catégorie</b> et les rôles staff. Le bot doit pouvoir gérer les salons de cette
         catégorie (permission « Gérer les salons ») pour ouvrir et fermer les tickets.
       </InfoCard>
+
+      <SaveBar
+        dirty={dirty}
+        status={saveSettings.isPending ? "pending" : saveSettings.isError ? "error" : saveSettings.isSuccess ? "success" : "idle"}
+        onSave={() => saveSettings.mutate()}
+        onReset={resetForm}
+      />
     </div>
   );
 }
@@ -224,74 +252,68 @@ function TicketList({ guildId }: { guildId: string }) {
         </select>
       }
     >
-      <div className="divide-y divide-white/5">
-        {tickets.data?.items.length === 0 && <p className="py-4 text-sm text-zinc-500">Aucun ticket.</p>}
-        {tickets.data?.items.map((t) => (
-          <div key={t.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">
-            <Badge tone={t.status === "open" ? "success" : "neutral"}>{STATUS_LABELS[t.status]}</Badge>
-            <span className="font-medium">#{String(t.number).padStart(4, "0")}</span>
-            <span className="text-zinc-400">
-              par <code>{t.userId}</code> · {new Date(t.createdAt + "Z").toLocaleString()}
-            </span>
-            {t.closeReason && <span className="truncate text-zinc-500">« {t.closeReason} »</span>}
-            <span className="ml-auto flex gap-3">
-              {t.hasTranscript && (
-                <button onClick={() => setTranscriptOf(t)} className="text-indigo-400 hover:underline">
-                  Transcript
-                </button>
+      {tickets.isPending ? (
+        <SkeletonList rows={4} />
+      ) : tickets.data?.items.length === 0 ? (
+        status ? (
+          <EmptyState
+            icon={<Icon.ticket />}
+            title={`Aucun ticket ${status === "open" ? "ouvert" : "fermé"}`}
+            action={
+              <Button variant="secondary" size="sm" onClick={() => setStatus("")}>
+                Voir tous les tickets
+              </Button>
+            }
+          />
+        ) : (
+          <EmptyState
+            icon={<Icon.ticket />}
+            title="Aucun ticket pour le moment"
+            description="Les tickets ouverts depuis le panneau publié sur Discord apparaîtront ici, avec leur transcript."
+          />
+        )
+      ) : (
+        <div className="divide-y divide-white/5">
+          {tickets.data?.items.map((t) => (
+            <div key={t.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">
+              <Badge tone={t.status === "open" ? "success" : "neutral"}>{STATUS_LABELS[t.status]}</Badge>
+              <span className="font-medium">#{String(t.number).padStart(4, "0")}</span>
+              <span className="flex items-center gap-1.5 text-zinc-400">
+                par <UserCell userId={t.userId} /> · <TimeAgo iso={t.createdAt} />
+              </span>
+              {t.closeReason && (
+                <span className="truncate text-zinc-500" title={t.closeReason}>
+                  « {t.closeReason} »
+                </span>
               )}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {totalPages > 1 && (
-        <div className="mt-4 flex items-center justify-center gap-3 text-sm">
-          <button
-            onClick={() => setPage((p) => Math.max(p - 1, 1))}
-            disabled={page <= 1}
-            className="rounded border border-zinc-700 px-3 py-1 disabled:opacity-40"
-          >
-            ←
-          </button>
-          <span className="text-zinc-400">
-            {page} / {totalPages}
-          </span>
-          <button
-            onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
-            disabled={page >= totalPages}
-            className="rounded border border-zinc-700 px-3 py-1 disabled:opacity-40"
-          >
-            →
-          </button>
-        </div>
-      )}
-
-      {transcriptOf && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(6,7,14,0.72)] p-4 sm:p-6"
-          onClick={() => setTranscriptOf(null)}
-        >
-          <div
-            className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-2xl border border-zinc-700 bg-zinc-900 p-6 shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="font-semibold">Transcript du ticket #{String(transcriptOf.number).padStart(4, "0")}</h3>
-              <button onClick={() => setTranscriptOf(null)} className="text-zinc-400 hover:text-white">
-                ✕
-              </button>
+              <span className="ml-auto flex gap-3">
+                {t.hasTranscript && (
+                  <button onClick={() => setTranscriptOf(t)} className="text-indigo-400 hover:underline">
+                    Transcript
+                  </button>
+                )}
+              </span>
             </div>
-            {transcript.isPending && <p className="text-sm text-zinc-400">Chargement…</p>}
-            {transcript.isError && <p className="text-sm text-red-400">Transcript introuvable.</p>}
-            {transcript.data && (
-              <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg bg-zinc-950 p-4 text-xs text-zinc-300">
-                {transcript.data.transcript}
-              </pre>
-            )}
-          </div>
+          ))}
         </div>
       )}
+
+      <Pagination page={page} totalPages={totalPages} total={tickets.data?.total} onPage={setPage} />
+
+      <Modal
+        open={transcriptOf !== null}
+        onClose={() => setTranscriptOf(null)}
+        title={transcriptOf ? `Transcript du ticket #${String(transcriptOf.number).padStart(4, "0")}` : ""}
+        size="2xl"
+      >
+        {transcript.isPending && <SkeletonList rows={6} />}
+        {transcript.isError && <ErrorCard message="Transcript introuvable." />}
+        {transcript.data && (
+          <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg bg-zinc-950 p-4 text-xs text-zinc-300">
+            {transcript.data.transcript}
+          </pre>
+        )}
+      </Modal>
     </Card>
   );
 }

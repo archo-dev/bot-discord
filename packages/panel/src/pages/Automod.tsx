@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AutomodSettingsDto, ChannelOption, RoleOption } from "@bot/shared";
-import { api } from "../lib/api.js";
+import { api, fieldError } from "../lib/api.js";
 import { InfoCard, Toggle as Switch } from "../ui/kit.js";
+import { SaveBar, useDirty } from "../ui/savebar.js";
+import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { Icon } from "../ui/icons.js";
 
 const ACTIONS = [
@@ -68,10 +70,26 @@ export function AutomodPage() {
         }),
       });
     },
+    meta: { silentError: true },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["automod", guildId] }),
   });
 
-  if (settings.isPending || !s) return <p className="text-zinc-400">Chargement…</p>;
+  const initial = settings.data
+    ? {
+        s: settings.data,
+        wl: settings.data.linkWhitelist.join("\n"),
+        words: settings.data.bannedWords.join("\n"),
+      }
+    : undefined;
+  const dirty = useDirty({ s, wl: whitelistText, words: wordsText }, initial);
+  const resetForm = () => {
+    if (!settings.data) return;
+    setS(settings.data);
+    setWhitelistText(settings.data.linkWhitelist.join("\n"));
+    setWordsText(settings.data.bannedWords.join("\n"));
+  };
+
+  if (settings.isPending || !s) return <SkeletonSettingsPage cards={4} />;
 
   const set = (patch: Partial<AutomodSettingsDto>) => setS((prev) => (prev ? { ...prev, ...patch } : prev));
 
@@ -105,6 +123,9 @@ export function AutomodPage() {
               onChange={(e) => set({ timeoutMinutes: Number(e.target.value) })}
               className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
             />
+            {fieldError(save.error, "timeoutMinutes") && (
+              <span className="mt-1 block text-xs text-red-400">{fieldError(save.error, "timeoutMinutes")}</span>
+            )}
           </label>
         )}
       </section>
@@ -123,6 +144,9 @@ export function AutomodPage() {
               onChange={(e) => set({ antiSpamMaxMessages: Number(e.target.value) })}
               className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
             />
+            {fieldError(save.error, "antiSpamMaxMessages") && (
+              <span className="mt-1 block text-xs text-red-400">{fieldError(save.error, "antiSpamMaxMessages")}</span>
+            )}
           </label>
           <label className="text-sm text-zinc-300">
             Fenêtre (secondes)
@@ -134,6 +158,9 @@ export function AutomodPage() {
               onChange={(e) => set({ antiSpamWindowSeconds: Number(e.target.value) })}
               className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
             />
+            {fieldError(save.error, "antiSpamWindowSeconds") && (
+              <span className="mt-1 block text-xs text-red-400">{fieldError(save.error, "antiSpamWindowSeconds")}</span>
+            )}
           </label>
         </div>
         <p className="text-xs text-zinc-500">
@@ -230,22 +257,17 @@ export function AutomodPage() {
         </div>
       </section>
 
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => save.mutate()}
-          disabled={save.isPending}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {save.isPending ? "Enregistrement…" : "Enregistrer"}
-        </button>
-        {save.isSuccess && <span className="text-sm text-green-400">✓ Enregistré</span>}
-        {save.isError && <span className="text-sm text-red-400">Échec de l'enregistrement</span>}
-      </div>
-
       <InfoCard icon={<Icon.shield />} title="Bon à savoir">
         Les membres avec la permission « Gérer les messages » sont <b>toujours</b> exemptés de l'auto-modération, même
         sans règle d'exemption. L'auto-mod nécessite le service Gateway pour agir en temps réel.
       </InfoCard>
+
+      <SaveBar
+        dirty={dirty}
+        status={save.isPending ? "pending" : save.isError ? "error" : save.isSuccess ? "success" : "idle"}
+        onSave={() => save.mutate()}
+        onReset={resetForm}
+      />
     </div>
   );
 }

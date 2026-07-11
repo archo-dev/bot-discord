@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AutoRoleEntry, ChannelOption, GuildOverview, RoleOption } from "@bot/shared";
-import { api } from "../lib/api.js";
-import { Button, Card, Chip, Field, InfoCard, Input, SaveFeedback, Select } from "../ui/kit.js";
+import { api, fieldError } from "../lib/api.js";
+import { Card, Chip, Field, InfoCard, Input, Select } from "../ui/kit.js";
+import { SaveBar, useDirty } from "../ui/savebar.js";
+import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { Icon } from "../ui/icons.js";
 
 export function ConfigPage() {
@@ -59,13 +61,37 @@ export function ConfigPage() {
         body: JSON.stringify(selectedAutoRoles),
       });
     },
+    // La SaveBar affiche l'échec : pas de toast global en doublon.
+    meta: { silentError: true },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["guild", guildId] });
       void queryClient.invalidateQueries({ queryKey: ["auto-roles", guildId] });
     },
   });
 
-  if (overview.isPending) return <p className="text-zinc-400">Chargement…</p>;
+  // Dirty state : projection comparée à l'état serveur (D.S. v2 §4.9)
+  const initial =
+    overview.data && autoRoles.data
+      ? {
+          logChannelId: overview.data.logChannelId ?? "",
+          warnThreshold: overview.data.warnThreshold,
+          warnTimeoutMinutes: overview.data.warnTimeoutMinutes,
+          autoRoles: autoRoles.data.map((r) => r.roleId).sort(),
+        }
+      : undefined;
+  const dirty = useDirty(
+    { logChannelId, warnThreshold, warnTimeoutMinutes, autoRoles: [...selectedAutoRoles].sort() },
+    initial,
+  );
+  const resetForm = () => {
+    if (!initial) return;
+    setLogChannelId(initial.logChannelId);
+    setWarnThreshold(initial.warnThreshold);
+    setWarnTimeoutMinutes(initial.warnTimeoutMinutes);
+    setSelectedAutoRoles(autoRoles.data?.map((r) => r.roleId) ?? []);
+  };
+
+  if (overview.isPending) return <SkeletonSettingsPage cards={3} />;
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -90,7 +116,7 @@ export function ConfigPage() {
         }
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Seuil de warns">
+          <Field label="Seuil de warns" error={fieldError(save.error, "warnThreshold")}>
             <Input
               type="number"
               min={1}
@@ -99,7 +125,7 @@ export function ConfigPage() {
               onChange={(e) => setWarnThreshold(Number(e.target.value))}
             />
           </Field>
-          <Field label="Durée du mute auto (minutes)">
+          <Field label="Durée du mute auto (minutes)" error={fieldError(save.error, "warnTimeoutMinutes")}>
             <Input
               type="number"
               min={1}
@@ -134,17 +160,17 @@ export function ConfigPage() {
         </div>
       </Card>
 
-      <div className="flex items-center gap-3">
-        <Button onClick={() => save.mutate()} disabled={save.isPending}>
-          {save.isPending ? "Enregistrement…" : "Enregistrer"}
-        </Button>
-        <SaveFeedback status={save.isPending ? "pending" : save.isSuccess ? "success" : save.isError ? "error" : "idle"} />
-      </div>
-
       <InfoCard icon={<Icon.sliders />} title="Bon à savoir">
         Ces réglages s'appliquent immédiatement. Le mute automatique se déclenche au moment du <code>/warn</code> qui
         atteint le seuil, pas rétroactivement.
       </InfoCard>
+
+      <SaveBar
+        dirty={dirty}
+        status={save.isPending ? "pending" : save.isError ? "error" : save.isSuccess ? "success" : "idle"}
+        onSave={() => save.mutate()}
+        onReset={resetForm}
+      />
     </div>
   );
 }
