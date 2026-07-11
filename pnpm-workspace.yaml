@@ -5,3 +5,9 @@ onlyBuiltDependencies:
   - esbuild
   - workerd
   - sharp
+
+# Force @discordjs/voice 0.19.2 everywhere (incl. inside DisTube) for DAVE/E2EE
+# support — Discord rejects voice with 0.18.x (close code 4017). See gateway deps
+# (@snazzah/davey). Lives here (not package.json) as newer pnpm ignores pnpm.overrides.
+overrides:
+  "@discordjs/voice": "0.19.2"

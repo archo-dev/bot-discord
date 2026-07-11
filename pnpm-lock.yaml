@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@discordjs/voice': 0.19.2
+
 importers:
 
   .:
@@ -21,23 +24,26 @@ importers:
         specifier: workspace:*
         version: link:../shared
       '@discordjs/voice':
-        specifier: ^0.18.0
-        version: 0.18.0(opusscript@0.0.8)
+        specifier: 0.19.2
+        version: 0.19.2(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(opusscript@0.0.8)
       '@distube/spotify':
         specifier: ^2.0.0
-        version: 2.0.2(distube@5.2.3(@discordjs/voice@0.18.0(opusscript@0.0.8))(discord.js@14.26.4))
+        version: 2.0.2(distube@5.2.3(@discordjs/voice@0.19.2(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(opusscript@0.0.8))(discord.js@14.26.4))
       '@distube/yt-dlp':
         specifier: ^2.0.0
-        version: 2.0.1(distube@5.2.3(@discordjs/voice@0.18.0(opusscript@0.0.8))(discord.js@14.26.4))
+        version: 2.0.1(distube@5.2.3(@discordjs/voice@0.19.2(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(opusscript@0.0.8))(discord.js@14.26.4))
       '@hono/node-server':
         specifier: ^1.14.0
         version: 1.19.14(hono@4.12.28)
+      '@snazzah/davey':
+        specifier: ^0.1.12
+        version: 0.1.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)
       discord.js:
         specifier: ^14.16.3
         version: 14.26.4
       distube:
         specifier: ^5.0.0
-        version: 5.2.3(@discordjs/voice@0.18.0(opusscript@0.0.8))(discord.js@14.26.4)
+        version: 5.2.3(@discordjs/voice@0.19.2(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(opusscript@0.0.8))(discord.js@14.26.4)
       hono:
         specifier: ^4.8.4
         version: 4.12.28
@@ -354,9 +360,9 @@ packages:
     resolution: {integrity: sha512-3LKP7F2+atl9vJFhaBjn4nOaSWahZ/yWjOvA4e5pnXkt2qyXRCHLxoBQy81GFtLGCq7K9lPm9R517M1U+/90Qg==}
     engines: {node: '>=18'}
 
-  '@discordjs/voice@0.18.0':
-    resolution: {integrity: sha512-BvX6+VJE5/vhD9azV9vrZEt9hL1G+GlOdsQaVl5iv9n87fkXjf3cSwllhR3GdaUC8m6dqT8umXIWtn3yCu4afg==}
-    engines: {node: '>=18'}
+  '@discordjs/voice@0.19.2':
+    resolution: {integrity: sha512-3yJ255e4ag3wfZu/DSxeOZK1UtnqNxnspmLaQetGT0pDkThNZoHs+Zg6dgZZ19JEVomXygvfHn9lNpICZuYtEA==}
+    engines: {node: '>=22.12.0'}
 
   '@discordjs/ws@1.2.3':
     resolution: {integrity: sha512-wPlQDxEmlDg5IxhJPuxXr3Vy9AjYq5xCvFWGJyD7w7Np8ZGu+Mc+97LCoEc/+AYCo2IDpKioiH0/c/mj5ZR9Uw==}
@@ -372,8 +378,14 @@ packages:
     peerDependencies:
       distube: '5'
 
+  '@emnapi/core@1.11.2':
+    resolution: {integrity: sha512-TC8MkTuZUtcTSiFeuC0ksCh9QIJ5+F21MvZ4Wn4ORfYaFJ/0dsiudv5tVkejgwZlwQ39jL9WWDe2lz8x0WglOA==}
+
   '@emnapi/runtime@1.11.2':
     resolution: {integrity: sha512-kyOl3X0DuTiT1h2ft8r2fYO8JYtU9a9Xis/zBSiGArNaagCOWx90N1k2wxp18czFDH+OgcWGb5ZP/XMt3dcyPA==}
+
+  '@emnapi/wasi-threads@1.2.2':
+    resolution: {integrity: sha512-c95qOXkHdydNKhscBTebqEC1CVAZpyqOfVfBzQ1qgzyl3gfeldUjIggDbIZgDKsHLgnsM+igH7TJ/eAasaVuMA==}
 
   '@esbuild/aix-ppc64@0.25.4':
     resolution: {integrity: sha512-1VCICWypeQKhVbE9oW/sJaAmjLxhVqacdkvPLEjwlttjfwENRSClS8EjBz0KzRyFSCPDIkuXW34Je/vk7zdB7Q==}
@@ -1104,6 +1116,12 @@ packages:
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
 
+  '@napi-rs/wasm-runtime@1.1.6':
+    resolution: {integrity: sha512-ZLv/JdUfkvOy9eCnnBaGfiO+XimbjebAeO+MRQqD/B+FR1tnRN0tpKSJHRbE8sFfS6aqsXZ67TQjfwfsxULVbg==}
+    peerDependencies:
+      '@emnapi/core': ^1.7.1
+      '@emnapi/runtime': ^1.7.1
+
   '@poppinss/colors@4.1.6':
     resolution: {integrity: sha512-H9xkIdFswbS8n1d6vmRd8+c10t2Qe+rZITbbDHHkQixH5+2x1FDGmi/0K+WgWiqQFKPSlIYB7jlH6Kpfn6Fleg==}
 
@@ -1261,6 +1279,93 @@ packages:
     resolution: {integrity: sha512-P1Cz1dWaFfR4IR+U13mqqiGsLFf1KbayybWwdd2vfctdV6hDpUkgCY0nKOLLTMSoRd/jJNjtbqzf13K8DCCXQw==}
     engines: {node: '>=18'}
 
+  '@snazzah/davey-android-arm-eabi@0.1.12':
+    resolution: {integrity: sha512-6VC/an+Sx5dI5skb+90rYcIB1jhm48Rl0nDaw0UNT4bz1rMjpVfmmZqeocYXMq96IdbBMlE6OTKGcBm2C3gkQg==}
+    engines: {node: '>= 10'}
+    cpu: [arm]
+    os: [android]
+
+  '@snazzah/davey-android-arm64@0.1.12':
+    resolution: {integrity: sha512-0Bwd03/JsTFhlPhF4q/LW0RxSzntFpQdhz+TBdFljYSg8IEyA38saPJeTNjpIgDfhAumPzvhCdfS6O5qT8yXDw==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [android]
+
+  '@snazzah/davey-darwin-arm64@0.1.12':
+    resolution: {integrity: sha512-lKMV6ITi9BQLt0fx/pAT7M8xcojVK7bryVJGdaW3bq8gABFslS3ti/KzrWabQvhpEV71FZe5mV0UcKHFVaTsZw==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@snazzah/davey-darwin-x64@0.1.12':
+    resolution: {integrity: sha512-vXXc/eW/e3TQeb7VsdtrPqs3/22j0aSqiP1ZXmZtDjQRBwgSxwItWYa6sh5MELP2EHB2igNlGzB6Hc0XlbGi4g==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@snazzah/davey-freebsd-x64@0.1.12':
+    resolution: {integrity: sha512-G1gas5HrC4Xp3mRY0+OeAqXS6fG2tRgBEc8gQh69Hw4YK9RV9mzQKcmoKMkBM72U1+2C+2u57dolnKKzwozByQ==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [freebsd]
+
+  '@snazzah/davey-linux-arm-gnueabihf@0.1.12':
+    resolution: {integrity: sha512-97Fujh82r2Ll7dPZeNuoZ3yKfsqycf3c93OWXOo/ThNL/18Onl2Ht4SIvpX6VHhfeS9bDpHJ1lHCaz1b/i5ocw==}
+    engines: {node: '>= 10'}
+    cpu: [arm]
+    os: [linux]
+
+  '@snazzah/davey-linux-arm64-gnu@0.1.12':
+    resolution: {integrity: sha512-FWyAOv52cHKDM4BOsmImKKogHFvqNFoXmZcicNJbX3XpVl8Mas88ZoXQ+IA5V+qc9pNtAl1MbWwEZ9JrqAQtbg==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@snazzah/davey-linux-arm64-musl@0.1.12':
+    resolution: {integrity: sha512-ptRbLSQxtV6EjXppS5z7qaPDI0NRKhrkJYsTlAjEghmOvlAObozSCYYnMO6nbkt6Ab3+lWqyahClzcRNcD2ouw==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@snazzah/davey-linux-x64-gnu@0.1.12':
+    resolution: {integrity: sha512-w86fZvhJn0ErOoAQHt2UbQ95V/cgwvfvQ4GlTPQLCzt58nn+rLlXLgPn90qYlSQrZxFW38rKXwqVOMbm9p+pwQ==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+
+  '@snazzah/davey-linux-x64-musl@0.1.12':
+    resolution: {integrity: sha512-LLNnO+hfG41ymeI+O1YHo5/0h3aKaetUNLdkBwpdJsjoyKMXZaeCnB+aHNkkupJCMPmWS0g6iPMCHUOqZSBcTg==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+
+  '@snazzah/davey-wasm32-wasi@0.1.12':
+    resolution: {integrity: sha512-MPKFuqYVkDFXheR7qmtEY4FWxQ/ADfgsCojQWHi13sibUqCTR9q2F1LqNn2i9IVh3sh1sxeg87fdFMCH63pl7g==}
+    engines: {node: '>=14.0.0'}
+    cpu: [wasm32]
+
+  '@snazzah/davey-win32-arm64-msvc@0.1.12':
+    resolution: {integrity: sha512-Uf4OYHyfbXpzyaOqIV8/h6kv166Qni5+Bxmc1E/ov4uhhKO8qXbOky8zbVOzu0U4cv5ll3s4IQ8jDAJkx/K75Q==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@snazzah/davey-win32-ia32-msvc@0.1.12':
+    resolution: {integrity: sha512-nRVbKTsb2ldcPI8D4BDA7P/UeiMEMvR+wYuUMp7H1pRD/3dF2hKo+MzUU+Pn78EhuYA3CWHItiAcS/GsPld67A==}
+    engines: {node: '>= 10'}
+    cpu: [ia32]
+    os: [win32]
+
+  '@snazzah/davey-win32-x64-msvc@0.1.12':
+    resolution: {integrity: sha512-AgUA3itPDVkxQq7RIkgE1thCiWePwWjyfOZefBBxGIlMWpRUOSwF4vY9kNLnrScyJcFULdR+Zm8PwiwV8/RKnw==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [win32]
+
+  '@snazzah/davey@0.1.12':
+    resolution: {integrity: sha512-V+NlX5931RwVamZhhEfZekMdcvXDKdMAmHW1AuGaykVQsNyBOq3bpmGpoKRBDCYgFWKIufJ0Dcg3m4cYhvUy6g==}
+    engines: {node: '>= 10'}
+
   '@speed-highlight/core@1.2.17':
     resolution: {integrity: sha512-Z92FwKpCtfaW1V0jTU/fh3QzYEZN8wDwrzRIBoADCJfn4mJCNcJN/XegifX7BDrQ8/h9Xh/JnbyMchL0FqXrkg==}
 
@@ -1361,6 +1466,9 @@ packages:
     resolution: {integrity: sha512-seDkr6kzGzX1okaaTtZPtgA688CDPlXUz1C6xSg0ESqn04Vuc8tlrYms1s3de+znBqhPVxFRfpAfUf+6XvfPWg==}
     peerDependencies:
       react: ^18 || ^19
+
+  '@tybys/wasm-util@0.10.3':
+    resolution: {integrity: sha512-F3fo1MYrRJYL3zER0OUOmkutjr1Vp23m7OsSgp7nq4SP6OqX6C/56XFIPAl5bt3zaBRjmW7SGz3u/6LwFpYcOg==}
 
   '@types/babel__core@7.20.5':
     resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
@@ -1588,9 +1696,6 @@ packages:
   devalue@5.8.1:
     resolution: {integrity: sha512-4CXDYRBGqN+57wVJkuXBYmpAVUSg3L6JAQa/DFqm238G73E1wuyc/JhGQJzN7vUf/CMphYau2zXbfWzDR5aTEw==}
 
-  discord-api-types@0.37.120:
-    resolution: {integrity: sha512-7xpNK0EiWjjDFp2nAhHXezE4OUWm7s1zhc/UXXN6hnFFU8dfoPHgV0Hx0RPiCa3ILRpdeh152icc68DGCyXYIw==}
-
   discord-api-types@0.38.49:
     resolution: {integrity: sha512-XnqcWmnFZFAE8ZM8SHAw9DIV8D3Or00rMQ8iQLotrEA2PmXhl+ykaf6L6q4l474hrSUH1JaYcv+iOMRWp2p6Tg==}
 
@@ -1602,7 +1707,7 @@ packages:
     resolution: {integrity: sha512-fWdFDR3bH3fbkEthAukUKEpiRWCjt9xfgCCOkJqTCpdjkDx6zGDRFe+ETp8MlGMl7SGFjS0tntXzNF0o4NQSvg==}
     engines: {node: '>=22.12.0'}
     peerDependencies:
-      '@discordjs/voice': '*'
+      '@discordjs/voice': 0.19.2
       discord.js: '14'
 
   dunder-proto@1.0.1:
@@ -2636,15 +2741,18 @@ snapshots:
     dependencies:
       discord-api-types: 0.38.49
 
-  '@discordjs/voice@0.18.0(opusscript@0.0.8)':
+  '@discordjs/voice@0.19.2(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(opusscript@0.0.8)':
     dependencies:
+      '@snazzah/davey': 0.1.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)
       '@types/ws': 8.18.1
-      discord-api-types: 0.37.120
+      discord-api-types: 0.38.49
       prism-media: 1.3.5(opusscript@0.0.8)
       tslib: 2.8.1
       ws: 8.21.0
     transitivePeerDependencies:
       - '@discordjs/opus'
+      - '@emnapi/core'
+      - '@emnapi/runtime'
       - bufferutil
       - ffmpeg-static
       - node-opus
@@ -2666,9 +2774,9 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@distube/spotify@2.0.2(distube@5.2.3(@discordjs/voice@0.18.0(opusscript@0.0.8))(discord.js@14.26.4))':
+  '@distube/spotify@2.0.2(distube@5.2.3(@discordjs/voice@0.19.2(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(opusscript@0.0.8))(discord.js@14.26.4))':
     dependencies:
-      distube: 5.2.3(@discordjs/voice@0.18.0(opusscript@0.0.8))(discord.js@14.26.4)
+      distube: 5.2.3(@discordjs/voice@0.19.2(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(opusscript@0.0.8))(discord.js@14.26.4)
       spotify-uri: 4.1.0
       spotify-url-info: 3.3.1
       spotify-web-api-node: 5.0.2
@@ -2676,13 +2784,24 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@distube/yt-dlp@2.0.1(distube@5.2.3(@discordjs/voice@0.18.0(opusscript@0.0.8))(discord.js@14.26.4))':
+  '@distube/yt-dlp@2.0.1(distube@5.2.3(@discordjs/voice@0.19.2(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(opusscript@0.0.8))(discord.js@14.26.4))':
     dependencies:
       dargs: 7.0.0
-      distube: 5.2.3(@discordjs/voice@0.18.0(opusscript@0.0.8))(discord.js@14.26.4)
+      distube: 5.2.3(@discordjs/voice@0.19.2(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(opusscript@0.0.8))(discord.js@14.26.4)
       undici: 6.24.1
 
+  '@emnapi/core@1.11.2':
+    dependencies:
+      '@emnapi/wasi-threads': 1.2.2
+      tslib: 2.8.1
+    optional: true
+
   '@emnapi/runtime@1.11.2':
+    dependencies:
+      tslib: 2.8.1
+    optional: true
+
+  '@emnapi/wasi-threads@1.2.2':
     dependencies:
       tslib: 2.8.1
     optional: true
@@ -3117,6 +3236,13 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
+  '@napi-rs/wasm-runtime@1.1.6(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)':
+    dependencies:
+      '@emnapi/core': 1.11.2
+      '@emnapi/runtime': 1.11.2
+      '@tybys/wasm-util': 0.10.3
+    optional: true
+
   '@poppinss/colors@4.1.6':
     dependencies:
       kleur: 4.1.5
@@ -3219,6 +3345,73 @@ snapshots:
 
   '@sindresorhus/is@7.2.0': {}
 
+  '@snazzah/davey-android-arm-eabi@0.1.12':
+    optional: true
+
+  '@snazzah/davey-android-arm64@0.1.12':
+    optional: true
+
+  '@snazzah/davey-darwin-arm64@0.1.12':
+    optional: true
+
+  '@snazzah/davey-darwin-x64@0.1.12':
+    optional: true
+
+  '@snazzah/davey-freebsd-x64@0.1.12':
+    optional: true
+
+  '@snazzah/davey-linux-arm-gnueabihf@0.1.12':
+    optional: true
+
+  '@snazzah/davey-linux-arm64-gnu@0.1.12':
+    optional: true
+
+  '@snazzah/davey-linux-arm64-musl@0.1.12':
+    optional: true
+
+  '@snazzah/davey-linux-x64-gnu@0.1.12':
+    optional: true
+
+  '@snazzah/davey-linux-x64-musl@0.1.12':
+    optional: true
+
+  '@snazzah/davey-wasm32-wasi@0.1.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)':
+    dependencies:
+      '@napi-rs/wasm-runtime': 1.1.6(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)
+    transitivePeerDependencies:
+      - '@emnapi/core'
+      - '@emnapi/runtime'
+    optional: true
+
+  '@snazzah/davey-win32-arm64-msvc@0.1.12':
+    optional: true
+
+  '@snazzah/davey-win32-ia32-msvc@0.1.12':
+    optional: true
+
+  '@snazzah/davey-win32-x64-msvc@0.1.12':
+    optional: true
+
+  '@snazzah/davey@0.1.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)':
+    optionalDependencies:
+      '@snazzah/davey-android-arm-eabi': 0.1.12
+      '@snazzah/davey-android-arm64': 0.1.12
+      '@snazzah/davey-darwin-arm64': 0.1.12
+      '@snazzah/davey-darwin-x64': 0.1.12
+      '@snazzah/davey-freebsd-x64': 0.1.12
+      '@snazzah/davey-linux-arm-gnueabihf': 0.1.12
+      '@snazzah/davey-linux-arm64-gnu': 0.1.12
+      '@snazzah/davey-linux-arm64-musl': 0.1.12
+      '@snazzah/davey-linux-x64-gnu': 0.1.12
+      '@snazzah/davey-linux-x64-musl': 0.1.12
+      '@snazzah/davey-wasm32-wasi': 0.1.12(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)
+      '@snazzah/davey-win32-arm64-msvc': 0.1.12
+      '@snazzah/davey-win32-ia32-msvc': 0.1.12
+      '@snazzah/davey-win32-x64-msvc': 0.1.12
+    transitivePeerDependencies:
+      - '@emnapi/core'
+      - '@emnapi/runtime'
+
   '@speed-highlight/core@1.2.17': {}
 
   '@tailwindcss/node@4.3.2':
@@ -3295,6 +3488,11 @@ snapshots:
     dependencies:
       '@tanstack/query-core': 5.101.2
       react: 19.2.7
+
+  '@tybys/wasm-util@0.10.3':
+    dependencies:
+      tslib: 2.8.1
+    optional: true
 
   '@types/babel__core@7.20.5':
     dependencies:
@@ -3511,8 +3709,6 @@ snapshots:
 
   devalue@5.8.1: {}
 
-  discord-api-types@0.37.120: {}
-
   discord-api-types@0.38.49: {}
 
   discord.js@14.26.4:
@@ -3534,9 +3730,9 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  distube@5.2.3(@discordjs/voice@0.18.0(opusscript@0.0.8))(discord.js@14.26.4):
+  distube@5.2.3(@discordjs/voice@0.19.2(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(opusscript@0.0.8))(discord.js@14.26.4):
     dependencies:
-      '@discordjs/voice': 0.18.0(opusscript@0.0.8)
+      '@discordjs/voice': 0.19.2(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(opusscript@0.0.8)
       discord.js: 14.26.4
       tiny-typed-emitter: 2.1.0
       undici: 7.28.0
