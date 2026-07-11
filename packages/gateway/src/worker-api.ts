@@ -61,9 +61,25 @@ export interface VoiceLogEntry {
   fromChannelId: string | null;
 }
 
+export interface PresenceCounts {
+  online: number;
+  idle: number;
+  dnd: number;
+  offline: number;
+}
+
 export interface HeartbeatPayload {
   guildCount: number;
   wsPing: number | null;
+  /** Per-guild presence counts; omitted/empty until the Presence intent is on. */
+  presence?: Record<string, PresenceCounts>;
+}
+
+export interface ChannelActivityEntry {
+  channelId: string;
+  day: string;
+  messageCount: number;
+  voiceSeconds: number;
 }
 
 export interface WorkerApi {
@@ -74,6 +90,8 @@ export interface WorkerApi {
   postXp(guildId: string, payload: { userId: string; username: string | null; channelId: string }): Promise<void>;
   /** Buffers voice entries and flushes them to the Worker every ~5 s (smooths bursts). */
   postVoiceLogs(guildId: string, entries: VoiceLogEntry[]): Promise<void>;
+  postMemberSnapshot(guildId: string, payload: { bucket: string; total: number; humans: number; bots: number }): Promise<void>;
+  postChannelActivity(guildId: string, entries: ChannelActivityEntry[]): Promise<void>;
   postMusicState(guildId: string, state: MusicStateDto): Promise<void>;
   savePlaylist(guildId: string, payload: { ownerId: string; name: string; tracks: MusicTrack[] }): Promise<void>;
   getPlaylistTracks(guildId: string, name: string): Promise<MusicTrack[] | null>;
@@ -138,6 +156,12 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
       const buf = voiceBuffer.get(guildId) ?? [];
       buf.push(...entries);
       voiceBuffer.set(guildId, buf);
+    },
+    async postMemberSnapshot(guildId, payload) {
+      await call("POST", `/internal/guilds/${guildId}/member-snapshots`, payload);
+    },
+    async postChannelActivity(guildId, entries) {
+      await call("POST", `/internal/guilds/${guildId}/channel-activity`, { entries });
     },
     async postMusicState(guildId, state) {
       await call("POST", `/internal/guilds/${guildId}/music-state`, state);

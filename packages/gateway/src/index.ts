@@ -1,11 +1,12 @@
 import { Client, Events, GatewayIntentBits, Partials } from "discord.js";
 import { serve } from "@hono/node-server";
 import { loadEnv } from "./env.js";
-import { createWorkerApi } from "./worker-api.js";
+import { createWorkerApi, type PresenceCounts } from "./worker-api.js";
 import { createConfigCache } from "./config-cache.js";
 import { createHttpApp } from "./http.js";
 import { registerEvents } from "./events.js";
 import { registerVoice } from "./voice.js";
+import { registerStats } from "./stats.js";
 import { registerAutomod } from "./automod.js";
 import { registerXp } from "./xp.js";
 import { registerMusic } from "./music.js";
@@ -37,15 +38,34 @@ const client = new Client({
 
 registerEvents(client, configCache, api);
 registerVoice(client, configCache, api);
+const stats = registerStats(client, api);
 registerAutomod(client, configCache, api);
 registerXp(client, configCache, api);
 const music = registerMusic(client, api);
+
+/** Per-guild presence counts from cache — empty until the Presence intent is on. */
+function collectPresence(): Record<string, PresenceCounts> | undefined {
+  const presence: Record<string, PresenceCounts> = {};
+  for (const guild of client.guilds.cache.values()) {
+    if (guild.presences.cache.size === 0) continue;
+    const counts: PresenceCounts = { online: 0, idle: 0, dnd: 0, offline: 0 };
+    for (const p of guild.presences.cache.values()) {
+      if (p.status === "online") counts.online++;
+      else if (p.status === "idle") counts.idle++;
+      else if (p.status === "dnd") counts.dnd++;
+      else counts.offline++;
+    }
+    presence[guild.id] = counts;
+  }
+  return Object.keys(presence).length > 0 ? presence : undefined;
+}
 
 async function heartbeat(): Promise<void> {
   try {
     await api.postHeartbeat({
       guildCount: client.guilds.cache.size,
       wsPing: client.ws.ping >= 0 ? client.ws.ping : null,
+      presence: collectPresence(),
     });
   } catch (err) {
     console.error("heartbeat failed:", err instanceof Error ? err.message : err);
@@ -66,7 +86,11 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
     console.log(`${signal} received, shutting down`);
     server.close();
-    void client.destroy().finally(() => process.exit(0));
+    // Flush buffered stats before exit; in-flight voice sessions are lost (accepted).
+    void stats
+      .flush()
+      .catch(() => {})
+      .finally(() => client.destroy().finally(() => process.exit(0)));
   });
 }
 

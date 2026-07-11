@@ -15,6 +15,7 @@ import { membersRouter } from "./api/members.js";
 import { voiceLogsRouter } from "./api/voice-logs.js";
 import { internalRouter } from "./internal/routes.js";
 import { blockModeratorWrites, requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
+import { runScheduled } from "./cron.js";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -75,4 +76,11 @@ app.get("/assets/*", async (c) => {
 app.get("/", (c) => serveIndex(c));
 app.get("/index.html", (c) => serveIndex(c));
 
-export default app;
+// Cron trigger (wrangler.jsonc → triggers.crons): daily retention purge.
+const scheduled = async (_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> => {
+  ctx.waitUntil(runScheduled(env));
+};
+
+// Keep the Hono instance as the default export (tests call app.request(...)) but
+// attach `scheduled` so the Workers runtime picks up both handlers.
+export default Object.assign(app, { scheduled });

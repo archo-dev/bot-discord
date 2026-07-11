@@ -486,6 +486,81 @@ export async function getCounterValues(db: D1Database, guildId: string, names: s
 }
 
 // ---------------------------------------------------------------------------
+// Stats collection (M18) — written by the gateway via /internal
+// ---------------------------------------------------------------------------
+
+/** Hourly member snapshot; INSERT OR REPLACE so a re-sent bucket overwrites. */
+export async function upsertMemberSnapshot(
+  db: D1Database,
+  guildId: string,
+  s: { bucket: string; total: number; humans: number; bots: number },
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT OR REPLACE INTO member_snapshots (guild_id, bucket, total, humans, bots)
+       VALUES (?1, ?2, ?3, ?4, ?5)`,
+    )
+    .bind(guildId, s.bucket, s.total, s.humans, s.bots)
+    .run();
+}
+
+export interface ChannelActivityEntry {
+  channelId: string;
+  day: string;
+  messageCount: number;
+  voiceSeconds: number;
+}
+
+/** Additive upsert: repeated flushes for the same channel/day accumulate. */
+export async function incrementChannelActivity(
+  db: D1Database,
+  guildId: string,
+  entries: ChannelActivityEntry[],
+): Promise<void> {
+  if (entries.length === 0) return;
+  const statements = entries.map((e) =>
+    db
+      .prepare(
+        `INSERT INTO channel_activity (guild_id, channel_id, day, message_count, voice_seconds)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(guild_id, channel_id, day) DO UPDATE SET
+           message_count = message_count + excluded.message_count,
+           voice_seconds = voice_seconds + excluded.voice_seconds`,
+      )
+      .bind(guildId, e.channelId, e.day, e.messageCount, e.voiceSeconds),
+  );
+  await db.batch(statements);
+}
+
+/**
+ * Retention purge (daily cron). Returns rows deleted per table. Bounds (actées) :
+ *  - voice_logs        > 90 j
+ *  - channel_activity  > 180 j
+ *  - member_snapshots  : horaires (bucket != T00:00) > 14 j ; tout > 400 j
+ */
+export async function purgeOldStats(db: D1Database): Promise<{
+  voiceLogs: number;
+  channelActivity: number;
+  hourlySnapshots: number;
+  oldSnapshots: number;
+}> {
+  const r = await db.batch([
+    db.prepare(`DELETE FROM voice_logs WHERE created_at < datetime('now', '-90 days')`),
+    db.prepare(`DELETE FROM channel_activity WHERE day < date('now', '-180 days')`),
+    db.prepare(
+      `DELETE FROM member_snapshots WHERE bucket NOT LIKE '%T00:00' AND created_at < datetime('now', '-14 days')`,
+    ),
+    db.prepare(`DELETE FROM member_snapshots WHERE created_at < datetime('now', '-400 days')`),
+  ]);
+  return {
+    voiceLogs: r[0]!.meta.changes ?? 0,
+    channelActivity: r[1]!.meta.changes ?? 0,
+    hourlySnapshots: r[2]!.meta.changes ?? 0,
+    oldSnapshots: r[3]!.meta.changes ?? 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Auto roles + gateway events (gateway-dependent, inert until Option B)
 // ---------------------------------------------------------------------------
 

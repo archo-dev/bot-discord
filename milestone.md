@@ -23,6 +23,8 @@
 | M14 | Musique | 🔶 Code livré + gateway VPS OK ; tunnel + deploy Worker restants | `503a909` |
 | M15 | Permissions panel (admin/modérateur) | ✅ Déployé (`3273621e`) ; test manuel 2ᵉ compte restant | — |
 | M16 | Surnom du bot par guilde | ✅ Déployé (`22d7ffb7`) ; permission Discord à vérifier par serveur | — |
+| M17 | Logs vocaux | ✅ Déployé (worker `e3c3e6a8` + gateway VPS) ; test manuel vocal restant | `eb0daa4` |
+| M18 | Collecte stats + cron Cloudflare | ✅ Déployé (worker `09868500` + gateway VPS) ; données à J+24 h | — |
 
 ---
 
@@ -198,4 +200,32 @@ Surnom personnalisé du bot **par serveur**, appliqué via REST. La valeur est s
 - [x] Vérif : `pnpm -r check` vert ; worker 128/128 ; build panel OK. Déployé `22d7ffb7`.
 
 - [ ] **Action manuelle utilisateur** : sur **chaque serveur**, vérifier que le rôle du bot a la permission **« Changer de pseudo »** (Change Nickname). Sans elle, le surnom est enregistré mais le badge « non appliqué » s'affiche.
+
+## ✅ M17 — Logs vocaux (worker `e3c3e6a8`, gateway `eb0daa4`) — 130/130 tests worker
+
+Historique de l'activité vocale (arrivées/départs/déplacements + muet/casque) + embeds dans le salon de logs. join/leave/move **toujours** persistés (historique indépendant du salon de logs) ; mute/deafen persistés seulement si le toggle « état vocal » est actif.
+
+- [x] Migration `0014_voice_logs.sql` : table `voice_logs` (+ 2 index keyset) + 4 colonnes `log_voice_*` sur `log_settings` — **appliquée en remote**.
+- [x] Worker : `insertVoiceLogs`/`listVoiceLogs` (keyset cursor `created_at|id`, filtres user/salon/action/dates) ; POST `/internal/guilds/:id/voice-logs` (batch ≤50) ; GET `/api/guilds/:id/voice-logs` (lecture seule ⇒ modérateur OK) ; `logRowToDto`/`logSchema` + 4 flags ; `/channels` inclut désormais vocal (type 2) + stage (13).
+- [x] Gateway : `voice.ts` (`registerVoice` sur `VoiceStateUpdate`, classification join/leave/move/(un)mute/(un)deafen, embeds via `sendTo`) ; `postVoiceLogs` bufferisé 5 s dans `worker-api.ts` ; DTO config étendu ; `sendTo` exporté depuis `events.ts`.
+- [x] Panel : page **Logs vocaux** (`/voicelog`, sidebar Modération, icône `mic`) — filtres membre/salon/action/dates, pagination keyset « Charger plus » ; 4 toggles dans la section logs de Bienvenue.
+- [x] Tests `voice-logs.test.ts` : insert/list, filtres user/action/salon, pagination keyset, endpoint interne (auth + validation batch). `welcome.test.ts` mis à jour (4 flags).
+- [x] Déployé : migration 0014 remote, worker `e3c3e6a8`, gateway VPS mis à jour par bundle (commit `eb0daa4`) + fix DAVE répercuté dans le repo (`f0b3d69`) → « Lockfile is up to date », `gateway ready`, aucune régression musique.
+
+- [ ] **Test manuel restant** : rejoindre/quitter un salon vocal → lignes dans la page Logs vocaux ; activer les toggles dans Bienvenue + définir un salon de logs → embeds 🔊/🔴/➡️ postés.
+
+## ✅ M18 — Collecte stats + premier cron Cloudflare (worker `09868500`, gateway) — 134/134 tests worker
+
+Collecte de stats côté gateway (en mémoire, flush périodique, zéro scan d'historique) + endpoints internes + **premier cron Cloudflare** (purge de rétention). Pas de page panel (c'est M19).
+
+- [x] Migration `0015_stats_tables.sql` : `member_snapshots` (PK guild+bucket horaire) + `channel_activity` (PK guild+channel+day, index guild+day) — **appliquée en remote**.
+- [x] Worker `queries.ts` : `upsertMemberSnapshot` (INSERT OR REPLACE), `incrementChannelActivity` (upsert additif ON CONFLICT += ), `purgeOldStats` (bornes 90/180/14/400 j).
+- [x] Worker `internal/routes.ts` : POST `member-snapshots`, POST `channel-activity`, heartbeat étendu (`presence` par guilde dans la clé KV `gateway:status`).
+- [x] Worker `cron.ts` + `index.ts` : `export default Object.assign(app, { scheduled })` (garde `app.request` pour les tests) ; `wrangler.jsonc` → `triggers.crons: ["23 4 * * *"]`.
+- [x] Gateway `stats.ts` (`registerStats`) : compteur messages (bots exclus, flush 60 s), sessions vocales → `voice_seconds` (listener `VoiceStateUpdate` dédié), snapshot horaire (`members.fetch()` + fallback cache), flush sur SIGTERM. `worker-api.ts` : `postMemberSnapshot`/`postChannelActivity` + `presence` dans le heartbeat. `index.ts` : `collectPresence()` (vide tant que l'intent Presence est off).
+- [x] Tests `stats.test.ts` : upsert additif (2 flushes = somme), INSERT OR REPLACE (même bucket), auth interne, purge (bornes exactes, dailies T00:00 conservés).
+- [x] **Fix DAVE bien placé** : l'override `@discordjs/voice` déplacé de `package.json` (ignoré par pnpm récent) vers `pnpm-workspace.yaml` + lockfile régénéré (davey + voice 0.19.2 pinnés).
+- [x] Déployé : migration 0015 remote, worker `09868500` (cron `23 4 * * *` enregistré), gateway VPS mis à jour.
+
+- [ ] **Vérif à J+24 h** : `wrangler d1 execute botdiscord --remote --command "SELECT * FROM member_snapshots LIMIT 5"` doit montrer des snapshots ; `channel_activity` des compteurs cohérents après activité.
 
