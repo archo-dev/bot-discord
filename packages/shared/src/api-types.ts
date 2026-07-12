@@ -193,6 +193,16 @@ export interface XpSettingsDto {
   voiceXpPerMin: number;
 }
 
+/** Starboard settings (M23): ⭐-reaction best-of channel. */
+export interface StarboardSettingsDto {
+  enabled: boolean;
+  /** null = not configured (feature inert). */
+  channelId: string | null;
+  threshold: number;
+  /** Unicode emoji (default ⭐) or a custom emoji id/tag. */
+  emoji: string;
+}
+
 export interface LeaderboardEntry {
   rank: number;
   userId: string;

@@ -34,6 +34,7 @@ const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
       { to: "welcome", label: "Bienvenue", icon: "wave", subtitle: "Messages d'arrivée et de départ, auto-rôles et logs serveur." },
       { to: "roles", label: "Rôles", icon: "tag", subtitle: "Publiez des messages à boutons pour que les membres choisissent leurs rôles." },
       { to: "levels", label: "Niveaux", icon: "trophy", subtitle: "XP par message, récompenses de niveau et classement du serveur." },
+      { to: "starboard", label: "Starboard", icon: "star", subtitle: "Republiez les meilleurs messages (⭐) dans un salon best-of." },
     ],
   },
   {

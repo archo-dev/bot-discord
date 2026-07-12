@@ -53,6 +53,12 @@ export interface GuildGatewayConfig {
     /** Voice XP (M22): award XP per minute spent in voice. */
     voiceEnabled: boolean;
   };
+  starboard: {
+    enabled: boolean;
+    channelId: string | null;
+    threshold: number;
+    emoji: string;
+  };
 }
 
 export type AutomodRule = "spam" | "invite" | "link" | "word";
@@ -94,6 +100,19 @@ export interface WorkerApi {
   postXp(guildId: string, payload: { userId: string; username: string | null; channelId: string }): Promise<void>;
   /** Voice XP tick (M22): every currently-eligible voice member for this guild. */
   postVoiceXp(guildId: string, entries: Array<{ userId: string; username: string | null; channelId: string }>): Promise<void>;
+  /** Starboard (M23): current effective star count of a message. */
+  postStarboard(
+    guildId: string,
+    payload: {
+      messageId: string;
+      channelId: string;
+      authorTag: string;
+      authorAvatarUrl: string | null;
+      content: string | null;
+      imageUrl: string | null;
+      count: number;
+    },
+  ): Promise<void>;
   /** Buffers voice entries and flushes them to the Worker every ~5 s (smooths bursts). */
   postVoiceLogs(guildId: string, entries: VoiceLogEntry[]): Promise<void>;
   postMemberSnapshot(guildId: string, payload: { bucket: string; total: number; humans: number; bots: number }): Promise<void>;
@@ -160,6 +179,9 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
     },
     async postVoiceXp(guildId, entries) {
       await call("POST", `/internal/guilds/${guildId}/voice-xp`, { entries });
+    },
+    async postStarboard(guildId, payload) {
+      await call("POST", `/internal/guilds/${guildId}/starboard`, payload);
     },
     async postVoiceLogs(guildId, entries) {
       const buf = voiceBuffer.get(guildId) ?? [];

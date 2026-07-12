@@ -18,6 +18,7 @@ import { RolesPage } from "./pages/Roles.js";
 import { WelcomePage } from "./pages/Welcome.js";
 import { AutomodPage } from "./pages/Automod.js";
 import { LevelsPage } from "./pages/Levels.js";
+import { StarboardPage } from "./pages/Starboard.js";
 import { MusicPage } from "./pages/Music.js";
 import { ErrorCard } from "./ui/kit.js";
 import { Skeleton, SkeletonGuildGrid } from "./ui/skeleton.js";
@@ -71,6 +72,7 @@ export function App() {
         <Route path="welcome" element={<WelcomePage />} />
         <Route path="automod" element={<AutomodPage />} />
         <Route path="levels" element={<LevelsPage />} />
+        <Route path="starboard" element={<StarboardPage />} />
         <Route path="music" element={<MusicPage />} />
         <Route path="modlog" element={<ModLogPage />} />
         <Route path="voicelog" element={<VoiceLogPage />} />

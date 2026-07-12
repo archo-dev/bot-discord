@@ -10,6 +10,7 @@ import { registerStats } from "./stats.js";
 import { registerAutomod } from "./automod.js";
 import { registerXp } from "./xp.js";
 import { registerVoiceXp } from "./voice-xp.js";
+import { registerStarboard } from "./starboard.js";
 import { registerMusic } from "./music.js";
 
 // 120 s (TTL KV côté Worker = 300 s) : reste sous le quota d'écritures KV du
@@ -36,9 +37,13 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildVoiceStates,
+    // Starboard (M23): reactions. Not privileged — no portal change needed.
+    GatewayIntentBits.GuildMessageReactions,
     ...(presenceEnabled ? [GatewayIntentBits.GuildPresences] : []),
   ],
-  partials: [Partials.Message],
+  // Partials.Reaction/Message let reactions fire on messages sent before the
+  // gateway started (uncached); the handlers fetch them on demand.
+  partials: [Partials.Message, Partials.Reaction],
 });
 
 registerEvents(client, configCache, api);
@@ -47,6 +52,7 @@ const stats = registerStats(client, api);
 registerAutomod(client, configCache, api);
 registerXp(client, configCache, api);
 registerVoiceXp(client, configCache, api);
+registerStarboard(client, configCache, api);
 const music = registerMusic(client, api);
 
 /** Per-guild presence counts from cache — empty until the Presence intent is on. */
