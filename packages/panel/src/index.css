@@ -162,6 +162,21 @@ body {
   display: none;
 }
 
+/* --- Grilles adaptatives (densité M21) --- */
+/* Remplit la largeur disponible sans colonnes vides : les cartes se répartissent
+   en colonnes de ≥ 280 px, gap 16 px (garde-fou : gap ≥ 12 px). */
+.grid-bento {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+/* Variante KPI : tuiles plus étroites (≥ 220 px) pour une rangée de stats dense. */
+.grid-kpi {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
 /* --- Animations des primitives v2 (Modal, Toast, Skeleton, SaveBar) --- */
 
 /* Entrée d'overlay : fade + translation 8 px (D.S. v2 §2.3) */

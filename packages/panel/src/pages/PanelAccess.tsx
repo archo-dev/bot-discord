@@ -111,7 +111,9 @@ export function PanelAccessPage() {
   const roleName = (id: string) => roles.data?.find((r) => r.id === id)?.name ?? id;
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="space-y-4">
+      {/* M21 : masonry 2 colonnes. */}
+      <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
       <Card
         title="Rôles autorisés"
         description="Les membres de ces rôles peuvent utiliser le panel même sans la permission « Gérer le serveur »."
@@ -184,6 +186,7 @@ export function PanelAccessPage() {
         accès en lecture/écriture ; <b>Modérateur</b> = lecture seule (tout consulter, rien modifier). Un membre visé
         par plusieurs accès obtient le niveau le plus élevé.
       </InfoCard>
+      </div>
 
       <SaveBar
         dirty={dirty}

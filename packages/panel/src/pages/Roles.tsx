@@ -91,7 +91,9 @@ export function RolesPage() {
   const canPublish = channelId && title.trim() && buttons.length > 0 && buttons.every((b) => b.roleId && b.label.trim());
 
   return (
-    <div className="max-w-3xl space-y-8">
+    <div className="space-y-4">
+      {/* M21 : builder à gauche, messages publiés + astuce à droite. */}
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
       {/* fieldset disabled (M15) : composition + publication neutralisées en lecture seule. */}
       <fieldset disabled={!canWrite} className="contents">
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
@@ -209,6 +211,7 @@ export function RolesPage() {
       </section>
       </fieldset>
 
+      <div className="space-y-4">
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
         <h2 className="font-semibold">Messages publiés</h2>
         <div className="mt-3 divide-y divide-zinc-800">
@@ -248,6 +251,8 @@ export function RolesPage() {
           ))}
         </div>
       </section>
+      </div>
+      </div>
 
       <ConfirmModal
         open={toDelete !== null}

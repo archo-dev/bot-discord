@@ -114,7 +114,9 @@ export function ConfigPage() {
 
   return (
     // fieldset disabled (M15) : neutralise tous les champs pour les accès lecture seule.
-    <fieldset disabled={!canWrite} className="max-w-2xl space-y-6">
+    <fieldset disabled={!canWrite} className="space-y-4">
+      {/* M21 : masonry 2 colonnes (chaque colonne se remplit sans aligner les rangées → pas de vide entre cartes). */}
+      <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
       <Card title="Logs de modération" description="Salon où le bot poste chaque action de modération.">
         <ChannelSelect
           guildId={guildId!}
@@ -225,6 +227,7 @@ export function ConfigPage() {
         Ces réglages s'appliquent immédiatement. Le mute automatique se déclenche au moment du <code>/warn</code> qui
         atteint le seuil, pas rétroactivement.
       </InfoCard>
+      </div>
 
       <SaveBar
         dirty={dirty}

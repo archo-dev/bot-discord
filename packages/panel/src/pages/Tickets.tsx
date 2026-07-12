@@ -108,9 +108,11 @@ export function TicketsPage() {
   if (settings.isPending) return <SkeletonSettingsPage cards={3} />;
 
   return (
-    <div className="max-w-3xl space-y-8">
+    <div className="space-y-6">
       {/* fieldset disabled (M15) : réglages + publication neutralisés en lecture seule ; la liste reste consultable. */}
-      <fieldset disabled={!canWrite} className="space-y-8">
+      <fieldset disabled={!canWrite} className="space-y-4">
+      {/* M21 : les 2 cartes de config côte à côte (masonry ; la table Tickets reste pleine largeur). */}
+      <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
       <Card
         title="Système de tickets"
         description="Un bouton dans un salon public ouvre un salon privé entre le membre et le staff."
@@ -197,6 +199,7 @@ export function TicketsPage() {
           </Button>
         </div>
       </Card>
+      </div>
       </fieldset>
 
       <TicketList guildId={guildId!} />

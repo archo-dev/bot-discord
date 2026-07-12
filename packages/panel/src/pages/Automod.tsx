@@ -97,7 +97,9 @@ export function AutomodPage() {
 
   return (
     // fieldset disabled (M15) : neutralise tous les champs pour les accès lecture seule.
-    <fieldset disabled={!canWrite} className="max-w-2xl space-y-8">
+    <fieldset disabled={!canWrite} className="space-y-4">
+      {/* M21 : masonry 2 colonnes (chaque colonne se remplit sans aligner les rangées → pas de vide entre cartes). */}
+      <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
         <h2 className="font-semibold">Sanction</h2>
         <p className="mt-1 text-sm text-zinc-400">
@@ -264,6 +266,7 @@ export function AutomodPage() {
         Les membres avec la permission « Gérer les messages » sont <b>toujours</b> exemptés de l'auto-modération, même
         sans règle d'exemption. L'auto-mod nécessite le service Gateway pour agir en temps réel.
       </InfoCard>
+      </div>
 
       <SaveBar
         dirty={dirty}

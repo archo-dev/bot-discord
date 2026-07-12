@@ -258,7 +258,7 @@ export function GuildLayout({ me }: { me: MeResponse }) {
 
       {/* Contenu principal */}
       <div className="min-w-0 flex-1">
-        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <header className="mb-6 flex items-start gap-3">
             <button
               ref={menuButtonRef}

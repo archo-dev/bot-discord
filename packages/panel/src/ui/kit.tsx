@@ -14,15 +14,19 @@ export function Card({
   action,
   children,
   className = "",
+  pad = "default",
 }: {
   title?: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
   children?: ReactNode;
   className?: string;
+  /** `compact` = padding 16 px constant (densité M21) ; `default` = 20/24 px. */
+  pad?: "default" | "compact";
 }) {
+  const padCls = pad === "compact" ? "p-4" : "p-5 sm:p-6";
   return (
-    <section className={`rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm sm:p-6 ${className}`}>
+    <section className={`rounded-xl border border-zinc-800 bg-zinc-900 ${padCls} shadow-sm ${className}`}>
       {(title || action) && (
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0">

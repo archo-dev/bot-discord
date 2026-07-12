@@ -53,7 +53,9 @@ export function LevelsPage() {
 
   return (
     // fieldset disabled (M15) : neutralise tous les champs pour les accès lecture seule.
-    <fieldset disabled={!canWrite} className="max-w-2xl space-y-8">
+    <fieldset disabled={!canWrite} className="space-y-4">
+      {/* M21 : réglages en masonry 2 colonnes ; le classement (table) reste pleine largeur en dessous. */}
+      <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">XP par message</h2>
@@ -171,6 +173,7 @@ export function LevelsPage() {
           </button>
         </div>
       </section>
+      </div>
 
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
         <h2 className="font-semibold">Classement</h2>

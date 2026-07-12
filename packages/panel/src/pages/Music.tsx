@@ -49,7 +49,8 @@ export function MusicPage() {
   const progress = current && current.duration > 0 ? Math.min(100, (s!.elapsed / current.duration) * 100) : 0;
 
   return (
-    <div className="max-w-2xl space-y-6">
+    // M21 : masonry 2 colonnes (lecture / file / playlists).
+    <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
       <Card
         title="Lecture en cours"
         action={
