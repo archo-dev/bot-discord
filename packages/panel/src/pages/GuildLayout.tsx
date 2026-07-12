@@ -143,8 +143,10 @@ export function GuildLayout({ me }: { me: MeResponse }) {
   const sidebar = (
     <div className="flex h-full flex-col">
       {/* Carte serveur unifiée (D.S. v2 §4.13) : icône + nom (une fois) + membres + switch */}
-      <div className="px-3 pt-4 pb-2">
-        <div className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
+      <div className="px-3 pt-3 pb-2">
+        <div className="relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/70 p-3 shadow-(--shadow-sm)">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-[radial-gradient(circle_at_80%_0%,rgba(93,87,242,0.32),transparent_65%)]" aria-hidden />
+          <div className="relative flex items-center gap-3">
           {g ? (
             iconUrl ? (
               <img src={iconUrl} alt="" className="h-10 w-10 shrink-0 rounded-full" />
@@ -180,6 +182,7 @@ export function GuildLayout({ me }: { me: MeResponse }) {
           >
             <Icon.chevron />
           </Link>
+          </div>
         </div>
       </div>
 
@@ -198,10 +201,10 @@ export function GuildLayout({ me }: { me: MeResponse }) {
                   end={n.end}
                   onClick={() => setDrawerOpen(false)}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                    `group flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm transition duration-(--motion-fast) ${
                       isActive
-                        ? "bg-indigo-500/15 font-semibold text-white"
-                        : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                        ? "bg-indigo-500/15 font-semibold text-white shadow-[inset_3px_0_0_var(--primary)]"
+                        : "text-zinc-400 hover:bg-(--state-hover) hover:text-zinc-200"
                     }`
                   }
                 >
@@ -219,8 +222,11 @@ export function GuildLayout({ me }: { me: MeResponse }) {
       </nav>
 
       {/* Footer utilisateur */}
-      <div className="flex items-center gap-3 border-t border-zinc-800 px-4 py-3">
-        <img src={avatarUrl(me.id, me.avatar, 64)} alt="" className="h-8 w-8 rounded-full" />
+      <div className="m-3 flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/65 p-3 shadow-(--shadow-sm)">
+        <span className="relative shrink-0">
+          <img src={avatarUrl(me.id, me.avatar, 64)} alt="" className="h-9 w-9 rounded-full" />
+          <span className="absolute -right-0.5 -bottom-0.5 h-3 w-3 rounded-full border-2 border-zinc-900 bg-green-400" aria-hidden />
+        </span>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium text-zinc-100">{me.globalName ?? me.username}</div>
           <div className="truncate text-xs text-zinc-500">@{me.username}</div>
@@ -244,7 +250,7 @@ export function GuildLayout({ me }: { me: MeResponse }) {
       <aside
         ref={drawerRef}
         aria-label="Navigation du serveur"
-        className={`fixed inset-y-0 left-0 z-(--z-drawer) w-[264px] border-r border-zinc-800 bg-[#101320] transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-(--z-drawer) w-[276px] border-r border-zinc-800 bg-(--surface-sidebar) shadow-(--shadow-lg) transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:translate-x-0 lg:shadow-none ${
           drawerOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -259,17 +265,17 @@ export function GuildLayout({ me }: { me: MeResponse }) {
       )}
 
       {/* Contenu principal */}
-      <div className="min-w-0 flex-1">
-        <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-          <header className="mb-6 flex items-start gap-3">
-            <button
+      <main className="min-w-0 flex-1">
+        <div className="mx-auto max-w-[1540px] px-4 py-5 sm:px-6 lg:px-8 lg:py-8 xl:px-10">
+          <header className="mb-7 flex items-start gap-3 border-b border-zinc-800/70 pb-5 lg:border-0 lg:pb-0">
+            <IconButton
               ref={menuButtonRef}
               onClick={() => setDrawerOpen(true)}
-              className="mt-0.5 rounded-lg p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200 lg:hidden"
-              aria-label="Ouvrir le menu"
+              className="-ml-1 -mt-1 lg:hidden"
+              label="Ouvrir le menu"
             >
               <Icon.menu />
-            </button>
+            </IconButton>
             <div className="min-w-0">
               <h1 className="text-[22px] font-bold tracking-tight text-zinc-100">{active.label}</h1>
               <p className="mt-0.5 text-sm text-zinc-400">{active.subtitle}</p>
@@ -303,7 +309,7 @@ export function GuildLayout({ me }: { me: MeResponse }) {
             <Outlet />
           </div>
         </div>
-      </div>
+      </main>
     </div>
     </AccessContext.Provider>
     </MemberResolveProvider>

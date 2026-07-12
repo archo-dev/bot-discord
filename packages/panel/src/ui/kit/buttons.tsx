@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import type { ButtonHTMLAttributes } from "react";
 
 /* Kit Nocturne — boutons : Button (5.3), Spinner, IconButton (v2 §4.6). */
@@ -54,16 +55,17 @@ export function Button({
 }
 
 /* --- v2 §4.6 Bouton icône (aria-label obligatoire) --- */
-export function IconButton({
+export const IconButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement> & { label: string; danger?: boolean }>(function IconButton({
   label,
   danger = false,
   className = "",
   children,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; danger?: boolean }) {
+}, ref) {
   return (
     <button
       type="button"
+      ref={ref}
       aria-label={label}
       title={label}
       className={`inline-flex h-10 w-10 items-center justify-center rounded-lg text-zinc-400 transition duration-(--motion-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 disabled:cursor-not-allowed disabled:opacity-40 ${
@@ -74,4 +76,4 @@ export function IconButton({
       {children}
     </button>
   );
-}
+});
