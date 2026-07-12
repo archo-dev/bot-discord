@@ -114,9 +114,9 @@ export function ConfigPage() {
 
   return (
     // fieldset disabled (M15) : neutralise tous les champs pour les accès lecture seule.
-    <fieldset disabled={!canWrite} className="space-y-4">
+    <fieldset disabled={!canWrite} className="space-y-5">
       {/* M21 : masonry 2 colonnes (chaque colonne se remplit sans aligner les rangées → pas de vide entre cartes). */}
-      <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
+      <div className="columns-1 gap-5 xl:columns-2 [&>*]:mb-5 [&>*]:break-inside-avoid">
       <Card title="Logs de modération" description="Salon où le bot poste chaque action de modération.">
         <ChannelSelect
           guildId={guildId!}

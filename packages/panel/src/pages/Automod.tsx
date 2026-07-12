@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AutomodSettingsDto, ChannelOption, RoleOption } from "@bot/shared";
 import { api, fieldError } from "../lib/api.js";
-import { InfoCard, Toggle } from "../ui/kit.js";
+import { Chip, InfoCard, Toggle } from "../ui/kit.js";
 import { SaveBar, useDirty } from "../ui/savebar.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { Icon } from "../ui/icons.js";
@@ -88,9 +88,9 @@ export function AutomodPage() {
 
   return (
     // fieldset disabled (M15) : neutralise tous les champs pour les accès lecture seule.
-    <fieldset disabled={!canWrite} className="space-y-4">
+    <fieldset disabled={!canWrite} className="space-y-5">
       {/* M21 : masonry 2 colonnes (chaque colonne se remplit sans aligner les rangées → pas de vide entre cartes). */}
-      <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
+      <div className="columns-1 gap-5 xl:columns-2 [&>*]:mb-5 [&>*]:break-inside-avoid">
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
         <h2 className="font-semibold">Sanction</h2>
         <p className="mt-1 text-sm text-zinc-400">
@@ -203,21 +203,17 @@ export function AutomodPage() {
               .map((r) => {
                 const selected = s.exemptRoleIds.includes(r.id);
                 return (
-                  <button
+                  <Chip
                     key={r.id}
+                    selected={selected}
                     onClick={() =>
                       set({
                         exemptRoleIds: selected ? s.exemptRoleIds.filter((id) => id !== r.id) : [...s.exemptRoleIds, r.id],
                       })
                     }
-                    className={`rounded-full border px-3 py-1 text-sm transition ${
-                      selected
-                        ? "border-indigo-500 bg-indigo-950 text-indigo-200"
-                        : "border-zinc-700 text-zinc-400 hover:border-zinc-500"
-                    }`}
                   >
                     {r.name}
-                  </button>
+                  </Chip>
                 );
               })}
           </div>
@@ -230,8 +226,9 @@ export function AutomodPage() {
               .map((ch) => {
                 const selected = s.exemptChannelIds.includes(ch.id);
                 return (
-                  <button
+                  <Chip
                     key={ch.id}
+                    selected={selected}
                     onClick={() =>
                       set({
                         exemptChannelIds: selected
@@ -239,14 +236,9 @@ export function AutomodPage() {
                           : [...s.exemptChannelIds, ch.id],
                       })
                     }
-                    className={`rounded-full border px-3 py-1 text-sm transition ${
-                      selected
-                        ? "border-indigo-500 bg-indigo-950 text-indigo-200"
-                        : "border-zinc-700 text-zinc-400 hover:border-zinc-500"
-                    }`}
                   >
                     #{ch.name}
-                  </button>
+                  </Chip>
                 );
               })}
           </div>

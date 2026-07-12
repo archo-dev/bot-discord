@@ -42,7 +42,7 @@ export function StarboardPage() {
   const set = (patch: Partial<StarboardSettingsDto>) => setS((prev) => (prev ? { ...prev, ...patch } : prev));
 
   return (
-    <fieldset disabled={!canWrite} className="max-w-2xl space-y-4">
+    <fieldset disabled={!canWrite} className="max-w-3xl space-y-5">
       <Card
         title="Starboard"
         description="Les messages qui atteignent un seuil de réactions sont republiés dans un salon best-of."

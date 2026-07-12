@@ -185,9 +185,9 @@ export function WelcomePage() {
 
   return (
     // fieldset disabled (M15) : neutralise tous les champs pour les accès lecture seule.
-    <fieldset disabled={!canWrite} className="space-y-4">
+    <fieldset disabled={!canWrite} className="space-y-5">
       {/* M21 : masonry 2 colonnes (chaque colonne se remplit sans aligner les rangées → pas de vide entre cartes). */}
-      <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
+      <div className="columns-1 gap-5 xl:columns-2 [&>*]:mb-5 [&>*]:break-inside-avoid">
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">Message de bienvenue</h2>
