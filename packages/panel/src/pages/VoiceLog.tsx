@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { ChannelOption, VoiceLogAction, VoiceLogDto, VoiceLogPage } from "@bot/shared";
 import { api } from "../lib/api.js";
-import { Button, Card, EmptyState, ErrorCard, InfoCard, TableWrap } from "../ui/kit.js";
+import { Button, Card, EmptyState, ErrorCard, InfoCard, TableWrap, Toolbar } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
 import { SkeletonList } from "../ui/skeleton.js";
 import { UserCell } from "../ui/cells.js";
@@ -96,7 +96,7 @@ export function VoiceLogPage() {
         title="Historique vocal"
         description="Arrivées, départs et déplacements en vocal — indépendants du salon de logs. Nécessite le service Gateway."
       >
-        <div className="mb-4 flex flex-wrap items-center gap-2">
+        <Toolbar className="mb-4">
           <div className="w-56">
             <MemberCombobox guildId={guildId!} value={userId || null} onChange={(id) => setUserId(id ?? "")} placeholder="Filtrer par membre…" />
           </div>
@@ -117,7 +117,7 @@ export function VoiceLogPage() {
               Réinitialiser
             </Button>
           )}
-        </div>
+        </Toolbar>
 
         {logs.isPending ? (
           <SkeletonList rows={6} />

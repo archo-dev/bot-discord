@@ -112,7 +112,7 @@ export function TicketsPage() {
       {/* fieldset disabled (M15) : réglages + publication neutralisés en lecture seule ; la liste reste consultable. */}
       <fieldset disabled={!canWrite} className="space-y-4">
       {/* M21 : les 2 cartes de config côte à côte (masonry ; la table Tickets reste pleine largeur). */}
-      <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
+      <div className="columns-1 gap-5 xl:columns-2 [&>*]:mb-5 [&>*]:break-inside-avoid">
       <Card
         title="Système de tickets"
         description="Un bouton dans un salon public ouvre un salon privé entre le membre et le staff."

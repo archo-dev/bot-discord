@@ -93,7 +93,7 @@ export function RolesPage() {
   return (
     <div className="space-y-4">
       {/* M21 : builder à gauche, messages publiés + astuce à droite. */}
-      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
       {/* fieldset disabled (M15) : composition + publication neutralisées en lecture seule. */}
       <fieldset disabled={!canWrite} className="contents">
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">

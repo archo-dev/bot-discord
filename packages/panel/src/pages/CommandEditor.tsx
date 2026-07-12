@@ -105,7 +105,7 @@ export function CommandEditorPage() {
   if (isEditing && existing.isPending) return <SkeletonSettingsPage cards={2} />;
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-4xl space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">{isEditing ? `Modifier /${existing.data?.name ?? "…"}` : "Nouvelle commande"}</h2>
         <div className="flex rounded-lg border border-zinc-700 p-0.5">

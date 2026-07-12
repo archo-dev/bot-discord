@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CustomCommandDto } from "@bot/shared";
 import { api } from "../lib/api.js";
-import { Badge, EmptyState, InfoCard, Toggle } from "../ui/kit.js";
+import { Badge, EmptyState, InfoCard, Toggle, Toolbar } from "../ui/kit.js";
 import { ConfirmModal } from "../ui/overlay.js";
 import { SkeletonList } from "../ui/skeleton.js";
 import { toast } from "../ui/toast.js";
@@ -45,20 +45,21 @@ export function CommandsPage() {
   });
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <p className="text-sm text-zinc-400">
-          {commands.data ? `${commands.data.length} / 80 commandes` : ""}
-        </p>
-        {canWrite && (
+    <div className="space-y-5">
+      <Toolbar actions={
+        canWrite ? (
           <Link
             to="new"
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-500"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-gradient-to-b from-indigo-500 to-indigo-600 px-4 text-sm font-semibold text-white shadow-(--shadow-primary) transition hover:from-indigo-400 hover:to-indigo-500"
           >
             + Nouvelle commande
           </Link>
-        )}
-      </div>
+        ) : undefined
+      }>
+        <p className="text-sm text-zinc-400">
+          {commands.data ? `${commands.data.length} / 80 commandes` : ""}
+        </p>
+      </Toolbar>
 
       {commands.isPending && (
         <div className="rounded-xl border border-zinc-800 bg-zinc-900 px-4">

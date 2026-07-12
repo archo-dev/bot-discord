@@ -50,7 +50,7 @@ export function MusicPage() {
 
   return (
     // M21 : masonry 2 colonnes (lecture / file / playlists).
-    <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
+    <div className="columns-1 gap-5 xl:columns-2 [&>*]:mb-5 [&>*]:break-inside-avoid">
       <Card
         title="Lecture en cours"
         action={

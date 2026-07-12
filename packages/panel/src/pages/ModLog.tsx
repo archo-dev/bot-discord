@@ -254,7 +254,7 @@ export function ModLogPage() {
   const [tab, setTab] = useState<"actions" | "warnings">("actions");
   return (
     // M21 : largeur bornée — une table 5 colonnes s'étale et paraît vide sur 1600 px.
-    <div className="max-w-6xl space-y-5">
+    <div className="max-w-7xl space-y-5">
       <Tabs
         active={tab}
         onChange={setTab}
