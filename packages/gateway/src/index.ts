@@ -12,6 +12,7 @@ import { registerXp } from "./xp.js";
 import { registerVoiceXp } from "./voice-xp.js";
 import { registerStarboard } from "./starboard.js";
 import { registerMusic } from "./music.js";
+import { registerGuildLifecycle } from "./guild-lifecycle.js";
 import { errMsg } from "./util.js";
 
 // 120 s (TTL KV côté Worker = 300 s) : reste sous le quota d'écritures KV du
@@ -47,6 +48,7 @@ const client = new Client({
   partials: [Partials.Message, Partials.Reaction],
 });
 
+registerGuildLifecycle(client, configCache, api, env.WORKER_ORIGIN);
 registerEvents(client, configCache, api);
 registerVoice(client, configCache, api);
 const stats = registerStats(client, api);

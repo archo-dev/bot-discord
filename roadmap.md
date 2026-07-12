@@ -16,6 +16,14 @@ _Dernière mise à jour : 2026-07-12. Bot Discord « Archodev#1241 » (monorepo 
 - **Starboard** : Panel → Starboard → activer, choisir salon + seuil + emoji ; vérifier que le bot a `Envoyer des messages` + `Intégrer des liens` dans le salon starboard.
 - (Rappel M19) Presence intent déjà activé le 2026-07-11.
 
+## 🚧 Session en cours — commité sur `master`, PAS encore déployé
+
+- **M24 — Commandes sociales** `/kiss /hug /pat /slap /poke /cuddle` — commit `530cc6b`. Module data-driven `builtins/social-data.ts` (GIFs locaux, sans API externe). Worker uniquement, pas de migration.
+- **M25 — Cycle de vie des guildes** — `guildCreate`/`guildDelete` côté gateway (`guild-lifecycle.ts`) + endpoints internes `POST /internal/guilds/:id/installed|uninstalled`. Upsert immédiat de la guilde (fin du piège « panel vide avant le premier /ping ») + message de bienvenue. Pas de migration.
+- **M26 — Salons vocaux temporaires** (« join to create ») — en cours ; migration `0019`, `/tempvoice` + `/voice`, module gateway `temp-voice.ts`, page panel.
+
+**À faire au déploiement** : `pnpm run migrate:remote` (M26/0019), `pnpm --filter @bot/worker run deploy`, redéployer le gateway (git bundle + scp), puis `pnpm register:global` (ou `register:dev` pour le serveur de test). Intents inchangés (aucune action portail).
+
 ---
 
 ## 🎯 Reste à faire — top priorités (idées inspirées d'autres bots)

@@ -8,7 +8,7 @@ Deux moitiés complémentaires, **toutes deux en production** :
 
 | Worker Cloudflare (HTTP Interactions) | Service Gateway (Node + discord.js, VPS) |
 |---|---|
-| Slash commands : modération (`/ban` `/kick` `/mute` `/warn` `/warnings` `/clear` `/unban` `/history`), `/ping`, `/rank`, `/leaderboard`, musique | Auto-modération temps réel (spam/invites/liens/mots) |
+| Slash commands : modération (`/ban` `/kick` `/mute` `/warn` `/warnings` `/clear` `/unban` `/history`), `/ping`, `/rank`, `/leaderboard`, musique, commandes sociales (`/kiss` `/hug` `/pat` `/slap` `/poke` `/cuddle`) | Auto-modération temps réel (spam/invites/liens/mots) |
 | Commandes personnalisées (builder simple + avancé), déclencheurs mot-clé | Bienvenue/départ, auto-rôles à l'arrivée |
 | Tickets (panneau, transcripts), rôles par bouton | Logs serveur + logs vocaux, starboard, cartes membre |
 | Seuil de warns → timeout automatique, mod-logs | XP messages + XP vocal, stats (snapshots, activité) |
@@ -81,7 +81,7 @@ cloudflared tunnel --url http://localhost:8787
 
 puis collez `https://<tunnel>.trycloudflare.com/interactions` dans **General Information → Interactions Endpoint URL**. Discord envoie immédiatement un PING signé : l'URL n'est acceptée que si la vérification Ed25519 fonctionne. Tapez ensuite `/ping` sur votre serveur.
 
-Panel : ouvrez <http://localhost:5173>, connectez-vous avec Discord. Seuls apparaissent les serveurs où vous avez « Gérer le serveur » **et** où le bot est installé (le bot s'enregistre en base à la première interaction — lancez `/ping` une fois si la liste est vide).
+Panel : ouvrez <http://localhost:5173>, connectez-vous avec Discord. Seuls apparaissent les serveurs où vous avez « Gérer le serveur » **et** où le bot est installé. Le bot s'enregistre en base dès qu'il rejoint un serveur (événement `guildCreate` du gateway, M25) ; sans gateway en local, l'enregistrement a lieu à la première interaction — lancez `/ping` une fois si la liste est vide.
 
 ## 3. Déploiement sur Cloudflare
 
@@ -145,7 +145,7 @@ Variables du **gateway** (`packages/gateway/.env`, voir `.env.example`) : `DISCO
 
 - **Cooldowns et rate limits best-effort** (cohérence éventuelle de KV, voir ci-dessus).
 - **Cache de permissions 60 s** : un rôle retiré conserve l'accès panel jusqu'à 60 s.
-- **`bot_installed`** peut devenir obsolète si le bot est expulsé (pas d'événement sans gateway) ; corrigé automatiquement au premier appel REST en échec (403/404).
+- **`bot_installed`** est mis à jour en temps réel par le gateway (`guildCreate`/`guildDelete`, M25) ; en secours, il est corrigé au premier appel REST en échec (403/404). Les données d'un serveur quitté sont **conservées** (marquées `bot_installed=0`), jamais supprimées.
 - **Limite Discord : 100 commandes/serveur** ; le panel plafonne à 80. Les créations sont limitées à ~200/jour/serveur par Discord.
 - **Croissance des tables** : un cron quotidien (`src/cron.ts`) purge les stats et voice logs anciens ; `mod_actions`/`gateway_events` ne sont pas purgées (à prévoir si le volume devient significatif).
 - **Warns hors-ligne** : le seuil n'est évalué qu'au moment du `/warn` (pas de rétro-application).

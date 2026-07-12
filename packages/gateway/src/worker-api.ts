@@ -95,6 +95,10 @@ export interface ChannelActivityEntry {
 
 export interface WorkerApi {
   getGuildConfig(guildId: string): Promise<GuildGatewayConfig | null>;
+  /** guildCreate (M25): upsert the guild row so the panel shows it immediately. */
+  postGuildInstalled(guildId: string, payload: { name: string; icon: string | null }): Promise<void>;
+  /** guildDelete (M25): mark bot_installed=0 (data is kept). */
+  postGuildUninstalled(guildId: string): Promise<void>;
   postHeartbeat(payload: HeartbeatPayload): Promise<void>;
   postEvent(guildId: string, eventType: string, payload: Record<string, unknown>): Promise<void>;
   postAutomodSanction(guildId: string, payload: { userId: string; rule: AutomodRule; action: "warn" | "timeout" }): Promise<void>;
@@ -124,7 +128,7 @@ export interface WorkerApi {
 }
 
 export function createWorkerApi(env: GatewayEnv): WorkerApi {
-  async function call(method: "GET" | "POST", path: string, body?: unknown): Promise<Response> {
+  async function call(method: "GET" | "POST" | "DELETE", path: string, body?: unknown): Promise<Response> {
     const res = await fetch(`${env.WORKER_ORIGIN}${path}`, {
       method,
       headers: {
@@ -165,6 +169,12 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
       const res = await call("GET", `/internal/guilds/${guildId}/config`);
       if (res.status === 404) return null;
       return (await res.json()) as GuildGatewayConfig;
+    },
+    async postGuildInstalled(guildId, payload) {
+      await call("POST", `/internal/guilds/${guildId}/installed`, payload);
+    },
+    async postGuildUninstalled(guildId) {
+      await call("POST", `/internal/guilds/${guildId}/uninstalled`);
     },
     async postHeartbeat(payload) {
       await call("POST", "/internal/gateway/heartbeat", payload);
