@@ -8,6 +8,7 @@ import {
 } from "discord.js";
 import type { ConfigCache } from "./config-cache.js";
 import type { WorkerApi } from "./worker-api.js";
+import { errMsg } from "./util.js";
 
 /** Matches the configured emoji: custom emoji by id, unicode by name. */
 function emojiMatches(reaction: MessageReaction | PartialMessageReaction, configured: string): boolean {
@@ -52,7 +53,7 @@ export function registerStarboard(client: Client, cache: ConfigCache, api: Worke
         count,
       });
     } catch (err) {
-      console.error("starboard reaction failed:", err instanceof Error ? err.message : err);
+      console.error("starboard reaction failed:", errMsg(err));
     }
   }
 

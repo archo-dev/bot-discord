@@ -1,6 +1,7 @@
 import { type Client } from "discord.js";
 import type { ConfigCache } from "./config-cache.js";
 import type { WorkerApi } from "./worker-api.js";
+import { errMsg } from "./util.js";
 
 /**
  * Voice XP (M22): once a minute, every member currently eligible in a voice
@@ -35,7 +36,7 @@ export function registerVoiceXp(client: Client, cache: ConfigCache, api: WorkerA
       for (let i = 0; i < entries.length; i += BATCH) {
         api
           .postVoiceXp(guild.id, entries.slice(i, i + BATCH))
-          .catch((err) => console.error(`voice xp ${guild.id} failed:`, err instanceof Error ? err.message : err));
+          .catch((err) => console.error(`voice xp ${guild.id} failed:`, errMsg(err)));
       }
     }
   }

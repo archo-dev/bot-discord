@@ -19,6 +19,7 @@ import {
 } from "@bot/shared";
 import type { ConfigCache } from "./config-cache.js";
 import type { WorkerApi } from "./worker-api.js";
+import { errMsg } from "./util.js";
 
 const COLORS = { green: 0x57f287, red: 0xed4245, yellow: 0xfee75c, blurple: 0x5865f2 } as const;
 
@@ -77,7 +78,7 @@ export async function sendTo(
     }
     await channel.send({ ...payload, embeds });
   } catch (err) {
-    console.error(`send to ${guild.id}/${channelId} failed:`, err instanceof Error ? err.message : err);
+    console.error(`send to ${guild.id}/${channelId} failed:`, errMsg(err));
   }
 }
 
@@ -90,7 +91,7 @@ export function registerEvents(client: Client, cache: ConfigCache, api: WorkerAp
       try {
         await member.roles.add(roleId, "Rôle automatique à l'arrivée");
       } catch (err) {
-        console.error(`auto-role ${roleId} on ${member.guild.id} failed:`, err instanceof Error ? err.message : err);
+        console.error(`auto-role ${roleId} on ${member.guild.id} failed:`, errMsg(err));
       }
     }
 

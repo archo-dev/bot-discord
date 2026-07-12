@@ -389,14 +389,6 @@ export function InfoCard({ icon, title, children }: { icon: ReactNode; title: Re
   );
 }
 
-/* Ligne de retour de sauvegarde (succès/erreur) — réutilisée par les pages de réglages.
- * @deprecated v2 : préférer SaveBar (formulaires) ou les toasts (actions ponctuelles). */
-export function SaveFeedback({ status }: { status: "idle" | "pending" | "success" | "error" }) {
-  if (status === "success") return <span className="text-sm text-green-400">✓ Enregistré</span>;
-  if (status === "error") return <span className="text-sm text-red-400">Échec de l'enregistrement</span>;
-  return null;
-}
-
 /* --- v2 §4.5 État vide --- */
 export function EmptyState({
   icon,

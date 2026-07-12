@@ -1,5 +1,6 @@
 import { Events, type Client } from "discord.js";
 import type { ChannelActivityEntry, WorkerApi } from "./worker-api.js";
+import { errMsg } from "./util.js";
 
 /*
  * Stats collection (M18). Everything is in-memory and flushed periodically —
@@ -79,7 +80,7 @@ export function registerStats(client: Client, api: WorkerApi): StatsController {
       try {
         await api.postChannelActivity(guildId, entries);
       } catch (err) {
-        console.error(`channel-activity flush ${guildId} failed:`, err instanceof Error ? err.message : err);
+        console.error(`channel-activity flush ${guildId} failed:`, errMsg(err));
       }
     }
   }
@@ -107,7 +108,7 @@ export function registerStats(client: Client, api: WorkerApi): StatsController {
       try {
         await api.postMemberSnapshot(guild.id, { bucket, total: guild.memberCount, humans, bots });
       } catch (err) {
-        console.error(`member-snapshot ${guild.id} failed:`, err instanceof Error ? err.message : err);
+        console.error(`member-snapshot ${guild.id} failed:`, errMsg(err));
       }
     }
   }

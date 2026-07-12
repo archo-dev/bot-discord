@@ -12,6 +12,7 @@ import { registerXp } from "./xp.js";
 import { registerVoiceXp } from "./voice-xp.js";
 import { registerStarboard } from "./starboard.js";
 import { registerMusic } from "./music.js";
+import { errMsg } from "./util.js";
 
 // 120 s (TTL KV côté Worker = 300 s) : reste sous le quota d'écritures KV du
 // plan gratuit (1000/jour) tout en gardant le badge « Gateway » fiable.
@@ -80,7 +81,7 @@ async function heartbeat(): Promise<void> {
       presence: collectPresence(),
     });
   } catch (err) {
-    console.error("heartbeat failed:", err instanceof Error ? err.message : err);
+    console.error("heartbeat failed:", errMsg(err));
   }
 }
 

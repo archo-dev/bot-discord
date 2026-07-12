@@ -1,5 +1,6 @@
 import type { MusicStateDto, MusicTrack, VoiceLogAction } from "@bot/shared";
 import type { GatewayEnv } from "./env.js";
+import { errMsg } from "./util.js";
 
 /**
  * Typed client for the Worker's /internal/* API — the gateway's ONLY way to
@@ -153,7 +154,7 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
         await call("POST", `/internal/guilds/${guildId}/voice-logs`, { entries: batch });
       } catch (err) {
         // Best-effort: drop the batch rather than let the buffer grow unbounded.
-        console.error(`voice-logs flush ${guildId} failed:`, err instanceof Error ? err.message : err);
+        console.error(`voice-logs flush ${guildId} failed:`, errMsg(err));
       }
     }
   }

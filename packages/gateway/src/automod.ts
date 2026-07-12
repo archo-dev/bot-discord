@@ -1,6 +1,7 @@
 import { EmbedBuilder, Events, PermissionFlagsBits, type Client, type Message } from "discord.js";
 import type { ConfigCache } from "./config-cache.js";
 import type { AutomodRule, GuildGatewayConfig, WorkerApi } from "./worker-api.js";
+import { errMsg } from "./util.js";
 
 const RULE_LABELS: Record<AutomodRule, string> = {
   spam: "spam",
@@ -108,7 +109,7 @@ export function registerAutomod(client: Client, cache: ConfigCache, api: WorkerA
       // warn-threshold auto-timeout, so automod feeds the same pipeline as /warn.
       api
         .postAutomodSanction(message.guild.id, { userId: message.author.id, rule, action: automod.action })
-        .catch((err) => console.error("automod sanction failed:", err instanceof Error ? err.message : err));
+        .catch((err) => console.error("automod sanction failed:", errMsg(err)));
     }
 
     // Short notice in the channel, self-deleted.

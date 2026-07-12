@@ -1,6 +1,7 @@
 import { Events, type Client } from "discord.js";
 import type { ConfigCache } from "./config-cache.js";
 import type { WorkerApi } from "./worker-api.js";
+import { errMsg } from "./util.js";
 
 /**
  * XP gains: the gateway only detects eligible messages and enforces the
@@ -33,6 +34,6 @@ export function registerXp(client: Client, cache: ConfigCache, api: WorkerApi): 
         username: message.author.username,
         channelId: message.channelId,
       })
-      .catch((err) => console.error("xp grant failed:", err instanceof Error ? err.message : err));
+      .catch((err) => console.error("xp grant failed:", errMsg(err)));
   });
 }

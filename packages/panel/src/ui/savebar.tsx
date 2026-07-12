@@ -7,7 +7,7 @@ import { useCanWrite } from "../lib/access.js";
 /*
  * SaveBar « Nocturne 2 » (docs/design_system_v2.md §4.9).
  * Barre collante qui apparaît dès que le formulaire diverge de l'état serveur.
- * Remplace SaveFeedback + le bouton « Enregistrer » en bas de page.
+ * Remplace le bouton « Enregistrer » en bas de page.
  */
 
 /**

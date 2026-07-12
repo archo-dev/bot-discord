@@ -4,6 +4,7 @@ import { SpotifyPlugin } from "@distube/spotify";
 import { EmbedBuilder, type Client, type GuildTextBasedChannel } from "discord.js";
 import { EMPTY_MUSIC_STATE, type MusicCommandPayload, type MusicStateDto, type MusicTrack } from "@bot/shared";
 import type { WorkerApi } from "./worker-api.js";
+import { errMsg } from "./util.js";
 
 /** User-facing error whose message is shown as-is (not logged as a crash). */
 class UserError extends Error {}
@@ -69,7 +70,7 @@ export class MusicController {
       if (err instanceof UserError) {
         reply = { content: err.message };
       } else {
-        console.error(`music ${payload.command} failed:`, err instanceof Error ? err.message : err);
+        console.error(`music ${payload.command} failed:`, errMsg(err));
         reply = { content: "⚠️ Une erreur est survenue avec la musique." };
       }
     }
@@ -261,7 +262,7 @@ export class MusicController {
       interval.unref();
       this.nowPlaying.set(queue.id, { messageId: msg.id, channelId: channel.id, songUrl: song.url ?? "", interval });
     } catch (err) {
-      console.error("now-playing message failed:", err instanceof Error ? err.message : err);
+      console.error("now-playing message failed:", errMsg(err));
     }
   }
 
