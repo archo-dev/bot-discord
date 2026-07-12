@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import type {
   ChannelOption,
+  ChannelStatsDto,
   GuildOverview,
   MemberStatsDto,
   ModActionDto,
@@ -29,7 +30,7 @@ export function Dashboard() {
     queryKey: ["mod-actions", guildId, 1, ""],
     queryFn: () => api<Paginated<ModActionDto>>(`/api/guilds/${guildId}/mod-actions?page=1`),
   });
-  // Mini-stats (M19) — best-effort : la carte se dégrade proprement si vide/erreur.
+  // Mini-stats (M19) — best-effort : chaque carte se dégrade proprement si vide/erreur.
   const memberStats = useQuery({
     queryKey: ["stats-members", guildId, 7],
     queryFn: () => api<MemberStatsDto>(`/api/guilds/${guildId}/stats/members?days=7`),
@@ -37,6 +38,10 @@ export function Dashboard() {
   const presence = useQuery({
     queryKey: ["stats-presence", guildId],
     queryFn: () => api<PresenceStatsDto | null>(`/api/guilds/${guildId}/stats/presence`),
+  });
+  const channelStats = useQuery({
+    queryKey: ["stats-channels", guildId, 7],
+    queryFn: () => api<ChannelStatsDto>(`/api/guilds/${guildId}/stats/channels?days=7`),
   });
 
   if (overview.isPending) return <SkeletonDashboard />;
@@ -46,7 +51,8 @@ export function Dashboard() {
 
   const g = overview.data;
   const logChannel = channels.data?.find((ch) => ch.id === g.logChannelId);
-  const recent = actions.data?.items.slice(0, 8) ?? [];
+  const channelName = (id: string) => channels.data?.find((c) => c.id === id)?.name ?? id;
+  const recent = actions.data?.items.slice(0, 5) ?? [];
 
   const snaps = memberStats.data?.snapshots ?? [];
   const deltas = memberStats.data?.deltas ?? [];
@@ -56,11 +62,18 @@ export function Dashboard() {
   const net7 = totals.length >= 2 ? totals[totals.length - 1]! - totals[0]! : null;
   const pres = presence.data ?? null;
   const hasStats = snaps.length > 0 || deltas.length > 0;
+  const topMsg = channelStats.data?.topMessages.slice(0, 5) ?? [];
+
+  const statsLink = (
+    <Link to={`/guilds/${guildId}/stats`} className="text-[13px] font-medium text-indigo-400 hover:underline">
+      Détails
+    </Link>
+  );
 
   return (
     <div className="space-y-4">
-      {/* Rangée KPI : StatCard = numérique, InfoTile = état/config (D.S. v2 §4.10).
-          grid-kpi (M21) : tuiles adaptatives qui remplissent la largeur. */}
+      {/* Rangée KPI : StatCard = numérique, InfoTile = état/config (D.S. v2 §4.10) — c'est le
+          résumé du serveur, donc aucune carte « Résumé » redondante en dessous (M21). */}
       <div className="grid-kpi">
         <StatCard color="violet" icon={<Icon.users />} value={g.approximateMemberCount ?? "?"} label="Membres" />
         <StatCard
@@ -92,12 +105,12 @@ export function Dashboard() {
         />
       </div>
 
-      {/* Widgets */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {/* Actions de modération récentes (données réelles) */}
+      {/* 3 colonnes équilibrées d'infos utiles : modération, tendance membres, salons actifs. */}
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
+        {/* Modération récente (compact) */}
         <Card
-          className="lg:col-span-2"
-          title="Actions de modération"
+          title="Modération récente"
+          pad="compact"
           action={
             <Link to={`/guilds/${guildId}/modlog`} className="text-[13px] font-medium text-indigo-400 hover:underline">
               Voir tout
@@ -109,19 +122,18 @@ export function Dashboard() {
           ) : recent.length === 0 ? (
             <EmptyState
               icon={<Icon.scroll />}
-              title="Aucune action pour le moment"
-              description="Les actions de modération apparaîtront ici dès le premier /warn, /mute ou /ban."
+              title="Aucune action"
+              description="Les sanctions (/warn, /mute, /ban…) apparaîtront ici."
             />
           ) : (
             <ul className="divide-y divide-white/5">
               {recent.map((a) => (
-                <li key={a.id} className="flex items-center gap-3 py-3">
+                <li key={a.id} className="flex items-center gap-2.5 py-2">
                   <ModActionIcon action={a.action} />
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold text-zinc-100">{actionMeta(a.action).label}</div>
-                    <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-zinc-400">
+                    <div className="text-[13px] font-semibold text-zinc-100">{actionMeta(a.action).label}</div>
+                    <div className="mt-0.5 min-w-0 text-xs text-zinc-400">
                       {a.targetId ? <UserCell userId={a.targetId} /> : <span className="text-zinc-600">—</span>}
-                      {a.reason && <span className="truncate" title={a.reason}>· {a.reason}</span>}
                     </div>
                   </div>
                   <TimeAgo iso={a.createdAt} className="shrink-0 text-xs text-zinc-500" />
@@ -131,61 +143,14 @@ export function Dashboard() {
           )}
         </Card>
 
-        {/* Colonne droite : pile Résumé + Raccourcis pour remplir la hauteur de la rangée. */}
-        <div className="flex flex-col gap-4">
-        <Card title="Résumé du serveur">
-          <dl className="space-y-3 text-sm">
-            <div className="flex items-center justify-between">
-              <dt className="text-zinc-400">Membres</dt>
-              <dd className="font-semibold text-zinc-100">{g.approximateMemberCount ?? "?"}</dd>
-            </div>
-            <div className="flex items-center justify-between">
-              <dt className="text-zinc-400">Salon de logs</dt>
-              <dd className="font-semibold text-zinc-100">{g.logChannelId ? `#${logChannel?.name ?? "logs"}` : "—"}</dd>
-            </div>
-            <div className="flex items-center justify-between">
-              <dt className="text-zinc-400">Seuil de warns</dt>
-              <dd className="font-semibold text-zinc-100">{g.warnThreshold}</dd>
-            </div>
-            <div className="flex items-center justify-between">
-              <dt className="text-zinc-400">Mute auto</dt>
-              <dd className="font-semibold text-zinc-100">{g.warnTimeoutMinutes} min</dd>
-            </div>
-            <div className="flex items-center justify-between">
-              <dt className="text-zinc-400">Service temps réel</dt>
-              <dd className={`font-semibold ${g.gatewayConnected ? "text-green-400" : "text-zinc-400"}`}>
-                {g.gatewayConnected ? "Connecté" : "Hors ligne"}
-              </dd>
-            </div>
-          </dl>
-          <Link
-            to={`/guilds/${guildId}/config`}
-            className="mt-4 inline-flex h-9 items-center self-start rounded-lg border border-zinc-700 bg-zinc-800 px-3 text-[13px] font-semibold text-zinc-100 transition hover:bg-zinc-700"
-          >
-            Modifier la configuration
-          </Link>
-        </Card>
-
-        {/* Mini-stats (M19) — remplit le bas de la colonne avec l'activité réelle du serveur. */}
-        <Card
-          title="Activité · 7 jours"
-          pad="compact"
-          className="flex flex-1 flex-col"
-          action={
-            <Link
-              to={`/guilds/${guildId}/stats`}
-              className="text-[13px] font-medium text-indigo-400 hover:underline"
-            >
-              Détails
-            </Link>
-          }
-        >
+        {/* Activité sur 7 jours (M19) */}
+        <Card title="Activité · 7 jours" pad="compact" action={statsLink}>
           {!hasStats ? (
             <p className="text-[13px] leading-relaxed text-zinc-500">
               Les statistiques apparaîtront après quelques heures d'activité (collecte via le service Gateway).
             </p>
           ) : (
-            <div className="flex flex-1 flex-col gap-3">
+            <div className="flex flex-col gap-3">
               {totals.length >= 2 && <Sparkline values={totals} />}
               <div className="grid grid-cols-2 gap-2">
                 <MiniStat label="Arrivées" value={`+${joins7}`} tone="green" />
@@ -198,7 +163,25 @@ export function Dashboard() {
             </div>
           )}
         </Card>
-        </div>
+
+        {/* Salons les plus actifs (7 jours) */}
+        <Card title="Salons les plus actifs" pad="compact" action={statsLink}>
+          {topMsg.length === 0 ? (
+            <p className="text-[13px] leading-relaxed text-zinc-500">
+              L'activité des salons apparaîtra après quelques heures (collecte via le service Gateway).
+            </p>
+          ) : (
+            <ol className="space-y-1.5 text-sm">
+              {topMsg.map((c, i) => (
+                <li key={c.channelId} className="flex items-center gap-2">
+                  <span className="w-4 shrink-0 text-center text-xs text-zinc-600">{i + 1}</span>
+                  <span className="min-w-0 flex-1 truncate text-zinc-200">#{channelName(c.channelId)}</span>
+                  <span className="shrink-0 text-xs tabular-nums text-zinc-500">{c.value.toLocaleString("fr-FR")} msg</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </Card>
       </div>
 
       {/* Bandeau gateway (façon promo) */}
