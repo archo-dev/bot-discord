@@ -1,5 +1,6 @@
 node_modules/
 dist/
+capture/
 .wrangler/
 .dev.vars
 *.log

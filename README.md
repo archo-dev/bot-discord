@@ -4,24 +4,24 @@ Bot de modération Discord (slash commands via HTTP Interactions) et panel web d
 
 ## Architecture
 
-**Option A — HTTP Interactions** (choisie) : le bot répond aux slash commands via le endpoint HTTP de Discord (signature Ed25519 vérifiée sur chaque requête). Pas de connexion Gateway :
+Deux moitiés complémentaires, **toutes deux en production** :
 
-| Fonctionne dès maintenant | Nécessite le futur service Gateway (Option B) |
+| Worker Cloudflare (HTTP Interactions) | Service Gateway (Node + discord.js, VPS) |
 |---|---|
-| `/ban` `/kick` `/mute` `/warn` `/warnings` `/clear` `/unban` `/ping` | Auto-modération temps réel sur chaque message |
-| Commandes personnalisées slash (builder simple + avancé) | Commandes déclenchées par mot-clé |
-| Seuil de warns → timeout automatique (au moment du `/warn`) | Rôle automatique à l'arrivée |
-| Logs de modération dans un salon dédié | Logs d'arrivées/départs |
-| Panel web complet (OAuth2 Discord) | |
+| Slash commands : modération (`/ban` `/kick` `/mute` `/warn` `/warnings` `/clear` `/unban` `/history`), `/ping`, `/rank`, `/leaderboard`, musique | Auto-modération temps réel (spam/invites/liens/mots) |
+| Commandes personnalisées (builder simple + avancé), déclencheurs mot-clé | Bienvenue/départ, auto-rôles à l'arrivée |
+| Tickets (panneau, transcripts), rôles par bouton | Logs serveur + logs vocaux, starboard, cartes membre |
+| Seuil de warns → timeout automatique, mod-logs | XP messages + XP vocal, stats (snapshots, activité) |
+| Panel web complet (OAuth2 Discord) | Lecture audio (DisTube + yt-dlp) |
 
-L'architecture est prête pour l'Option B : les fonctionnalités gateway sont déjà modélisées en base (tables `auto_roles`, `gateway_events`, triggers `keyword`) et une API interne `/internal/*` (bearer token) attend le futur service Node.js (discord.js v14). Il suffira de le brancher — aucune refonte.
+Le Worker répond aux interactions via le endpoint HTTP de Discord (signature Ed25519 vérifiée sur chaque requête) et est l'**unique écrivain D1**. Le gateway ne touche jamais la base : il lit/écrit via l'API interne `/internal/*` (bearer token).
 
 ```
 packages/
 ├── shared/   # Schéma zod des commandes perso (liste blanche = frontière de sécurité), types API
 ├── worker/   # Cloudflare Worker : interactions Discord + API panel (Hono) + D1 + KV
 ├── panel/    # SPA React (Vite + Tailwind) servie par le même Worker
-└── gateway/  # Service Node 22 + discord.js v14 (VPS) : événements temps réel, musique (à venir)
+└── gateway/  # Service Node 22 + discord.js v14 (VPS) : événements temps réel, vocal, musique
 scripts/register-commands.ts   # Enregistrement des slash commands built-in
 ```
 
@@ -147,12 +147,12 @@ Variables du **gateway** (`packages/gateway/.env`, voir `.env.example`) : `DISCO
 - **Cache de permissions 60 s** : un rôle retiré conserve l'accès panel jusqu'à 60 s.
 - **`bot_installed`** peut devenir obsolète si le bot est expulsé (pas d'événement sans gateway) ; corrigé automatiquement au premier appel REST en échec (403/404).
 - **Limite Discord : 100 commandes/serveur** ; le panel plafonne à 80. Les créations sont limitées à ~200/jour/serveur par Discord.
-- **Croissance des tables** `mod_actions`/`gateway_events` : prévoir une purge périodique (> 90 j) via un cron trigger si le volume devient significatif.
+- **Croissance des tables** : un cron quotidien (`src/cron.ts`) purge les stats et voice logs anciens ; `mod_actions`/`gateway_events` ne sont pas purgées (à prévoir si le volume devient significatif).
 - **Warns hors-ligne** : le seuil n'est évalué qu'au moment du `/warn` (pas de rétro-application).
 
 ## Service Gateway (Option B) — `packages/gateway`
 
-Petit service Node 22 + discord.js v14 (~256 Mo de RAM) qui apporte ce que les HTTP Interactions ne peuvent pas faire : événements temps réel (arrivées/départs, messages) et, plus tard, la musique. Il ne touche **jamais** D1 directement :
+Petit service Node 22 + discord.js v14 (~256 Mo de RAM) qui apporte ce que les HTTP Interactions ne peuvent pas faire : événements temps réel (arrivées/départs, messages, vocal) et la musique. Il ne touche **jamais** D1 directement :
 
 - lit la config par serveur via `GET /internal/guilds/:id/config` (cache mémoire 60 s — les modifs panel s'appliquent sans redémarrage) et les commandes mot-clé via `GET /internal/guilds/:id/commands?trigger=keyword` ;
 - écrit via `POST /internal/guilds/:id/events` et `POST /internal/guilds/:id/mod-actions` (header `Authorization: Bearer INTERNAL_API_TOKEN`) ;
@@ -351,4 +351,4 @@ sudo systemctl restart botdiscord-gateway
 | `pnpm check` | `tsc --noEmit` sur les 3 packages |
 | `pnpm register:dev` / `register:global` | Enregistre les slash commands built-in |
 | `pnpm migrate:local` / `migrate:remote` | Applique les migrations D1 |
-| `pnpm deploy` | Build panel + `wrangler deploy` |
+| `pnpm run deploy` | Build panel + `wrangler deploy` (toujours `run` : pnpm 10 a une commande native `deploy`) |
