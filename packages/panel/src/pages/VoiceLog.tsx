@@ -90,7 +90,8 @@ export function VoiceLogPage() {
   };
 
   return (
-    <div className="space-y-5">
+    // M21 : largeur bornée — une table 4 colonnes s'étale et paraît vide sur 1600 px.
+    <div className="max-w-5xl space-y-5">
       <Card
         title="Historique vocal"
         description="Arrivées, départs et déplacements en vocal — indépendants du salon de logs. Nécessite le service Gateway."
