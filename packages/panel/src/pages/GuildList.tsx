@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { GuildSummary, MeResponse } from "@bot/shared";
 import { api, avatarUrl, guildIconUrl } from "../lib/api.js";
-import { EmptyState, ErrorCard } from "../ui/kit.js";
+import { EmptyState, ErrorCard, IconButton, PageHeader } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
 import { SkeletonGuildGrid } from "../ui/skeleton.js";
 
@@ -18,20 +18,21 @@ export function GuildList({ me }: { me: MeResponse }) {
   }, []);
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:py-10">
-      <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold tracking-tight">Mes serveurs</h1>
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+      <div className="mb-9 flex flex-wrap items-start justify-between gap-4">
+        <PageHeader eyebrow="Panel Discord" title="Mes serveurs" description="Sélectionnez le serveur que vous souhaitez administrer." />
         <div className="flex items-center gap-3">
-          <img src={avatarUrl(me.id, me.avatar, 64)} alt="" className="h-8 w-8 rounded-full" />
+          <img src={avatarUrl(me.id, me.avatar, 64)} alt="" className="h-10 w-10 rounded-full ring-2 ring-zinc-800" />
           <span className="hidden text-sm text-zinc-300 sm:inline">{me.globalName ?? me.username}</span>
-          <button
+          <IconButton
+            label="Déconnexion"
+            danger
             onClick={() => fetch("/auth/logout", { method: "POST" }).then(() => location.reload())}
-            className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 transition hover:bg-zinc-800"
           >
-            Déconnexion
-          </button>
+            <Icon.logout />
+          </IconButton>
         </div>
-      </header>
+      </div>
 
       {guilds.isPending && <SkeletonGuildGrid />}
       {guilds.isError && (
@@ -54,12 +55,12 @@ export function GuildList({ me }: { me: MeResponse }) {
         </div>
       )}
 
-      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {guilds.data?.map((g) => (
           <li key={g.id}>
             <Link
               to={`/guilds/${g.id}`}
-              className="flex items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4 transition hover:border-indigo-600 hover:bg-zinc-800/60"
+              className="group flex min-h-24 items-center gap-4 rounded-xl border border-zinc-800/90 bg-[linear-gradient(145deg,rgba(24,29,44,0.96),rgba(17,21,33,0.96))] p-4 shadow-(--shadow-sm) transition hover:-translate-y-0.5 hover:border-indigo-500/70 hover:shadow-(--shadow-md) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
             >
               {guildIconUrl(g.id, g.icon) ? (
                 <img src={guildIconUrl(g.id, g.icon)!} alt="" className="h-12 w-12 rounded-full" />
@@ -68,12 +69,13 @@ export function GuildList({ me }: { me: MeResponse }) {
                   {g.name.slice(0, 2).toUpperCase()}
                 </div>
               )}
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{g.name}</p>
                 <p className="text-xs text-zinc-500">
                   {g.access === "manage_guild" ? "Gestionnaire du serveur" : "Accès panel accordé"}
                 </p>
               </div>
+              <span className="text-zinc-600 transition group-hover:translate-x-0.5 group-hover:text-indigo-300" aria-hidden>→</span>
             </Link>
           </li>
         ))}

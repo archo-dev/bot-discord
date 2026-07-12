@@ -71,7 +71,7 @@ export function Dashboard() {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Rangée KPI : StatCard = numérique, InfoTile = état/config (D.S. v2 §4.10) — c'est le
           résumé du serveur, donc aucune carte « Résumé » redondante en dessous (M21). */}
       <div className="grid-kpi">

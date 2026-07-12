@@ -9,7 +9,7 @@ import type {
   ScheduledEventDto,
 } from "@bot/shared";
 import { api } from "../lib/api.js";
-import { Card, EmptyState, InfoCard } from "../ui/kit.js";
+import { Card, EmptyState, ErrorCard, InfoCard } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
 import { Skeleton } from "../ui/skeleton.js";
 import { ChannelBarChart, JoinLeaveChart, MembersChart, PresenceDonut, type NamedStat } from "../ui/charts.js";
@@ -128,6 +128,8 @@ export function StatsPage() {
       >
         {members.isPending ? (
           <ChartSkeleton height={260} />
+        ) : members.isError ? (
+          <ErrorCard message="Impossible de charger l'évolution des membres." onRetry={() => void members.refetch()} />
         ) : (
           <MembersChart data={members.data?.snapshots ?? []} hourly={memberDays === 7} />
         )}
@@ -135,12 +137,14 @@ export function StatsPage() {
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Card title="Arrivées & départs" description="Agrégées par jour depuis les événements du serveur.">
-          {members.isPending ? <ChartSkeleton height={200} /> : <JoinLeaveChart data={members.data?.deltas ?? []} />}
+          {members.isPending ? <ChartSkeleton height={200} /> : members.isError ? <ErrorCard message="Impossible de charger les arrivées et départs." onRetry={() => void members.refetch()} /> : <JoinLeaveChart data={members.data?.deltas ?? []} />}
         </Card>
 
         <Card title="Présence" description="Répartition des statuts en temps réel.">
           {presence.isPending ? (
             <ChartSkeleton height={200} />
+          ) : presence.isError ? (
+            <ErrorCard message="Impossible de charger la présence." onRetry={() => void presence.refetch()} />
           ) : presence.data ? (
             <PresenceDonut data={presence.data} />
           ) : (
@@ -178,8 +182,12 @@ export function StatsPage() {
         >
           {channels.isPending ? (
             <ChartSkeleton height={280} />
+          ) : channels.isError ? (
+            <ErrorCard message="Impossible de charger l'activité des salons." onRetry={() => void channels.refetch()} />
           ) : channelMetric === "messages" ? (
             <ChannelBarChart data={channelData} color="#3e7afc" unit="messages" />
+          ) : events.isError ? (
+            <ErrorCard message="Impossible de charger les événements." onRetry={() => void events.refetch()} />
           ) : (
             <ChannelBarChart data={channelData} color="#7c4dee" unit="secondes" />
           )}
