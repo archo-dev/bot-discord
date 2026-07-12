@@ -13,6 +13,7 @@ import {
 } from "./moderation.js";
 import { leaderboardHandler, rankHandler } from "./xp.js";
 import { socialHandlers } from "./social.js";
+import { tempvoiceHandler, voiceHandler } from "./temp-voice.js";
 import {
   loopHandler,
   nowplayingHandler,
@@ -65,4 +66,6 @@ export const builtins: Record<string, BuiltinHandler> = {
   seek: seekHandler,
   nowplaying: nowplayingHandler,
   playlist: playlistHandler,
+  tempvoice: tempvoiceHandler,
+  voice: voiceHandler,
 };

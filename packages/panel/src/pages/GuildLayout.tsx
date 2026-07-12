@@ -35,6 +35,7 @@ const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
       { to: "roles", label: "Rôles", icon: "tag", subtitle: "Publiez des messages à boutons pour que les membres choisissent leurs rôles." },
       { to: "levels", label: "Niveaux", icon: "trophy", subtitle: "XP par message, récompenses de niveau et classement du serveur." },
       { to: "starboard", label: "Starboard", icon: "star", subtitle: "Republiez les meilleurs messages (⭐) dans un salon best-of." },
+      { to: "tempvoice", label: "Vocaux temporaires", icon: "mic", subtitle: "Salons vocaux à la demande : un lobby « rejoindre pour créer »." },
     ],
   },
   {

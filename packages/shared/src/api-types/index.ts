@@ -9,6 +9,7 @@ export * from "./welcome.js";
 export * from "./automod.js";
 export * from "./xp.js";
 export * from "./starboard.js";
+export * from "./temp-voice.js";
 export * from "./music.js";
 export * from "./logs.js";
 export * from "./tickets.js";

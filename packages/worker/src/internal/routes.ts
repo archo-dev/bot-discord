@@ -7,6 +7,7 @@ import { internalXpRouter } from "./xp.js";
 import { internalStarboardRouter } from "./starboard.js";
 import { internalModerationRouter } from "./moderation.js";
 import { internalGuildsRouter } from "./guilds.js";
+import { internalTempVoiceRouter } from "./temp-voice.js";
 
 /**
  * Internal API for the always-on Gateway service (Option B).
@@ -32,3 +33,4 @@ internalRouter.route("/", internalXpRouter);
 internalRouter.route("/", internalStarboardRouter);
 internalRouter.route("/", internalModerationRouter);
 internalRouter.route("/", internalGuildsRouter);
+internalRouter.route("/", internalTempVoiceRouter);

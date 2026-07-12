@@ -4,6 +4,7 @@ export const PermissionBits = {
   MANAGE_GUILD: 1n << 5n,
   KICK_MEMBERS: 1n << 1n,
   BAN_MEMBERS: 1n << 2n,
+  MANAGE_CHANNELS: 1n << 4n,
   MANAGE_MESSAGES: 1n << 13n,
   MANAGE_ROLES: 1n << 28n,
   MODERATE_MEMBERS: 1n << 40n,

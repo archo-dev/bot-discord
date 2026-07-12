@@ -13,6 +13,7 @@ import { registerVoiceXp } from "./voice-xp.js";
 import { registerStarboard } from "./starboard.js";
 import { registerMusic } from "./music.js";
 import { registerGuildLifecycle } from "./guild-lifecycle.js";
+import { registerTempVoice } from "./temp-voice.js";
 import { errMsg } from "./util.js";
 
 // 120 s (TTL KV côté Worker = 300 s) : reste sous le quota d'écritures KV du
@@ -56,6 +57,7 @@ registerAutomod(client, configCache, api);
 registerXp(client, configCache, api);
 registerVoiceXp(client, configCache, api);
 registerStarboard(client, configCache, api);
+registerTempVoice(client, configCache, api);
 const music = registerMusic(client, api);
 
 /** Per-guild presence counts from cache — empty until the Presence intent is on. */

@@ -19,6 +19,7 @@ import { WelcomePage } from "./pages/Welcome.js";
 import { AutomodPage } from "./pages/Automod.js";
 import { LevelsPage } from "./pages/Levels.js";
 import { StarboardPage } from "./pages/Starboard.js";
+import { TempVoicePage } from "./pages/TempVoice.js";
 import { MusicPage } from "./pages/Music.js";
 import { ErrorCard } from "./ui/kit.js";
 import { Skeleton, SkeletonGuildGrid } from "./ui/skeleton.js";
@@ -73,6 +74,7 @@ export function App() {
         <Route path="automod" element={<AutomodPage />} />
         <Route path="levels" element={<LevelsPage />} />
         <Route path="starboard" element={<StarboardPage />} />
+        <Route path="tempvoice" element={<TempVoicePage />} />
         <Route path="music" element={<MusicPage />} />
         <Route path="modlog" element={<ModLogPage />} />
         <Route path="voicelog" element={<VoiceLogPage />} />

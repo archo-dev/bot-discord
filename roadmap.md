@@ -20,7 +20,7 @@ _Dernière mise à jour : 2026-07-12. Bot Discord « Archodev#1241 » (monorepo 
 
 - **M24 — Commandes sociales** `/kiss /hug /pat /slap /poke /cuddle` — commit `530cc6b`. Module data-driven `builtins/social-data.ts` (GIFs locaux, sans API externe). Worker uniquement, pas de migration.
 - **M25 — Cycle de vie des guildes** — `guildCreate`/`guildDelete` côté gateway (`guild-lifecycle.ts`) + endpoints internes `POST /internal/guilds/:id/installed|uninstalled`. Upsert immédiat de la guilde (fin du piège « panel vide avant le premier /ping ») + message de bienvenue. Pas de migration.
-- **M26 — Salons vocaux temporaires** (« join to create ») — en cours ; migration `0019`, `/tempvoice` + `/voice`, module gateway `temp-voice.ts`, page panel.
+- **M26 — Salons vocaux temporaires** (« join to create ») — migration `0019`, DTO shared, queries/api/internal worker, `/tempvoice` (setup/disable/status/reset) + `/voice` (rename/limit/lock/unlock/permit/reject/kick/transfer/claim), module gateway `temp-voice.ts` (création/déplacement/suppression + réconciliation au démarrage), page panel « Vocaux temporaires ». Tests : `temp-voice.test.ts`, `voice-commands.test.ts`.
 
 **À faire au déploiement** : `pnpm run migrate:remote` (M26/0019), `pnpm --filter @bot/worker run deploy`, redéployer le gateway (git bundle + scp), puis `pnpm register:global` (ou `register:dev` pour le serveur de test). Intents inchangés (aucune action portail).
 

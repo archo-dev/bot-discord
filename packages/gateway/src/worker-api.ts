@@ -60,6 +60,21 @@ export interface GuildGatewayConfig {
     threshold: number;
     emoji: string;
   };
+  /** Temp voice (M26): "join to create" lobby + auto channels. */
+  tempVoice: {
+    enabled: boolean;
+    lobbyChannelId: string | null;
+    categoryId: string | null;
+    nameTemplate: string;
+    userLimit: number;
+    maxChannels: number;
+  };
+}
+
+export interface TempVoiceChannelRef {
+  channelId: string;
+  guildId: string;
+  ownerId: string;
 }
 
 export type AutomodRule = "spam" | "invite" | "link" | "word";
@@ -125,6 +140,13 @@ export interface WorkerApi {
   postMusicState(guildId: string, state: MusicStateDto): Promise<void>;
   savePlaylist(guildId: string, payload: { ownerId: string; name: string; tracks: MusicTrack[] }): Promise<void>;
   getPlaylistTracks(guildId: string, name: string): Promise<MusicTrack[] | null>;
+  /** Temp voice (M26): all registered temp channels (startup reconciliation). */
+  listAllTempVoiceChannels(): Promise<TempVoiceChannelRef[]>;
+  /** Temp voice (M26): current count for a guild (cap check before creating). */
+  countTempVoiceChannels(guildId: string): Promise<number>;
+  registerTempVoiceChannel(guildId: string, payload: { channelId: string; ownerId: string }): Promise<void>;
+  unregisterTempVoiceChannel(guildId: string, channelId: string): Promise<void>;
+  postTempVoiceLobbyDeleted(guildId: string): Promise<void>;
 }
 
 export function createWorkerApi(env: GatewayEnv): WorkerApi {
@@ -215,6 +237,23 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
       const res = await call("GET", `/internal/guilds/${guildId}/playlists/${encodeURIComponent(name)}`);
       if (res.status === 404) return null;
       return ((await res.json()) as { tracks: MusicTrack[] }).tracks;
+    },
+    async listAllTempVoiceChannels() {
+      const res = await call("GET", "/internal/temp-voice/channels");
+      return ((await res.json()) as { channels: TempVoiceChannelRef[] }).channels;
+    },
+    async countTempVoiceChannels(guildId) {
+      const res = await call("GET", `/internal/guilds/${guildId}/temp-voice/channels`);
+      return ((await res.json()) as { count: number }).count;
+    },
+    async registerTempVoiceChannel(guildId, payload) {
+      await call("POST", `/internal/guilds/${guildId}/temp-voice/channels`, payload);
+    },
+    async unregisterTempVoiceChannel(guildId, channelId) {
+      await call("DELETE", `/internal/guilds/${guildId}/temp-voice/channels/${channelId}`);
+    },
+    async postTempVoiceLobbyDeleted(guildId) {
+      await call("POST", `/internal/guilds/${guildId}/temp-voice/lobby-deleted`);
     },
   };
 }

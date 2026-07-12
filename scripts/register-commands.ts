@@ -38,6 +38,7 @@ const getVar = (name: string): string | undefined => process.env[name] ?? devVar
 const BAN_MEMBERS = "4";
 const KICK_MEMBERS = "2";
 const MANAGE_MESSAGES = "8192";
+const MANAGE_GUILD = "32";
 const MODERATE_MEMBERS = (1n << 40n).toString();
 
 const commands = [
@@ -213,6 +214,73 @@ const commands = [
   },
   // Commandes sociales /kiss /hug /pat /slap /poke /cuddle (M24).
   ...socialCommandDefs(),
+  // Salons vocaux temporaires (M26). Option types : 1=Subcommand, 6=USER, 7=CHANNEL.
+  {
+    name: "tempvoice",
+    description: "Configure les salons vocaux temporaires (« rejoindre pour créer »)",
+    dm_permission: false,
+    default_member_permissions: MANAGE_GUILD,
+    options: [
+      {
+        type: 1,
+        name: "setup",
+        description: "Active le système et définit le salon déclencheur",
+        options: [
+          { type: 7, name: "salon", description: "Salon vocal déclencheur existant (sinon créé automatiquement)", channel_types: [2] },
+          { type: 7, name: "categorie", description: "Catégorie où créer les salons temporaires", channel_types: [4] },
+        ],
+      },
+      { type: 1, name: "disable", description: "Désactive les nouvelles créations (garde les salons existants)" },
+      { type: 1, name: "status", description: "Affiche l'état du système et les permissions requises" },
+      { type: 1, name: "reset", description: "Réinitialise entièrement la configuration" },
+    ],
+  },
+  {
+    name: "voice",
+    description: "Gère votre salon vocal temporaire",
+    dm_permission: false,
+    options: [
+      {
+        type: 1,
+        name: "rename",
+        description: "Renomme votre salon",
+        options: [{ type: 3, name: "nom", description: "Nouveau nom", required: true, max_length: 100 }],
+      },
+      {
+        type: 1,
+        name: "limit",
+        description: "Définit la limite d'utilisateurs",
+        options: [{ type: 4, name: "nombre", description: "0-99 (0 = illimité)", required: true, min_value: 0, max_value: 99 }],
+      },
+      { type: 1, name: "lock", description: "Verrouille votre salon (empêche de nouveaux membres)" },
+      { type: 1, name: "unlock", description: "Déverrouille votre salon" },
+      {
+        type: 1,
+        name: "permit",
+        description: "Autorise un membre à rejoindre",
+        options: [{ type: 6, name: "utilisateur", description: "Membre à autoriser", required: true }],
+      },
+      {
+        type: 1,
+        name: "reject",
+        description: "Refuse un membre (et le déconnecte si présent)",
+        options: [{ type: 6, name: "utilisateur", description: "Membre à refuser", required: true }],
+      },
+      {
+        type: 1,
+        name: "kick",
+        description: "Expulse un membre de votre salon (pas du serveur)",
+        options: [{ type: 6, name: "utilisateur", description: "Membre à expulser", required: true }],
+      },
+      {
+        type: 1,
+        name: "transfer",
+        description: "Transfère la propriété du salon",
+        options: [{ type: 6, name: "utilisateur", description: "Nouveau propriétaire (présent dans le salon)", required: true }],
+      },
+      { type: 1, name: "claim", description: "Récupère un salon dont le propriétaire est absent" },
+    ],
+  },
 ];
 
 async function main(): Promise<void> {

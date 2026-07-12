@@ -7,6 +7,7 @@ import {
   getGuild,
   getLogSettings,
   getStarboardSettings,
+  getTempVoiceSettings,
   getWelcomeSettings,
   getXpSettings,
   listAutoRoles,
@@ -47,6 +48,17 @@ internalConfigRouter.get("/internal/guilds/:guildId/config", async (c) => {
         channelId: s?.channel_id ?? null,
         threshold: s?.threshold ?? 3,
         emoji: s?.emoji ?? "⭐",
+      };
+    })(),
+    tempVoice: await (async () => {
+      const s = await getTempVoiceSettings(c.env.DB, guildId);
+      return {
+        enabled: s ? s.enabled === 1 : false,
+        lobbyChannelId: s?.lobby_channel_id ?? null,
+        categoryId: s?.category_id ?? null,
+        nameTemplate: s?.name_template ?? "🎧・{user}",
+        userLimit: s?.user_limit ?? 0,
+        maxChannels: s?.max_channels ?? 10,
       };
     })(),
   });

@@ -14,6 +14,7 @@ export * from "./queries/voice-logs.js";
 export * from "./queries/automod.js";
 export * from "./queries/xp.js";
 export * from "./queries/starboard.js";
+export * from "./queries/temp-voice.js";
 export * from "./queries/playlists.js";
 export * from "./queries/button-roles.js";
 export * from "./queries/tickets.js";
