@@ -11,6 +11,7 @@
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { socialCommandDefs } from "../packages/worker/src/interactions/builtins/social-data.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -210,6 +211,8 @@ const commands = [
       },
     ],
   },
+  // Commandes sociales /kiss /hug /pat /slap /poke /cuddle (M24).
+  ...socialCommandDefs(),
 ];
 
 async function main(): Promise<void> {

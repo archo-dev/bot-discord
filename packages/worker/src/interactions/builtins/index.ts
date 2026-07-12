@@ -12,6 +12,7 @@ import {
   warningsHandler,
 } from "./moderation.js";
 import { leaderboardHandler, rankHandler } from "./xp.js";
+import { socialHandlers } from "./social.js";
 import {
   loopHandler,
   nowplayingHandler,
@@ -39,6 +40,7 @@ export type BuiltinHandler = (ctx: BuiltinContext) => Promise<Response>;
 
 /** Registry of built-in slash commands. */
 export const builtins: Record<string, BuiltinHandler> = {
+  ...socialHandlers,
   ping: pingHandler,
   ban: banHandler,
   unban: unbanHandler,

@@ -20,7 +20,7 @@ export function pong(): Response {
 /** Immediate CHANNEL_MESSAGE_WITH_SOURCE (type 4) response. */
 export function message(
   content: string,
-  opts: { ephemeral?: boolean; embeds?: APIEmbed[] } = {},
+  opts: { ephemeral?: boolean; embeds?: APIEmbed[]; allowedMentionUsers?: string[] } = {},
 ): Response {
   return json({
     type: InteractionResponseType.ChannelMessageWithSource,
@@ -28,7 +28,10 @@ export function message(
       content,
       embeds: opts.embeds,
       flags: opts.ephemeral ? MessageFlags.Ephemeral : undefined,
-      allowed_mentions: { parse: [] },
+      // Default stays "ping nobody"; opt in to pinging specific users only.
+      allowed_mentions: opts.allowedMentionUsers
+        ? { parse: [], users: opts.allowedMentionUsers }
+        : { parse: [] },
     },
   });
 }
