@@ -2,6 +2,8 @@
 
 import type { ChannelOption, RoleOption } from "@bot/shared";
 import { selectCls, type ExtraAction } from "./logic.js";
+import { IconButton } from "../../ui/kit.js";
+import { Icon } from "../../ui/icons.js";
 
 export function ActionRow({
   action,
@@ -104,9 +106,9 @@ export function ActionRow({
         </>
       )}
 
-      <button onClick={onRemove} className="ml-auto text-zinc-500 hover:text-red-400" title="Retirer">
-        ✕
-      </button>
+      <IconButton label="Retirer cette action" danger onClick={onRemove} className="ml-auto">
+        <Icon.close />
+      </IconButton>
     </div>
   );
 }

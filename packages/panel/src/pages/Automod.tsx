@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AutomodSettingsDto, ChannelOption, RoleOption } from "@bot/shared";
 import { api, fieldError } from "../lib/api.js";
-import { InfoCard, Toggle as Switch } from "../ui/kit.js";
+import { InfoCard, Toggle } from "../ui/kit.js";
 import { SaveBar, useDirty } from "../ui/savebar.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { Icon } from "../ui/icons.js";
@@ -14,15 +14,6 @@ const ACTIONS = [
   { value: "warn", label: "Supprimer + avertissement (compte pour le seuil de warns)" },
   { value: "timeout", label: "Supprimer + mute temporaire" },
 ] as const;
-
-function Toggle(props: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
-  return (
-    <div className="flex items-center gap-3">
-      <Switch checked={props.checked} onChange={props.onChange} />
-      <span className="text-sm text-zinc-300">{props.label}</span>
-    </div>
-  );
-}
 
 export function AutomodPage() {
   const { guildId } = useParams<{ guildId: string }>();

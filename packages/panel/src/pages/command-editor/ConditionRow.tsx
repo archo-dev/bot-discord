@@ -2,6 +2,8 @@
 
 import type { ChannelOption, CommandCondition, RoleOption } from "@bot/shared";
 import { PERMISSION_OPTIONS, selectCls } from "./logic.js";
+import { IconButton } from "../../ui/kit.js";
+import { Icon } from "../../ui/icons.js";
 
 export function ConditionRow({
   condition,
@@ -87,9 +89,9 @@ export function ConditionRow({
         </>
       )}
 
-      <button onClick={onRemove} className="ml-auto text-zinc-500 hover:text-red-400" title="Retirer">
-        ✕
-      </button>
+      <IconButton label="Retirer cette condition" danger onClick={onRemove} className="ml-auto">
+        <Icon.close />
+      </IconButton>
     </div>
   );
 }
