@@ -6,12 +6,12 @@ type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 type ButtonSize = "sm" | "md" | "lg";
 
 const buttonBase =
-  "inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-w-0 items-center justify-center gap-2 rounded-lg font-semibold shadow-sm transition-[background-color,border-color,color,box-shadow,transform] duration-(--motion-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none disabled:active:translate-y-0";
 
 const buttonVariants: Record<ButtonVariant, string> = {
-  primary: "bg-indigo-600 text-white hover:bg-indigo-500 active:bg-indigo-600",
-  secondary: "border border-zinc-700 bg-zinc-800 text-zinc-100 hover:bg-zinc-700",
-  ghost: "text-zinc-300 hover:bg-zinc-800",
+  primary: "bg-gradient-to-b from-indigo-500 to-indigo-600 text-white shadow-(--shadow-primary) hover:from-indigo-400 hover:to-indigo-500",
+  secondary: "border border-zinc-700 bg-(--surface-2) text-zinc-100 hover:border-zinc-600 hover:bg-(--surface-3)",
+  ghost: "shadow-none text-zinc-300 hover:bg-(--state-hover) hover:text-zinc-100",
   danger: "bg-red-500 text-white hover:bg-red-400",
 };
 
@@ -66,7 +66,7 @@ export function IconButton({
       type="button"
       aria-label={label}
       title={label}
-      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 disabled:cursor-not-allowed disabled:opacity-40 ${
+      className={`inline-flex h-10 w-10 items-center justify-center rounded-lg text-zinc-400 transition duration-(--motion-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 disabled:cursor-not-allowed disabled:opacity-40 ${
         danger ? "hover:bg-red-950/50 hover:text-red-400" : "hover:bg-zinc-800 hover:text-zinc-200"
       } ${className}`}
       {...props}

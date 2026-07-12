@@ -69,9 +69,11 @@
 :root {
   --bg-app: #0a0b12;
   --bg-base: #0d0e1a;
-  --surface-1: #141824;
-  --surface-2: #1a1f2e;
+  --surface-1: #131724;
+  --surface-2: #191e2d;
   --surface-3: #20263a;
+  --surface-raised: #181d2c;
+  --surface-sidebar: #10131f;
 
   --border: #232838;
   --border-strong: #2e3548;
@@ -119,17 +121,40 @@
   --z-tooltip: 60;
 
   /* Élévation */
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.28), 0 8px 20px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.5);
+  --shadow-primary: 0 8px 24px rgba(93, 87, 242, 0.24);
+}
+
+html {
+  min-width: 320px;
+  background: var(--bg-app);
 }
 
 body {
-  background: var(--bg-app);
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 72% -10%, rgba(93, 87, 242, 0.1), transparent 31rem),
+    linear-gradient(135deg, #0b0d16 0%, var(--bg-app) 48%, #090a11 100%);
   color: var(--text-primary);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   /* Chiffres tabulaires : la signature « dashboard » du design system */
   font-feature-settings: "tnum" 1;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Barre de défilement discrète, cohérente avec le fond sombre */

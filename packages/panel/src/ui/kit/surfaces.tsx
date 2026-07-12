@@ -21,7 +21,7 @@ export function Card({
 }) {
   const padCls = pad === "compact" ? "p-4" : "p-5 sm:p-6";
   return (
-    <section className={`rounded-xl border border-zinc-800 bg-zinc-900 ${padCls} shadow-sm ${className}`}>
+    <section className={`rounded-xl border border-zinc-800/90 bg-[linear-gradient(145deg,rgba(24,29,44,0.96),rgba(17,21,33,0.96))] ${padCls} shadow-(--shadow-sm) ${className}`}>
       {(title || action) && (
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -62,9 +62,9 @@ export function StatCard({
   hint?: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm">
+    <div className="rounded-xl border border-zinc-800/90 bg-[linear-gradient(145deg,rgba(24,29,44,0.98),rgba(17,21,33,0.98))] p-5 shadow-(--shadow-sm)">
       <div className="flex items-center gap-3">
-        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white ${vizBg[color]}`}>
+        <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-white shadow-lg ring-4 ring-white/5 ${vizBg[color]}`}>
           {icon}
         </span>
         <div className="min-w-0">
@@ -105,7 +105,7 @@ export function InfoTile({
       {badge && <div className="shrink-0">{badge}</div>}
     </div>
   );
-  const cls = "block rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm";
+  const cls = "block rounded-xl border border-zinc-800/90 bg-[linear-gradient(145deg,rgba(24,29,44,0.98),rgba(17,21,33,0.98))] p-5 shadow-(--shadow-sm)";
   if (to) {
     return (
       <Link to={to} className={`${cls} transition hover:bg-(--state-hover)`}>

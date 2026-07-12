@@ -4,7 +4,7 @@ import type { InputHTMLAttributes, ReactElement, ReactNode, SelectHTMLAttributes
 /* Kit Nocturne — champs de formulaire : Input/Textarea/Select (5.7/5.8), Field, Toggle (5.6), Chip (5.4). */
 
 const fieldBase =
-  "w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3.5 text-sm text-zinc-100 placeholder:text-zinc-500 transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40";
+  "w-full rounded-lg border border-zinc-700 bg-[rgba(8,10,18,0.72)] px-3.5 text-sm text-zinc-100 shadow-inner shadow-black/10 placeholder:text-zinc-500 transition duration-(--motion-fast) hover:border-zinc-600 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:cursor-not-allowed disabled:opacity-55";
 
 export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={`${fieldBase} h-11 ${className}`} {...props} />;
@@ -79,13 +79,13 @@ export function Toggle({
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-[22px] w-10 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 ${
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 ${
         checked ? "bg-indigo-600" : "bg-zinc-700"
       }`}
     >
       <span
         className={`inline-block h-[18px] w-[18px] transform rounded-full bg-white shadow-sm transition-transform ${
-          checked ? "translate-x-5" : "translate-x-0.5"
+          checked ? "translate-x-[22px]" : "translate-x-0.5"
         }`}
       />
     </button>
