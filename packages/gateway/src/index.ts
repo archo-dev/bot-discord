@@ -9,6 +9,7 @@ import { registerVoice } from "./voice.js";
 import { registerStats } from "./stats.js";
 import { registerAutomod } from "./automod.js";
 import { registerXp } from "./xp.js";
+import { registerVoiceXp } from "./voice-xp.js";
 import { registerMusic } from "./music.js";
 
 // 120 s (TTL KV côté Worker = 300 s) : reste sous le quota d'écritures KV du
@@ -45,6 +46,7 @@ registerVoice(client, configCache, api);
 const stats = registerStats(client, api);
 registerAutomod(client, configCache, api);
 registerXp(client, configCache, api);
+registerVoiceXp(client, configCache, api);
 const music = registerMusic(client, api);
 
 /** Per-guild presence counts from cache — empty until the Presence intent is on. */

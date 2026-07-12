@@ -924,6 +924,8 @@ export interface XpSettingsRow {
   announce_level_up: number;
   announce_channel_id: string | null;
   rewards: string;
+  voice_enabled: number;
+  voice_xp_per_min: number;
 }
 
 export async function getXpSettings(db: D1Database, guildId: string): Promise<XpSettingsRow | null> {
@@ -941,15 +943,18 @@ export async function upsertXpSettings(
     announceLevelUp: boolean;
     announceChannelId: string | null;
     rewards: Array<{ level: number; roleId: string }>;
+    voiceEnabled: boolean;
+    voiceXpPerMin: number;
   },
 ): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO xp_settings (guild_id, enabled, xp_min, xp_max, cooldown_seconds, announce_level_up, announce_channel_id, rewards)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+      `INSERT INTO xp_settings (guild_id, enabled, xp_min, xp_max, cooldown_seconds, announce_level_up, announce_channel_id, rewards, voice_enabled, voice_xp_per_min)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
        ON CONFLICT(guild_id) DO UPDATE SET
          enabled = ?2, xp_min = ?3, xp_max = ?4, cooldown_seconds = ?5,
          announce_level_up = ?6, announce_channel_id = ?7, rewards = ?8,
+         voice_enabled = ?9, voice_xp_per_min = ?10,
          updated_at = datetime('now')`,
     )
     .bind(
@@ -961,6 +966,8 @@ export async function upsertXpSettings(
       s.announceLevelUp ? 1 : 0,
       s.announceChannelId,
       JSON.stringify(s.rewards),
+      s.voiceEnabled ? 1 : 0,
+      s.voiceXpPerMin,
     )
     .run();
 }
@@ -972,6 +979,7 @@ export interface XpMemberRow {
   xp: number;
   level: number;
   messages: number;
+  voice_minutes: number;
 }
 
 /** Adds XP (upsert) and returns the member's new totals. */
@@ -991,6 +999,28 @@ export async function grantXp(
        RETURNING *`,
     )
     .bind(guildId, userId, username, amount)
+    .first<XpMemberRow>();
+  return row!;
+}
+
+/** Adds voice XP + voice minutes (upsert), without touching the message count. */
+export async function grantVoiceXp(
+  db: D1Database,
+  guildId: string,
+  userId: string,
+  username: string | null,
+  amount: number,
+  minutes: number,
+): Promise<XpMemberRow> {
+  const row = await db
+    .prepare(
+      `INSERT INTO xp_members (guild_id, user_id, username, xp, voice_minutes, last_xp_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'))
+       ON CONFLICT(guild_id, user_id) DO UPDATE SET
+         xp = xp + ?4, voice_minutes = voice_minutes + ?5, username = COALESCE(?3, username), last_xp_at = datetime('now')
+       RETURNING *`,
+    )
+    .bind(guildId, userId, username, amount, minutes)
     .first<XpMemberRow>();
   return row!;
 }

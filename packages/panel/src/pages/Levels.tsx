@@ -127,6 +127,34 @@ export function LevelsPage() {
         )}
       </section>
 
+      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold">XP vocal</h2>
+          <div className="flex items-center gap-2 text-sm text-zinc-300">
+            <span>Activé</span>
+            <Toggle checked={s.voiceEnabled} onChange={(v) => set({ voiceEnabled: v })} />
+          </div>
+        </div>
+        <p className="text-sm text-zinc-400">
+          Gagne de l'XP par minute passée en vocal. Exclus : bots, membres seuls dans le salon, en sourdine ou muet, et le
+          salon AFK. Utilise la même courbe et les mêmes rôles récompense que l'XP par message.
+        </p>
+        <label className="block text-sm text-zinc-300 sm:max-w-xs">
+          XP par minute
+          <input
+            type="number"
+            min={1}
+            max={100}
+            value={s.voiceXpPerMin}
+            onChange={(e) => set({ voiceXpPerMin: Number(e.target.value) })}
+            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
+          />
+          {fieldError(save.error, "voiceXpPerMin") && (
+            <span className="mt-1 block text-xs text-red-400">{fieldError(save.error, "voiceXpPerMin")}</span>
+          )}
+        </label>
+      </section>
+
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
         <h2 className="font-semibold">Rôles récompense</h2>
         <p className="mt-1 text-sm text-zinc-400">Attribués automatiquement quand le niveau est atteint.</p>
@@ -186,7 +214,8 @@ export function LevelsPage() {
                   <th className="py-2 pr-4 font-semibold">Membre</th>
                   <th className="py-2 pr-4 font-semibold">Niveau</th>
                   <th className="py-2 pr-4 font-semibold">XP</th>
-                  <th className="py-2 text-right font-semibold">Messages</th>
+                  <th className="py-2 pr-4 text-right font-semibold">Messages</th>
+                  <th className="py-2 text-right font-semibold">Vocal</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 text-zinc-300">
@@ -200,7 +229,8 @@ export function LevelsPage() {
                       </span>
                     </td>
                     <td className="py-2.5 pr-4">{e.xp}</td>
-                    <td className="py-2.5 text-right">{e.messages}</td>
+                    <td className="py-2.5 pr-4 text-right">{e.messages}</td>
+                    <td className="py-2.5 text-right text-zinc-400">{e.voiceMinutes} min</td>
                   </tr>
                 ))}
               </tbody>

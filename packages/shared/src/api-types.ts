@@ -188,6 +188,9 @@ export interface XpSettingsDto {
   /** null = announce in the channel the message was sent in. */
   announceChannelId: string | null;
   rewards: XpRewardDto[];
+  /** Voice XP (M22): earn XP per minute spent in a voice channel. */
+  voiceEnabled: boolean;
+  voiceXpPerMin: number;
 }
 
 export interface LeaderboardEntry {
@@ -197,6 +200,8 @@ export interface LeaderboardEntry {
   xp: number;
   level: number;
   messages: number;
+  /** Minutes spent in voice that earned XP (M22). */
+  voiceMinutes: number;
 }
 
 // --- Music (M14) -----------------------------------------------------------

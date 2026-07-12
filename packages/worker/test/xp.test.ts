@@ -8,6 +8,7 @@ import { getXpMember, upsertGuild, upsertXpSettings } from "../src/db/queries.js
 
 const G = "940000000000000001";
 const USER = "940000000000000777";
+const VUSER = "940000000000000778";
 const CHANNEL = "940000000000000101";
 const REWARD_ROLE = "940000000000000200";
 
@@ -61,7 +62,24 @@ const XP100 = {
   announceLevelUp: true,
   announceChannelId: null,
   rewards: [{ level: 1, roleId: REWARD_ROLE }],
+  voiceEnabled: false,
+  voiceXpPerMin: 10,
 };
+
+function grantVoice(entries: Array<{ userId: string; username?: string; channelId: string }>): Promise<Response> {
+  return Promise.resolve(
+    app.request(
+      `/internal/guilds/${G}/voice-xp`,
+      {
+        method: "POST",
+        headers: { authorization: "Bearer test-internal-token", "content-type": "application/json" },
+        body: JSON.stringify({ entries }),
+      },
+      env,
+      createExecutionContext(),
+    ),
+  );
+}
 
 beforeAll(async () => {
   fetchMock.activate();
@@ -156,5 +174,34 @@ describe("internal xp grant", () => {
     const sid = await makeSession("840000000000000002");
     const lb = (await (await panel(`/api/guilds/${G}/leaderboard`, sid)).json()) as LeaderboardEntry[];
     expect(lb[0]).toMatchObject({ rank: 1, userId: USER, xp: 200, level: 1, username: "testeur" });
+  });
+});
+
+describe("internal voice xp grant (M22)", () => {
+  it("skips when voice XP is disabled", async () => {
+    await upsertXpSettings(env.DB, G, XP100); // voiceEnabled: false
+    const res = await grantVoice([{ userId: VUSER, channelId: CHANNEL }]);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { skipped?: boolean }).skipped).toBe(true);
+  });
+
+  it("grants voice xp + minutes without touching messages, and levels up", async () => {
+    await upsertXpSettings(env.DB, G, { ...XP100, voiceEnabled: true, voiceXpPerMin: 100 });
+
+    const res = await grantVoice([{ userId: VUSER, username: "voix", channelId: CHANNEL }]);
+    const body = (await res.json()) as { ok: boolean; granted: number };
+    expect(body.granted).toBe(1);
+
+    const member = await getXpMember(env.DB, G, VUSER);
+    expect(member?.xp).toBe(100);
+    expect(member?.voice_minutes).toBe(1);
+    expect(member?.messages).toBe(0); // voice XP never increments the message count
+    expect(member?.level).toBe(1); // 100 XP = level 1
+
+    // A second tick accumulates minutes and XP.
+    await grantVoice([{ userId: VUSER, username: "voix", channelId: CHANNEL }]);
+    const after = await getXpMember(env.DB, G, VUSER);
+    expect(after?.xp).toBe(200);
+    expect(after?.voice_minutes).toBe(2);
   });
 });

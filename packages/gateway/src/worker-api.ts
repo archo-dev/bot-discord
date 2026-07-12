@@ -50,6 +50,8 @@ export interface GuildGatewayConfig {
   xp: {
     enabled: boolean;
     cooldownSeconds: number;
+    /** Voice XP (M22): award XP per minute spent in voice. */
+    voiceEnabled: boolean;
   };
 }
 
@@ -90,6 +92,8 @@ export interface WorkerApi {
   postEvent(guildId: string, eventType: string, payload: Record<string, unknown>): Promise<void>;
   postAutomodSanction(guildId: string, payload: { userId: string; rule: AutomodRule; action: "warn" | "timeout" }): Promise<void>;
   postXp(guildId: string, payload: { userId: string; username: string | null; channelId: string }): Promise<void>;
+  /** Voice XP tick (M22): every currently-eligible voice member for this guild. */
+  postVoiceXp(guildId: string, entries: Array<{ userId: string; username: string | null; channelId: string }>): Promise<void>;
   /** Buffers voice entries and flushes them to the Worker every ~5 s (smooths bursts). */
   postVoiceLogs(guildId: string, entries: VoiceLogEntry[]): Promise<void>;
   postMemberSnapshot(guildId: string, payload: { bucket: string; total: number; humans: number; bots: number }): Promise<void>;
@@ -153,6 +157,9 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
     },
     async postXp(guildId, payload) {
       await call("POST", `/internal/guilds/${guildId}/xp`, payload);
+    },
+    async postVoiceXp(guildId, entries) {
+      await call("POST", `/internal/guilds/${guildId}/voice-xp`, { entries });
     },
     async postVoiceLogs(guildId, entries) {
       const buf = voiceBuffer.get(guildId) ?? [];

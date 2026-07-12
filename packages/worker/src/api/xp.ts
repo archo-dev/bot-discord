@@ -24,6 +24,8 @@ export function xpRowToDto(row: XpSettingsRow | null): XpSettingsDto {
     announceLevelUp: row ? row.announce_level_up === 1 : true,
     announceChannelId: row?.announce_channel_id ?? null,
     rewards: row ? (JSON.parse(row.rewards) as XpRewardDto[]) : [],
+    voiceEnabled: row ? row.voice_enabled === 1 : false,
+    voiceXpPerMin: row?.voice_xp_per_min ?? 10,
   };
 }
 
@@ -42,6 +44,8 @@ const xpSchema = z
     rewards: z
       .array(z.object({ level: z.number().int().min(1).max(200), roleId: z.string().regex(SNOWFLAKE) }))
       .max(25),
+    voiceEnabled: z.boolean(),
+    voiceXpPerMin: z.number().int().min(1).max(100),
   })
   .refine((s) => s.xpMax >= s.xpMin, { message: "xpMax < xpMin" });
 
@@ -70,6 +74,7 @@ xpRouter.get("/guilds/:guildId/leaderboard", async (c) => {
     xp: r.xp,
     level: levelFromXp(r.xp),
     messages: r.messages,
+    voiceMinutes: r.voice_minutes,
   }));
   return c.json(body);
 });
