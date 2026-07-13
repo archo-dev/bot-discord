@@ -2,7 +2,9 @@
 
 ## Statut
 
-Documentation de phase 2. Les dix milestones et cinq éléments de backlog sont **validés au niveau produit**, mais aucune implémentation n’est autorisée implicitement. Une milestone précise doit être demandée et planifiée avant tout code.
+M01 est terminée. M02 « sécurité publique multi-tenant » est implémentée sur la branche `milestone/public-security`, en attente de revue, migration D1 distante explicitement autorisée et déploiement séparé. Les milestones M03 à M10 et les cinq éléments de backlog restent validés au niveau produit, sans autorisation implicite d’implémentation.
+
+M02 apporte la matrice deny-by-default des mutations, le durcissement OAuth/session/navigateur, le protocole HMAC interne avec rotation et anti-rejeu, les quotas durables, l’audit administrateur et les runbooks. La migration additive locale est `0021_public_security.sql`. La cible de rollout est `dual` pendant la rotation puis `signed`; CSP reste volontairement report-only au premier déploiement. Aucun déploiement ni migration distante n’a été effectué pendant le développement.
 
 ## Architecture actuelle
 
@@ -79,7 +81,7 @@ Suggestions/votes ; tâches planifiées/rappels/giveaways ; FAQ sans IA payante 
 ## Décisions encore ouvertes
 
 - Schémas D1 exacts après profilage et revue des volumes.
-- Mécanisme CSRF final.
+- Date de passage CSP de `report` à `enforce`, après observation en production.
 - Stockage outbox VPS (SQLite vs fichiers segmentés).
 - Seuils SLO/budgets après baseline.
 - Scheduler Cloudflare exact et fréquence/coût.

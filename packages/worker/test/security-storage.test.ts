@@ -35,6 +35,13 @@ describe("M02 atomic security storage", () => {
     };
     const accepted = await Promise.all(Array.from({ length: 8 }, () => consumeDurableQuota(env.DB, input)));
     expect(accepted.filter(Boolean)).toHaveLength(2);
+    const counts = await env.DB.prepare(
+      `SELECT scope_type, count FROM security_quota_usage WHERE day = ?1 AND guild_key = ?2 ORDER BY scope_type`,
+    ).bind(input.day, input.guildKey).all<{ scope_type: string; count: number }>();
+    expect(counts.results).toEqual([
+      { scope_type: "guild", count: 2 },
+      { scope_type: "user", count: 2 },
+    ]);
   });
 
   it("purges expired nonces, quotas and audit rows", async () => {

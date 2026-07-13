@@ -6,3 +6,10 @@ DISCORD_CLIENT_SECRET=your-oauth2-client-secret
 # Any long random strings:
 SESSION_SECRET=change-me-64-random-chars
 INTERNAL_API_TOKEN=change-me-64-random-chars
+INTERNAL_API_TOKEN_PREVIOUS=
+INTERNAL_API_KEY_ID=gw-current
+INTERNAL_API_PREVIOUS_KEY_ID=gw-previous
+GATEWAY_HTTP_TOKEN=change-me-different-64-random-chars
+GATEWAY_HTTP_KEY_ID=worker-current
+# Optional comma-separated exact origins; never use wildcards.
+PANEL_ALLOWED_ORIGINS=

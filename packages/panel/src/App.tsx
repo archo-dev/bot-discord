@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import type { MeResponse } from "@bot/shared";
 import { api, ApiError } from "./lib/api.js";
 import { Login } from "./pages/Login.js";
@@ -22,10 +23,18 @@ import { StarboardPage } from "./pages/Starboard.js";
 import { TempVoicePage } from "./pages/TempVoice.js";
 import { MusicPage } from "./pages/Music.js";
 import { HealthPage } from "./pages/Health.js";
+import { AuditPage } from "./pages/Audit.js";
 import { ErrorCard } from "./ui/kit.js";
 import { Skeleton, SkeletonGuildGrid } from "./ui/skeleton.js";
 
 export function App() {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    const refreshSession = () => void queryClient.invalidateQueries({ queryKey: ["me"], exact: true });
+    window.addEventListener("panel:session-expired", refreshSession);
+    return () => window.removeEventListener("panel:session-expired", refreshSession);
+  }, [queryClient]);
+
   const me = useQuery({
     queryKey: ["me"],
     queryFn: () => api<MeResponse>("/api/me"),
@@ -66,6 +75,7 @@ export function App() {
         <Route index element={<Dashboard />} />
         <Route path="stats" element={<StatsPage />} />
         <Route path="health" element={<HealthPage />} />
+        <Route path="audit" element={<AuditPage />} />
         <Route path="config" element={<ConfigPage />} />
         <Route path="commands" element={<CommandsPage />} />
         <Route path="commands/new" element={<CommandEditorPage />} />

@@ -15,4 +15,5 @@ export * from "./logs.js";
 export * from "./tickets.js";
 export * from "./button-roles.js";
 export * from "./stats.js";
+export * from "./security.js";
 export * from "./common.js";

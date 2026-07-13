@@ -30,10 +30,17 @@ export const queryClient = new QueryClient({
     },
     onError: (error, _variables, _context, mutation) => {
       if (mutation.meta?.silentError) return;
-      const fallback =
-        error instanceof ApiError && error.status === 403
-          ? "Action refusée — permissions insuffisantes."
-          : "L'opération a échoué — réessayez.";
+      const fallback = error instanceof ApiError
+        ? error.code === "quota_exceeded"
+          ? "Quota de sécurité atteint — réessayez demain."
+          : error.code === "csrf_rejected"
+            ? "Origine de la requête refusée — rechargez le panel officiel."
+            : error.status === 401
+              ? "Votre session a expiré — reconnectez-vous."
+              : error.status === 403
+                ? "Action refusée — permissions insuffisantes."
+                : "L'opération a échoué — réessayez."
+        : "L'opération a échoué — réessayez.";
       toast.error(mutation.meta?.errorMessage ?? fallback);
     },
   }),
