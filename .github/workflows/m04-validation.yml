@@ -1,0 +1,55 @@
+# Validation Linux reproductible (M04 — budgets performance et coût).
+# Ubuntu + versions du projet (pnpm du champ packageManager, Node 22).
+# Aucun secret de production requis : les tests worker fournissent leurs
+# bindings via vitest.config.ts (miniflare), pas via .dev.vars.
+#
+# Le build du panel précède les tests worker : workerd sert packages/panel/dist
+# (binding ASSETS) et certains chemins en dépendent.
+name: M04 validation
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - "milestone/**"
+  pull_request:
+    branches:
+      - master
+
+# Pas de permissions d'écriture ni d'accès aux secrets.
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Lint, tests, build (Ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4 # version lue depuis packageManager (pnpm@10.13.1)
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      # 1) Build panel AVANT les tests worker (dist requis par le binding ASSETS).
+      - name: Build panel (pre-tests, budget gate)
+        run: pnpm --filter @bot/panel build
+
+      - name: Typecheck (all packages)
+        run: pnpm -r check
+
+      - name: Tests (all packages)
+        run: pnpm -r test
+
+      # 2) Rebuild panel final (revérifie le budget bundle < 180 KiB gzip).
+      - name: Build panel (final, budget gate)
+        run: pnpm --filter @bot/panel build
