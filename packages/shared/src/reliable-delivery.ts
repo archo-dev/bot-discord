@@ -104,7 +104,7 @@ export const reliableEnvelopeSchema = z.object({
   payload: z.unknown(),
 });
 
-export type ReliableEnvelope<T extends ReliableEventType = ReliableEventType> = {
+type EnvelopeFor<T extends ReliableEventType> = {
   schemaVersion: typeof RELIABLE_DELIVERY_SCHEMA_VERSION;
   eventId: string;
   type: T;
@@ -114,6 +114,9 @@ export type ReliableEnvelope<T extends ReliableEventType = ReliableEventType> = 
   occurredAt: number;
   payload: z.infer<(typeof RELIABLE_PAYLOAD_SCHEMAS)[T]>;
 };
+
+/** Discriminated union on `type` — `switch (env.type)` narrows `env.payload`. */
+export type ReliableEnvelope = { [K in ReliableEventType]: EnvelopeFor<K> }[ReliableEventType];
 
 export type ReliableEnvelopeValidation =
   | { ok: true; envelope: ReliableEnvelope }
