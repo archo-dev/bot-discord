@@ -8,6 +8,7 @@ import { internalStarboardRouter } from "./starboard.js";
 import { internalModerationRouter } from "./moderation.js";
 import { internalGuildsRouter } from "./guilds.js";
 import { internalTempVoiceRouter } from "./temp-voice.js";
+import { internalAuthentication } from "../security/internal-auth.js";
 
 /**
  * Internal API for the always-on Gateway service (Option B).
@@ -18,13 +19,7 @@ import { internalTempVoiceRouter } from "./temp-voice.js";
  */
 export const internalRouter = new Hono<{ Bindings: Env }>();
 
-internalRouter.use("/internal/*", async (c, next) => {
-  const auth = c.req.header("authorization");
-  if (!auth || auth !== `Bearer ${c.env.INTERNAL_API_TOKEN}`) {
-    return c.json({ error: "unauthorized" }, 401);
-  }
-  await next();
-});
+internalRouter.use("/internal/*", internalAuthentication);
 
 internalRouter.route("/", internalMusicRouter);
 internalRouter.route("/", internalStatsRouter);

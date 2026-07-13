@@ -1,6 +1,7 @@
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import type { Client } from "discord.js";
-import type { MusicCommandPayload } from "@bot/shared";
+import { verifyInternalRequest, type MusicCommandPayload } from "@bot/shared";
 import type { GatewayEnv } from "./env.js";
 import type { MusicController } from "./music.js";
 
@@ -46,14 +47,50 @@ function parseMusicPayload(body: unknown): MusicCommandPayload | null {
  */
 export function createHttpApp(env: GatewayEnv, client: Client, music: MusicController): Hono {
   const app = new Hono();
+  const usedNonces = new Map<string, number>();
 
   app.use("*", async (c, next) => {
+    if (!((c.req.method === "GET" && c.req.path === "/health") || (c.req.method === "POST" && c.req.path === "/music"))) {
+      return c.json({ error: "not_found" }, 404);
+    }
+    const mode = env.GATEWAY_INTERNAL_AUTH_MODE;
+    const hasSignature = c.req.header("x-internal-version") !== undefined;
+    if (mode !== "legacy" && hasSignature) {
+      const body = await c.req.raw.clone().text();
+      const verified = await verifyInternalRequest({
+        headers: c.req.raw.headers,
+        keys: [
+          { keyId: env.GATEWAY_HTTP_KEY_ID, masterSecret: env.GATEWAY_HTTP_TOKEN },
+          ...(env.GATEWAY_HTTP_TOKEN_PREVIOUS
+            ? [{ keyId: env.GATEWAY_HTTP_PREVIOUS_KEY_ID, masterSecret: env.GATEWAY_HTTP_TOKEN_PREVIOUS }]
+            : []),
+        ],
+        direction: "worker-to-gateway",
+        audience: "gateway-http",
+        method: c.req.method,
+        path: c.req.url,
+        body,
+      });
+      if (!verified.ok) return c.json({ error: "invalid_internal_signature" }, 401);
+      const now = Math.floor(Date.now() / 1000);
+      for (const [nonce, expires] of usedNonces) if (expires < now) usedNonces.delete(nonce);
+      if (usedNonces.has(verified.nonce)) return c.json({ error: "internal_replay" }, 409);
+      if (usedNonces.size >= 10_000) usedNonces.delete(usedNonces.keys().next().value!);
+      usedNonces.set(verified.nonce, now + 300);
+      await next();
+      return;
+    }
+    if (mode === "signed") return c.json({ error: "signed_internal_auth_required" }, 401);
     const auth = c.req.header("authorization");
-    if (!auth || auth !== `Bearer ${env.GATEWAY_HTTP_TOKEN}`) {
+    const validLegacy = auth === `Bearer ${env.GATEWAY_HTTP_TOKEN}` ||
+      (env.GATEWAY_HTTP_TOKEN_PREVIOUS !== undefined && auth === `Bearer ${env.GATEWAY_HTTP_TOKEN_PREVIOUS}`);
+    if (!validLegacy) {
       return c.json({ error: "unauthorized" }, 401);
     }
     await next();
   });
+
+  app.use("/music", bodyLimit({ maxSize: 32 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
 
   app.get("/health", (c) =>
     c.json({

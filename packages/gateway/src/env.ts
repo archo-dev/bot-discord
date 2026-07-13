@@ -7,8 +7,13 @@ const envSchema = z.object({
   WORKER_ORIGIN: z.url(),
   /** Bearer for the Worker's /internal/* API. */
   INTERNAL_API_TOKEN: z.string().min(16),
+  INTERNAL_API_KEY_ID: z.string().min(1).max(40).default("gw-current"),
   /** Bearer expected on this service's own HTTP endpoints (Worker → gateway). */
   GATEWAY_HTTP_TOKEN: z.string().min(16),
+  GATEWAY_HTTP_TOKEN_PREVIOUS: z.string().min(16).optional(),
+  GATEWAY_HTTP_KEY_ID: z.string().min(1).max(40).default("worker-current"),
+  GATEWAY_HTTP_PREVIOUS_KEY_ID: z.string().min(1).max(40).default("worker-previous"),
+  GATEWAY_INTERNAL_AUTH_MODE: z.enum(["legacy", "dual", "signed"]).default("dual"),
   GATEWAY_PORT: z.coerce.number().int().min(1).max(65535).default(8788),
   /**
    * Gate for the privileged GuildPresences intent (M19). Set to "true" ONLY once

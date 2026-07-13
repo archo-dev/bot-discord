@@ -18,9 +18,14 @@ export interface Env {
   DISCORD_CLIENT_SECRET: string;
   SESSION_SECRET: string;
   INTERNAL_API_TOKEN: string;
+  INTERNAL_API_TOKEN_PREVIOUS?: string;
+  INTERNAL_API_KEY_ID?: string;
+  INTERNAL_API_PREVIOUS_KEY_ID?: string;
+  INTERNAL_AUTH_MODE?: "legacy" | "dual" | "signed";
 
   // Set once the gateway VPS is up (Worker → gateway calls: music forward
   // M14, panel-driven controls). Absent until then.
   GATEWAY_ORIGIN?: string;
   GATEWAY_HTTP_TOKEN?: string;
+  GATEWAY_HTTP_KEY_ID?: string;
 }

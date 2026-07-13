@@ -1,4 +1,4 @@
-import type { MusicStateDto, MusicTrack, VoiceLogAction } from "@bot/shared";
+import { signInternalRequest, type MusicStateDto, type MusicTrack, type VoiceLogAction } from "@bot/shared";
 import type { GatewayEnv } from "./env.js";
 import { errMsg } from "./util.js";
 import { logTelemetry, telemetryErrorCode } from "./telemetry.js";
@@ -159,14 +159,25 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
   async function call(method: "GET" | "POST" | "DELETE", path: string, body?: unknown): Promise<Response> {
     const requestId = crypto.randomUUID();
     try {
+      const serializedBody = body !== undefined ? JSON.stringify(body) : "";
+      const signature = await signInternalRequest({
+        masterSecret: env.INTERNAL_API_TOKEN,
+        keyId: env.INTERNAL_API_KEY_ID,
+        direction: "gateway-to-worker",
+        audience: "worker-internal",
+        method,
+        path,
+        body: serializedBody,
+      });
       const res = await fetch(`${env.WORKER_ORIGIN}${path}`, {
         method,
         headers: {
           authorization: `Bearer ${env.INTERNAL_API_TOKEN}`,
           "x-request-id": requestId,
+          ...signature,
           ...(body !== undefined ? { "content-type": "application/json" } : {}),
         },
-        body: body !== undefined ? JSON.stringify(body) : undefined,
+        body: body !== undefined ? serializedBody : undefined,
         signal: AbortSignal.timeout(10_000),
       });
       if (!res.ok && res.status !== 404) {

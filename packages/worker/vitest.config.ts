@@ -31,6 +31,7 @@ export default defineWorkersConfig(async () => {
               SECURITY_ORIGIN_MODE: "report",
               SECURITY_CSP_MODE: "report",
               SESSION_GLOBAL_VERSION: "1",
+              INTERNAL_AUTH_MODE: "dual",
             },
           },
         },
