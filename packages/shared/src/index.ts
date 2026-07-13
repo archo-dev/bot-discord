@@ -7,3 +7,4 @@ export * from "./member-card.js";
 export * from "./telemetry.js";
 export * from "./security.js";
 export * from "./internal-auth.js";
+export * from "./modules.js";
