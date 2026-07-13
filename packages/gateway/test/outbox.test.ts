@@ -88,6 +88,17 @@ describe("OutboxStore", () => {
     expect(store.metrics().dead).toBe(1);
     store.close();
   });
+
+  it("bounds the dead-letter to the most recent N (older ones purged)", () => {
+    const store = open(tempDb());
+    for (let i = 0; i < 10; i++) store.enqueue(ev(), LIMITS);
+    store.reapExpired(-1, Date.now()); // dead-letter all 10
+    expect(store.metrics().dead).toBe(10);
+    const purged = store.purgeDeadLetter(3); // keep only the 3 most recent
+    expect(purged).toBe(7);
+    expect(store.metrics().dead).toBe(3);
+    store.close();
+  });
 });
 
 // Deterministic dispatcher harness.

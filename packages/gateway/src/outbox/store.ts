@@ -81,7 +81,9 @@ export class OutboxStore {
     if (this.has(env.eventId)) return "duplicate";
 
     const pending = this.pendingCount();
-    const overCapacity = pending >= limits.maxEvents || this.bytes() >= limits.maxBytes;
+    // Only stat the file when the queue is already sizeable — avoids a syscall
+    // on every enqueue in the common (near-empty) case.
+    const overCapacity = pending >= limits.maxEvents || (pending > limits.maxEvents / 2 && this.bytes() >= limits.maxBytes);
     if (overCapacity) {
       // Normal-priority events evict the oldest low-priority pending event;
       // low-priority events are simply dropped (measured by the caller).
@@ -180,6 +182,18 @@ export class OutboxStore {
     const res = this.db
       .prepare("UPDATE outbox SET status = 'dead' WHERE status = 'pending' AND created_at < ?")
       .run(now - maxAgeMs);
+    return res.changes as number;
+  }
+
+  /** Bounds the dead-letter: keep only the most recent maxDead rows, purge older. Returns purged count. */
+  purgeDeadLetter(maxDead: number): number {
+    const res = this.db
+      .prepare(
+        `DELETE FROM outbox WHERE status = 'dead' AND id NOT IN (
+           SELECT id FROM outbox WHERE status = 'dead' ORDER BY id DESC LIMIT ?
+         )`,
+      )
+      .run(maxDead);
     return res.changes as number;
   }
 

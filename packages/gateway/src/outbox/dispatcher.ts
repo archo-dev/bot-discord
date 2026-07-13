@@ -16,6 +16,7 @@ export interface DispatcherOptions {
   maxAttempts: number;
   concurrency: number;
   maxAgeMs: number;
+  maxDead?: number;
   batchSize?: number;
   baseBackoffMs?: number;
   maxBackoffMs?: number;
@@ -42,6 +43,7 @@ export class OutboxDispatcher {
   private readonly maxAttempts: number;
   private readonly concurrency: number;
   private readonly maxAgeMs: number;
+  private readonly maxDead: number;
   private readonly batchSize: number;
   private readonly baseBackoffMs: number;
   private readonly maxBackoffMs: number;
@@ -65,6 +67,7 @@ export class OutboxDispatcher {
     this.maxAttempts = opts.maxAttempts;
     this.concurrency = opts.concurrency;
     this.maxAgeMs = opts.maxAgeMs;
+    this.maxDead = opts.maxDead ?? 5_000;
     this.batchSize = opts.batchSize ?? 100;
     this.baseBackoffMs = opts.baseBackoffMs ?? 1_000;
     this.maxBackoffMs = opts.maxBackoffMs ?? 300_000;
@@ -92,6 +95,8 @@ export class OutboxDispatcher {
     const now = this.now();
     const reaped = this.store.reapExpired(this.maxAgeMs, now);
     if (reaped > 0) this.counters.dead += reaped;
+    // Bound the dead-letter so poison/failed events can't grow the file forever.
+    this.store.purgeDeadLetter(this.maxDead);
 
     const partitions = this.store.duePartitions(now, EMPTY, this.concurrency);
     if (partitions.length === 0) return reaped > 0;

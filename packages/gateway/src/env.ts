@@ -37,6 +37,8 @@ const envSchema = z.object({
   GATEWAY_OUTBOX_MAX_AGE_MS: z.coerce.number().int().min(60_000).default(24 * 3600 * 1000),
   GATEWAY_OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(1000).default(12),
   GATEWAY_OUTBOX_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(2),
+  /** Dead-letter is bounded: only the most recent N are kept (older ones purged). */
+  GATEWAY_OUTBOX_MAX_DEAD: z.coerce.number().int().min(0).max(1_000_000).default(5_000),
 });
 
 export type GatewayEnv = z.infer<typeof envSchema>;

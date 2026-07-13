@@ -104,6 +104,7 @@ export function createOutbox(
     maxAttempts: env.GATEWAY_OUTBOX_MAX_ATTEMPTS,
     concurrency: env.GATEWAY_OUTBOX_CONCURRENCY,
     maxAgeMs: env.GATEWAY_OUTBOX_MAX_AGE_MS,
+    maxDead: env.GATEWAY_OUTBOX_MAX_DEAD,
     onLog: log,
   });
 
