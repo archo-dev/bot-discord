@@ -8,3 +8,4 @@ export * from "./telemetry.js";
 export * from "./security.js";
 export * from "./internal-auth.js";
 export * from "./modules.js";
+export * from "./reliable-delivery.js";
