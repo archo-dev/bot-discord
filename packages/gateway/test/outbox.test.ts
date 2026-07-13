@@ -248,6 +248,47 @@ describe("OutboxDispatcher", () => {
     expect(new Set([...seen].flatMap((s) => [...s])).size).toBe(2);
   });
 
+  it("re-delivers safely after a crash between ack and local delete (dedup)", async () => {
+    const path = tempDb();
+    const store = open(path);
+    const e = ev();
+    store.enqueue(e, LIMITS);
+    // The Worker applied the event (accepted) but the gateway crashed before
+    // store.ack → the row survives the restart.
+    store.close();
+    const reopened = open(path);
+    expect(reopened.pendingCount()).toBe(1);
+    // On retry the Worker now dedups it (already processed) → terminal → removed.
+    const dupSend = async (events: ReliableEnvelope[]): Promise<ReliableBatchSendResult> => ({
+      kind: "ok",
+      results: events.map((x) => ({ eventId: x.eventId, status: "duplicate" })),
+    });
+    const { d } = harness(reopened, dupSend);
+    await d.runOnce();
+    expect(reopened.pendingCount()).toBe(0);
+    expect(d.counters.duplicates).toBe(1);
+  });
+
+  it("persists only bounded envelope fields — no secret, token or auth header", () => {
+    const store = open(tempDb());
+    const e = ev();
+    store.enqueue(e, LIMITS);
+    const rows = store.claimBatch(Date.now() + 1_000, e.partitionKey, 10);
+    const parsed = JSON.parse(rows[0]!.payload) as Record<string, unknown>;
+    expect(Object.keys(parsed).sort()).toEqual([
+      "eventId",
+      "guildId",
+      "occurredAt",
+      "partitionKey",
+      "payload",
+      "priority",
+      "schemaVersion",
+      "type",
+    ]);
+    expect(JSON.stringify(parsed)).not.toMatch(/token|secret|authorization|cookie|bearer/i);
+    store.close();
+  });
+
   it("stops gracefully leaving undelivered events persisted", async () => {
     const path = tempDb();
     const store = open(path);
