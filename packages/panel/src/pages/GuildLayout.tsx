@@ -24,6 +24,7 @@ const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
     items: [
       { to: "", label: "Aperçu", icon: "home", end: true, subtitle: "Vue d'ensemble de l'activité et de la configuration du serveur." },
       { to: "stats", label: "Statistiques", icon: "chart", subtitle: "Évolution des membres, salons actifs, présence et événements à venir." },
+      { to: "health", label: "Santé", icon: "pulse", subtitle: "SLO, état de la Gateway et diagnostic technique des modules." },
       { to: "config", label: "Configuration", icon: "sliders", subtitle: "Réglages généraux du bot : salon de logs et seuil d'avertissements." },
       { to: "access", label: "Accès panel", icon: "key", subtitle: "Choisissez qui peut accéder à ce panel en plus des gestionnaires du serveur." },
     ],

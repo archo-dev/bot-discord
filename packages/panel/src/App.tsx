@@ -21,6 +21,7 @@ import { LevelsPage } from "./pages/Levels.js";
 import { StarboardPage } from "./pages/Starboard.js";
 import { TempVoicePage } from "./pages/TempVoice.js";
 import { MusicPage } from "./pages/Music.js";
+import { HealthPage } from "./pages/Health.js";
 import { ErrorCard } from "./ui/kit.js";
 import { Skeleton, SkeletonGuildGrid } from "./ui/skeleton.js";
 
@@ -64,6 +65,7 @@ export function App() {
       <Route path="/guilds/:guildId" element={<GuildLayout me={me.data} />}>
         <Route index element={<Dashboard />} />
         <Route path="stats" element={<StatsPage />} />
+        <Route path="health" element={<HealthPage />} />
         <Route path="config" element={<ConfigPage />} />
         <Route path="commands" element={<CommandsPage />} />
         <Route path="commands/new" element={<CommandEditorPage />} />
