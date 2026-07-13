@@ -7,6 +7,10 @@ export interface Env {
   // vars
   DISCORD_CLIENT_ID: string;
   PANEL_ORIGIN: string;
+  PANEL_ALLOWED_ORIGINS?: string;
+  SECURITY_ORIGIN_MODE?: "report" | "enforce";
+  SECURITY_CSP_MODE?: "report" | "enforce";
+  SESSION_GLOBAL_VERSION?: string;
 
   // secrets
   DISCORD_TOKEN: string;

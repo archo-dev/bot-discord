@@ -1,4 +1,5 @@
 import { Hono, type Context } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import type { Env } from "./env.js";
 import { interactionsRouter } from "./interactions/router.js";
 import { authRouter } from "./auth/oauth.js";
@@ -21,10 +22,19 @@ import { internalRouter } from "./internal/routes.js";
 import { enforcePanelMutationPolicy, requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
 import { runScheduled } from "./cron.js";
 import { requestTelemetry, type TelemetryVariables } from "./telemetry/request.js";
+import { browserMutationOrigin, securityResponseHeaders } from "./security/browser.js";
 
 const app = new Hono<{ Bindings: Env; Variables: TelemetryVariables }>();
 
+app.use("*", securityResponseHeaders);
 app.use("*", requestTelemetry);
+app.use("/api/*", browserMutationOrigin);
+app.use("/auth/logout", browserMutationOrigin);
+app.use("/auth/revoke-all", browserMutationOrigin);
+app.use("/api/*", bodyLimit({ maxSize: 64 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
+app.use("/auth/*", bodyLimit({ maxSize: 8 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
+app.use("/interactions", bodyLimit({ maxSize: 256 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
+app.use("/internal/*", bodyLimit({ maxSize: 512 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
 app.get("/health", (c) => c.json({ ok: true }));
 app.route("/", interactionsRouter);
 app.route("/", authRouter);

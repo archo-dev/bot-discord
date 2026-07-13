@@ -3,7 +3,7 @@ import { canManageGuild, isPanelMutationAllowed, matchPanelMutationPolicy } from
 import type { Env } from "../env.js";
 import { discordJson, isGuildAccessLost } from "../discord/rest.js";
 import { getGuild, listPanelAccess, setBotInstalled } from "../db/queries.js";
-import { getSession, readSessionCookie, type SessionData } from "./session.js";
+import { loadSession, readSessionCookie, type SessionData } from "./session.js";
 import type { TelemetryVariables } from "../telemetry/request.js";
 
 export interface OAuthGuild {
@@ -32,11 +32,9 @@ export type AppContext = { Bindings: Env; Variables: AppVariables };
 /** Loads the KV session or fails with 401. */
 export const requireSession: MiddlewareHandler<AppContext> = async (c, next) => {
   const sid = readSessionCookie(c);
-  const session = sid ? await getSession(c.env, sid) : null;
-  if (!sid || !session) return c.json({ error: "unauthenticated" }, 401);
-  if (session.tokenExpiresAt < Date.now()) {
-    return c.json({ error: "session_expired" }, 401);
-  }
+  const loaded = sid ? await loadSession(c.env, sid) : { session: null, reason: "missing" as const };
+  const session = loaded.session;
+  if (!sid || !session) return c.json({ error: loaded.reason === "revoked" ? "session_revoked" : loaded.reason === "expired" ? "session_expired" : "unauthenticated" }, 401);
   c.set("session", { ...session, id: sid });
   await next();
 };

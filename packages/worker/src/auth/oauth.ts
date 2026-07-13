@@ -2,12 +2,17 @@ import { Hono } from "hono";
 import type { Env } from "../env.js";
 import {
   clearSessionCookie,
+  clearOAuthStateCookie,
   consumeOAuthState,
   createOAuthState,
   createSession,
   deleteSession,
+  loadSession,
+  readOAuthStateCookie,
   readSessionCookie,
   setSessionCookie,
+  setOAuthStateCookie,
+  revokeUserSessions,
 } from "./session.js";
 
 const DISCORD_API = "https://discord.com/api/v10";
@@ -32,6 +37,7 @@ export const authRouter = new Hono<{ Bindings: Env }>();
 
 authRouter.get("/auth/login", async (c) => {
   const state = await createOAuthState(c.env);
+  setOAuthStateCookie(c, state);
   const params = new URLSearchParams({
     client_id: c.env.DISCORD_CLIENT_ID,
     redirect_uri: `${c.env.PANEL_ORIGIN}/auth/callback`,
@@ -45,7 +51,9 @@ authRouter.get("/auth/login", async (c) => {
 authRouter.get("/auth/callback", async (c) => {
   const code = c.req.query("code");
   const state = c.req.query("state");
-  if (!code || !state || !(await consumeOAuthState(c.env, state))) {
+  const stateCookie = readOAuthStateCookie(c);
+  clearOAuthStateCookie(c);
+  if (!code || !state || !(await consumeOAuthState(c.env, state, stateCookie))) {
     return c.text("Invalid OAuth state. Please retry from the login page.", 400);
   }
 
@@ -61,7 +69,7 @@ authRouter.get("/auth/callback", async (c) => {
     }),
   });
   if (!tokenRes.ok) {
-    console.error(`oauth token exchange failed: ${tokenRes.status} ${await tokenRes.text()}`);
+    console.error(`oauth token exchange failed: ${tokenRes.status}`);
     return c.text("Discord token exchange failed. Please retry.", 502);
   }
   const token = (await tokenRes.json()) as TokenResponse;
@@ -78,7 +86,6 @@ authRouter.get("/auth/callback", async (c) => {
     globalName: user.global_name,
     avatar: user.avatar,
     accessToken: token.access_token,
-    refreshToken: token.refresh_token,
     tokenExpiresAt: Date.now() + token.expires_in * 1000,
     createdAt: Date.now(),
   });
@@ -89,6 +96,16 @@ authRouter.get("/auth/callback", async (c) => {
 authRouter.post("/auth/logout", async (c) => {
   const sid = readSessionCookie(c);
   if (sid) await deleteSession(c.env, sid);
+  clearSessionCookie(c);
+  return c.json({ ok: true });
+});
+
+authRouter.post("/auth/revoke-all", async (c) => {
+  const sid = readSessionCookie(c);
+  const loaded = sid ? await loadSession(c.env, sid) : { session: null };
+  if (!loaded.session) return c.json({ error: "unauthenticated" }, 401);
+  await revokeUserSessions(c.env, loaded.session.userId);
+  await deleteSession(c.env, sid!);
   clearSessionCookie(c);
   return c.json({ ok: true });
 });
