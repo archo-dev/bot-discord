@@ -8,6 +8,7 @@ import { internalStarboardRouter } from "./starboard.js";
 import { internalModerationRouter } from "./moderation.js";
 import { internalGuildsRouter } from "./guilds.js";
 import { internalTempVoiceRouter } from "./temp-voice.js";
+import { internalEventsRouter } from "./events.js";
 import { internalAuthentication } from "../security/internal-auth.js";
 
 /**
@@ -29,3 +30,4 @@ internalRouter.route("/", internalStarboardRouter);
 internalRouter.route("/", internalModerationRouter);
 internalRouter.route("/", internalGuildsRouter);
 internalRouter.route("/", internalTempVoiceRouter);
+internalRouter.route("/", internalEventsRouter);

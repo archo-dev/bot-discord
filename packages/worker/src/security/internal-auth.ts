@@ -9,6 +9,7 @@ const ROUTES: ReadonlyArray<[string, RegExp]> = [
   ["GET", /^\/internal\/guilds\/\d{5,20}\/temp-voice\/channels$/],
   ["GET", /^\/internal\/guilds\/\d{5,20}\/playlists\/[^/]+$/],
   ["POST", /^\/internal\/gateway\/heartbeat$/],
+  ["POST", /^\/internal\/events\/batch$/],
   ["POST", /^\/internal\/guilds\/\d{5,20}\/(installed|uninstalled|xp|voice-xp|starboard|music-state|playlists|automod-sanctions|voice-logs|mod-actions|member-snapshots|channel-activity|events)$/],
   ["POST", /^\/internal\/guilds\/\d{5,20}\/temp-voice\/(channels|lobby-deleted)$/],
   ["DELETE", /^\/internal\/guilds\/\d{5,20}\/temp-voice\/channels\/\d{5,20}$/],
