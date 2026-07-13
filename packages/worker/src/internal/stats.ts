@@ -34,6 +34,24 @@ const heartbeatSchema = z.object({
       voiceLogQueueDepth: z.number().int().min(0).max(100_000),
       channelActivityQueueDepth: z.number().int().min(0).max(100_000),
       errorsSinceLastHeartbeat: z.number().int().min(0).max(1_000_000),
+      // Reliable delivery (M05) — optional, bounded aggregates only.
+      delivery: z
+        .object({
+          enabled: z.boolean(),
+          running: z.boolean(),
+          pending: z.number().int().min(0).max(1_000_000_000),
+          dead: z.number().int().min(0).max(1_000_000_000),
+          oldestAgeSeconds: z.number().int().min(0).max(100 * 24 * 3600),
+          bytes: z.number().int().min(0).max(1_000_000_000_000),
+          added: z.number().int().min(0).max(1_000_000_000),
+          dropped: z.number().int().min(0).max(1_000_000_000),
+          delivered: z.number().int().min(0).max(1_000_000_000),
+          duplicates: z.number().int().min(0).max(1_000_000_000),
+          retries: z.number().int().min(0).max(1_000_000_000),
+          byType: z.record(z.string().max(40), z.number().int().min(0).max(1_000_000_000)),
+          byPriority: z.record(z.string().max(8), z.number().int().min(0).max(1_000_000_000)),
+        })
+        .optional(),
     })
     .optional(),
 });

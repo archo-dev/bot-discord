@@ -85,6 +85,21 @@ export function HealthPage() {
             </>
           )}
         </div>
+        {data.gateway.runtime?.delivery?.enabled && (
+          <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-zinc-800/70 pt-3 text-sm text-zinc-400">
+            <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Livraison fiable</span>
+            <span>En attente : {data.gateway.runtime.delivery.pending}</span>
+            <span>Plus ancien : {data.gateway.runtime.delivery.oldestAgeSeconds} s</span>
+            <span>Livrés : {data.gateway.runtime.delivery.delivered}</span>
+            <span>Retries : {data.gateway.runtime.delivery.retries}</span>
+            {data.gateway.runtime.delivery.dead > 0 && (
+              <span className="text-amber-400">Dead-letter : {data.gateway.runtime.delivery.dead}</span>
+            )}
+            {data.gateway.runtime.delivery.dropped > 0 && (
+              <span className="text-amber-400">Abandonnés : {data.gateway.runtime.delivery.dropped}</span>
+            )}
+          </div>
+        )}
       </Card>
 
       <Card title="Modules observés · 24 h" description="Les succès sont échantillonnés et pondérés ; toutes les erreurs sont comptées.">

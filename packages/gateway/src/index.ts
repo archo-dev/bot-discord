@@ -99,6 +99,7 @@ async function heartbeat(): Promise<void> {
         voiceLogQueueDepth: health.voiceLogQueueDepth,
         channelActivityQueueDepth: stats.pendingEntries(),
         errorsSinceLastHeartbeat: health.errorsSinceLastHeartbeat,
+        delivery: outbox.metrics(),
       }),
     });
     api.acknowledgeHeartbeat();

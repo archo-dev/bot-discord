@@ -56,6 +56,27 @@ export interface StructuredTelemetryEvent {
   source: "worker" | "gateway";
 }
 
+/**
+ * Reliable-delivery outbox health (M05). Bounded aggregates only — never a
+ * payload or Discord identifier. Optional on the heartbeat so an old gateway
+ * (no outbox) and an old Worker (ignores the field) stay compatible.
+ */
+export interface GatewayDeliveryRuntime {
+  enabled: boolean;
+  running: boolean;
+  pending: number;
+  dead: number;
+  oldestAgeSeconds: number;
+  bytes: number;
+  added: number;
+  dropped: number;
+  delivered: number;
+  duplicates: number;
+  retries: number;
+  byType: Record<string, number>;
+  byPriority: Record<string, number>;
+}
+
 export interface GatewayHeartbeatRuntime {
   version: string;
   uptimeSeconds: number;
@@ -63,6 +84,8 @@ export interface GatewayHeartbeatRuntime {
   voiceLogQueueDepth: number;
   channelActivityQueueDepth: number;
   errorsSinceLastHeartbeat: number;
+  /** Reliable delivery (M05); absent on gateways without the outbox. */
+  delivery?: GatewayDeliveryRuntime;
 }
 
 export type HealthState = "operational" | "degraded" | "inactive" | "unavailable";
