@@ -54,6 +54,7 @@ export async function purgeOldStats(db: D1Database): Promise<{
   channelActivity: number;
   hourlySnapshots: number;
   oldSnapshots: number;
+  observabilityMetrics: number;
 }> {
   const r = await db.batch([
     db.prepare(`DELETE FROM voice_logs WHERE created_at < datetime('now', '-90 days')`),
@@ -62,12 +63,14 @@ export async function purgeOldStats(db: D1Database): Promise<{
       `DELETE FROM member_snapshots WHERE bucket NOT LIKE '%T00:00' AND created_at < datetime('now', '-14 days')`,
     ),
     db.prepare(`DELETE FROM member_snapshots WHERE created_at < datetime('now', '-400 days')`),
+    db.prepare(`DELETE FROM operation_metrics WHERE bucket < strftime('%Y-%m-%dT%H:00:00Z', 'now', '-30 days')`),
   ]);
   return {
     voiceLogs: r[0]!.meta.changes ?? 0,
     channelActivity: r[1]!.meta.changes ?? 0,
     hourlySnapshots: r[2]!.meta.changes ?? 0,
     oldSnapshots: r[3]!.meta.changes ?? 0,
+    observabilityMetrics: r[4]!.meta.changes ?? 0,
   };
 }
 
