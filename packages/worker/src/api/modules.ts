@@ -100,6 +100,7 @@ function buildModuleDto(input: {
     enabled: input.row.enabled === 1,
     state: evaluated.state,
     reasons: evaluated.reasons,
+    activationReasons: prospective.reasons,
     configVersion: input.row.config_version,
     currentConfigVersion: definition.configVersion,
     toggleable: definition.toggleable,

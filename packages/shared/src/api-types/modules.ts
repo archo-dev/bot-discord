@@ -19,6 +19,7 @@ export interface GuildModuleDto {
   enabled: boolean;
   state: ModuleState;
   reasons: ModuleStateReason[];
+  activationReasons: ModuleStateReason[];
   configVersion: number;
   currentConfigVersion: number;
   toggleable: boolean;
