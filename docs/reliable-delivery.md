@@ -177,3 +177,68 @@ de payload**, cardinalité bornée (types et priorités finis).
 - Rollback : vider `GATEWAY_RELIABLE_TYPES` (retour envoi direct) ; restaurer
   Gateway/Worker précédents ; **conserver** `processed_events` et le fichier
   outbox (aucune suppression, aucune down-migration destructive).
+
+## 10. Exploitation (runbooks)
+
+### Variables d'environnement Gateway
+
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `GATEWAY_RELIABLE_TYPES` | *(vide)* | types routés via l'outbox (`voice_log,channel_activity,member_snapshot,gateway_event`) ; vide = direct |
+| `GATEWAY_OUTBOX_PATH` | `~/.botdiscord/outbox.db` | fichier SQLite (perms 0600) |
+| `GATEWAY_OUTBOX_MAX_EVENTS` | 20 000 | capacité (backpressure au-delà) |
+| `GATEWAY_OUTBOX_MAX_BYTES` | 64 MiB | taille disque max |
+| `GATEWAY_OUTBOX_MAX_AGE_MS` | 24 h | âge max avant dead-letter |
+| `GATEWAY_OUTBOX_MAX_ATTEMPTS` | 12 | tentatives avant dead-letter |
+| `GATEWAY_OUTBOX_MAX_DEAD` | 5 000 | dead-letter bornée (purge des plus anciennes) |
+| `GATEWAY_OUTBOX_CONCURRENCY` | 2 | requêtes Worker en vol (1 par partition) |
+
+### Activer un type (rollout)
+
+1. Déployer Worker (endpoint batch + `processed_events`) puis Gateway (flags vides).
+2. Vérifier heartbeat + `/internal/events/batch` (page Santé : bloc « Livraison fiable » absent = désactivé).
+3. Ajouter le type à `GATEWAY_RELIABLE_TYPES` (ex. `voice_log`), redémarrer la Gateway.
+4. Observer sur la page Santé : `pending` doit rester bas, `dead`/`dropped` à 0, `delivered` croître.
+
+### File pleine / disque presque plein
+
+Backpressure : les événements de priorité basse sont abandonnés (métrique
+`dropped`), les critiques évincent le plus ancien best-effort. Si `pending`
+monte durablement → Worker probablement en panne : vérifier heartbeats et
+erreurs 5xx/429. La livraison reprend seule au rétablissement.
+
+### Dead-letter et replay
+
+Un événement passe en `status='dead'` après `MAX_ATTEMPTS` ou `MAX_AGE`. La
+dead-letter est bornée (`MAX_DEAD`). **Pas de replay automatique.** Replay manuel
+(après diagnostic) sur le VPS :
+
+```sh
+sqlite3 ~/.botdiscord/outbox.db \
+  "UPDATE outbox SET status='pending', attempts=0, available_at=strftime('%s','now')*1000 WHERE status='dead';"
+```
+
+Ne jamais supprimer une ligne `pending` non livrée. Inspecter sans extraire de
+payload sensible (la file n'en contient pas : seuls des ids/actions bornés).
+
+### Incident / rollback
+
+1. Vider `GATEWAY_RELIABLE_TYPES` et redémarrer la Gateway → retour livraison directe immédiat.
+2. Si besoin, restaurer le commit Gateway/Worker précédent (ordre : Gateway puis Worker).
+3. Conserver `processed_events` (D1) et le fichier outbox pour analyse.
+4. Vérifier API `/api/me`/`/api/guilds`, connexion Discord, heartbeats signés.
+
+### Sauvegarde locale de la file
+
+Le fichier outbox est local au VPS et reconstruit au besoin. Pour l'analyse d'un
+incident, copier `outbox.db*` (db, -wal, -shm) hors ligne avant tout redémarrage.
+Ne pas committer ce fichier.
+
+### Ajouter un nouveau type d'événement fiable
+
+1. Ajouter le type à `RELIABLE_EVENT_TYPES` + son schéma de payload borné dans `packages/shared/src/reliable-delivery.ts` (jamais de contenu de message).
+2. Déclarer `RELIABLE_EVENT_MODULE` (gate M03) et `RELIABLE_EVENT_PRIORITY`.
+3. Ajouter les statements d'effet **purs D1** dans `packages/worker/src/db/queries/reliable-delivery.ts` (`effectStatements`).
+4. Router le flux dans `worker-api.ts` (enqueue si `outbox.isReliable(type)`).
+5. Tester : accepted/duplicate/skipped/invalid côté Worker, reprise/retry/DLQ côté Gateway.
+6. Ne fiabiliser un flux à **effet Discord externe** (xp/automod/starboard) qu'après avoir séparé la partie D1 idempotente de l'effet at-most-once.

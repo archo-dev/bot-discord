@@ -8,6 +8,10 @@ M02 apporte la matrice deny-by-default des mutations, le durcissement OAuth/sess
 
 M03 ajoute un registre partagé de 17 modules, la migration additive locale `0022_module_governance.sql`, une source de vérité `guild_modules`, un dual-read des six flags historiques, les gates Worker/Gateway, le diagnostic signé des intents/permissions, les routes panel GET/PATCH et le Centre des modules. Les modules système ne sont pas désactivables et une désactivation ne supprime aucune donnée. Le catalogue, les états, la procédure d’ajout, le rollout et le rollback sont documentés dans `docs/modules.md`.
 
+M04 (performance) est livrée : code-splitting du panel (JS initial ~117 kB gzip, budget CI < 180 kB), parallélisation des lectures `/internal/config`, coalescence du cache gateway, retries Discord bornés idempotents, Error Boundary des chunks lazy. Aucune migration.
+
+M05 (livraison fiable) : migration additive `0023_reliable_delivery.sql` (`processed_events`), endpoint signé `POST /internal/events/batch` (dédup atomique par `eventId`, ACK par événement), outbox persistante `node:sqlite` sur le VPS (dispatcher partitionné, backoff+jitter, Retry-After, dead-letter bornée, backpressure, arrêt gracieux). Fiabilise `voice_log/channel_activity/member_snapshot/gateway_event` derrière `GATEWAY_RELIABLE_TYPES` (**vide par défaut = livraison directe inchangée**). xp/automod/starboard restent directs (effet Discord non rejouable). Exploitation, runbooks, replay et rollback dans `docs/reliable-delivery.md`. Le Worker reste seul écrivain D1.
+
 ## Architecture actuelle
 
 - Monorepo pnpm, TypeScript strict.

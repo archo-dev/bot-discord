@@ -1,11 +1,13 @@
-# Validation Linux reproductible (M04 — budgets performance et coût).
+# Validation Linux reproductible et réutilisable (tous milestones).
+# Couvre M04 (budget bundle) et M05 (outbox reliable delivery : les tests créent
+# et nettoient leurs bases node:sqlite dans des répertoires temporaires).
 # Ubuntu + versions du projet (pnpm du champ packageManager, Node 22).
 # Aucun secret de production requis : les tests worker fournissent leurs
 # bindings via vitest.config.ts (miniflare), pas via .dev.vars.
 #
 # Le build du panel précède les tests worker : workerd sert packages/panel/dist
 # (binding ASSETS) et certains chemins en dépendent.
-name: M04 validation
+name: CI validation
 
 on:
   workflow_dispatch: {}
