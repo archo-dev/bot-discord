@@ -2,6 +2,7 @@ import { type Client } from "discord.js";
 import type { ConfigCache } from "./config-cache.js";
 import type { WorkerApi } from "./worker-api.js";
 import { errMsg } from "./util.js";
+import { isGatewayModuleEnabled } from "./module-config.js";
 
 /**
  * Voice XP (M22): once a minute, every member currently eligible in a voice
@@ -19,7 +20,7 @@ export function registerVoiceXp(client: Client, cache: ConfigCache, api: WorkerA
   async function tick(): Promise<void> {
     for (const guild of client.guilds.cache.values()) {
       const cfg = await cache.get(guild.id).catch(() => null);
-      if (!cfg?.xp.voiceEnabled) continue;
+      if (!cfg?.xp.voiceEnabled || !isGatewayModuleEnabled(cfg, "levels")) continue;
 
       const entries: Array<{ userId: string; username: string | null; channelId: string }> = [];
       for (const channel of guild.channels.cache.values()) {

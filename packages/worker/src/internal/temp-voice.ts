@@ -3,6 +3,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Env } from "../env.js";
+import { requireInternalModule } from "./module-guard.js";
 import {
   countTempVoiceChannels,
   deleteTempVoiceChannel,
@@ -13,6 +14,7 @@ import {
 } from "../db/queries.js";
 
 export const internalTempVoiceRouter = new Hono<{ Bindings: Env }>();
+internalTempVoiceRouter.use("/internal/guilds/:guildId/temp-voice/*", requireInternalModule("temp_voice"));
 
 const SNOWFLAKE = /^\d{5,20}$/;
 

@@ -2,6 +2,7 @@ import { EmbedBuilder, Events, PermissionFlagsBits, type Client, type Message } 
 import type { ConfigCache } from "./config-cache.js";
 import type { AutomodRule, GuildGatewayConfig, WorkerApi } from "./worker-api.js";
 import { errMsg } from "./util.js";
+import { isGatewayModuleEnabled } from "./module-config.js";
 
 const RULE_LABELS: Record<AutomodRule, string> = {
   spam: "spam",
@@ -65,7 +66,7 @@ export function registerAutomod(client: Client, cache: ConfigCache, api: WorkerA
   client.on(Events.MessageCreate, async (message) => {
     if (!message.inGuild() || message.author.bot || !message.member) return;
     const cfg = await cache.get(message.guild.id).catch(() => null);
-    if (!cfg) return;
+    if (!cfg || !isGatewayModuleEnabled(cfg, "automod")) return;
     const automod = cfg.automod;
     const anyRule =
       automod.antiSpamEnabled || automod.antiInviteEnabled || automod.antiLinkEnabled || automod.bannedWords.length > 0;

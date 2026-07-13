@@ -3,6 +3,7 @@ import type { VoiceLogAction } from "@bot/shared";
 import type { ConfigCache } from "./config-cache.js";
 import type { WorkerApi } from "./worker-api.js";
 import { sendTo } from "./events.js";
+import { isGatewayModuleEnabled } from "./module-config.js";
 
 const COLORS = { green: 0x57f287, red: 0xed4245, blurple: 0x5865f2, grey: 0x99aab5 } as const;
 
@@ -85,7 +86,7 @@ export function registerVoice(client: Client, cache: ConfigCache, api: WorkerApi
     if (actions.length === 0) return;
 
     const cfg = await cache.get(guild.id).catch(() => null);
-    if (!cfg) return;
+    if (!cfg || !isGatewayModuleEnabled(cfg, "voice_logs")) return;
     const logs = cfg.logs;
 
     const member = newState.member ?? oldState.member;

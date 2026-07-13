@@ -4,6 +4,7 @@ import type { Client } from "discord.js";
 import { verifyInternalRequest, type MusicCommandPayload } from "@bot/shared";
 import type { GatewayEnv } from "./env.js";
 import type { MusicController } from "./music.js";
+import { gatewayModuleRuntime } from "./module-runtime.js";
 
 const MUSIC_COMMANDS = new Set([
   "play",
@@ -50,7 +51,7 @@ export function createHttpApp(env: GatewayEnv, client: Client, music: MusicContr
   const usedNonces = new Map<string, number>();
 
   app.use("*", async (c, next) => {
-    if (!((c.req.method === "GET" && c.req.path === "/health") || (c.req.method === "POST" && c.req.path === "/music"))) {
+    if (!((c.req.method === "GET" && (c.req.path === "/health" || /^\/modules\/\d{5,20}\/runtime$/.test(c.req.path))) || (c.req.method === "POST" && c.req.path === "/music"))) {
       return c.json({ error: "not_found" }, 404);
     }
     const mode = env.GATEWAY_INTERNAL_AUTH_MODE;
@@ -101,6 +102,11 @@ export function createHttpApp(env: GatewayEnv, client: Client, music: MusicContr
       uptimeSeconds: Math.floor(process.uptime()),
     }),
   );
+
+  app.get("/modules/:guildId/runtime", (c) => {
+    const runtime = gatewayModuleRuntime(client, c.req.param("guildId"));
+    return runtime ? c.json(runtime) : c.json({ error: "guild_not_found" }, 404);
+  });
 
   app.post("/music", async (c) => {
     const payload = parseMusicPayload(await c.req.json().catch(() => null));

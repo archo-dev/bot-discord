@@ -20,6 +20,7 @@ import {
 import type { ConfigCache } from "./config-cache.js";
 import type { WorkerApi } from "./worker-api.js";
 import { errMsg } from "./util.js";
+import { isGatewayModuleEnabled } from "./module-config.js";
 
 const COLORS = { green: 0x57f287, red: 0xed4245, yellow: 0xfee75c, blurple: 0x5865f2 } as const;
 
@@ -87,7 +88,7 @@ export function registerEvents(client: Client, cache: ConfigCache, api: WorkerAp
     const cfg = await cache.get(member.guild.id).catch(() => null);
     if (!cfg) return;
 
-    for (const roleId of cfg.autoRoles) {
+    for (const roleId of isGatewayModuleEnabled(cfg, "welcome") ? cfg.autoRoles : []) {
       try {
         await member.roles.add(roleId, "Rôle automatique à l'arrivée");
       } catch (err) {
@@ -95,7 +96,7 @@ export function registerEvents(client: Client, cache: ConfigCache, api: WorkerAp
       }
     }
 
-    if (cfg.welcome.welcomeEnabled && cfg.welcome.welcomeChannelId) {
+    if (isGatewayModuleEnabled(cfg, "welcome") && cfg.welcome.welcomeEnabled && cfg.welcome.welcomeChannelId) {
       await sendTo(
         member.guild,
         cfg.welcome.welcomeChannelId,
@@ -133,7 +134,7 @@ export function registerEvents(client: Client, cache: ConfigCache, api: WorkerAp
     const cfg = await cache.get(member.guild.id).catch(() => null);
     if (!cfg) return;
 
-    if (cfg.welcome.leaveEnabled && cfg.welcome.leaveChannelId) {
+    if (isGatewayModuleEnabled(cfg, "welcome") && cfg.welcome.leaveEnabled && cfg.welcome.leaveChannelId) {
       await sendTo(
         member.guild,
         cfg.welcome.leaveChannelId,

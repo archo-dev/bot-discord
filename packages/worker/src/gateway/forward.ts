@@ -1,4 +1,4 @@
-import { signInternalRequest, type MusicCommandPayload } from "@bot/shared";
+import { signInternalRequest, type GatewayModuleRuntimeResponse, type MusicCommandPayload } from "@bot/shared";
 import type { Env } from "../env.js";
 
 export interface ForwardResult {
@@ -6,6 +6,29 @@ export interface ForwardResult {
   reachable: boolean;
   ok: boolean;
   message?: string;
+}
+
+export async function fetchGatewayModuleRuntime(env: Env, guildId: string): Promise<GatewayModuleRuntimeResponse | null> {
+  if (!env.GATEWAY_ORIGIN || !env.GATEWAY_HTTP_TOKEN) return null;
+  const path = `/modules/${guildId}/runtime`;
+  try {
+    const signature = await signInternalRequest({
+      masterSecret: env.GATEWAY_HTTP_TOKEN,
+      keyId: env.GATEWAY_HTTP_KEY_ID ?? "worker-current",
+      direction: "worker-to-gateway",
+      audience: "gateway-http",
+      method: "GET",
+      path,
+      body: "",
+    });
+    const response = await fetch(`${env.GATEWAY_ORIGIN}${path}`, {
+      headers: { authorization: `Bearer ${env.GATEWAY_HTTP_TOKEN}`, ...signature },
+      signal: AbortSignal.timeout(4_000),
+    });
+    return response.ok ? (await response.json()) as GatewayModuleRuntimeResponse : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Forwards a music command to the gateway's bearer-guarded HTTP endpoint. */

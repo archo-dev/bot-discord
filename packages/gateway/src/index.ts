@@ -53,7 +53,7 @@ const client = new Client({
 registerGuildLifecycle(client, configCache, api, env.WORKER_ORIGIN);
 registerEvents(client, configCache, api);
 registerVoice(client, configCache, api);
-const stats = registerStats(client, api);
+const stats = registerStats(client, configCache, api);
 registerAutomod(client, configCache, api);
 registerXp(client, configCache, api);
 registerVoiceXp(client, configCache, api);

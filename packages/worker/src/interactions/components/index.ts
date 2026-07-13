@@ -2,6 +2,7 @@ import type { APIMessageComponentInteraction, APIModalSubmitInteraction } from "
 import type { Env } from "../../env.js";
 import { openTicket, promptCloseTicket, submitCloseTicket } from "./tickets.js";
 import { toggleButtonRole } from "./button-roles.js";
+import type { ModuleId } from "@bot/shared";
 
 /**
  * Message-component (type 3) and modal-submit (type 5) dispatch, keyed by
@@ -37,4 +38,10 @@ export function findComponentHandler(customId: string): ComponentHandler | undef
 
 export function findModalHandler(customId: string): ModalHandler | undefined {
   return modalHandlers.find((h) => matches(customId, h.id))?.handler;
+}
+
+export function moduleForComponent(customId: string): ModuleId | null {
+  if (customId.startsWith("ticket:")) return "tickets";
+  if (customId.startsWith("brole:")) return "button_roles";
+  return null;
 }

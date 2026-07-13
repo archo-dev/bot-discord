@@ -5,16 +5,22 @@ import {
   type APIChatInputApplicationCommandInteraction,
   type APIInteraction,
 } from "discord-api-types/v10";
+import { moduleForCommand, type ModuleId } from "@bot/shared";
 import type { Env } from "../env.js";
 import { verifyDiscordSignature } from "./verify.js";
 import { builtins } from "./builtins/index.js";
-import { findComponentHandler, findModalHandler } from "./components/index.js";
+import { findComponentHandler, findModalHandler, moduleForComponent } from "./components/index.js";
 import { ephemeral, pong } from "./respond.js";
 import { ensureGuild } from "../db/ensure-guild.js";
-import { getEnabledSlashCommand } from "../db/queries.js";
+import { getEnabledSlashCommand, isGuildModuleEnabled } from "../db/queries.js";
 import { executeCustomCommand } from "./custom.js";
 
 export const interactionsRouter = new Hono<{ Bindings: Env }>();
+
+async function moduleDisabled(env: Env, guildId: string, moduleId: ModuleId | null): Promise<Response | null> {
+  if (!moduleId || await isGuildModuleEnabled(env.DB, guildId, moduleId)) return null;
+  return ephemeral("Ce module est désactivé sur ce serveur.");
+}
 
 interactionsRouter.post("/interactions", async (c) => {
   const signature = c.req.header("x-signature-ed25519");
@@ -46,11 +52,13 @@ interactionsRouter.post("/interactions", async (c) => {
       return ephemeral("Cette commande ne fonctionne que dans un serveur.");
     }
 
-    // Keep the guilds table populated without a gateway (fire-and-forget).
-    c.executionCtx.waitUntil(ensureGuild(c.env, command.guild_id));
+    // Governance rows have a guild foreign key, so ensure the tenant first.
+    await ensureGuild(c.env, command.guild_id);
 
     const handler = builtins[command.data.name];
     if (handler) {
+      const disabled = await moduleDisabled(c.env, command.guild_id, moduleForCommand(command.data.name));
+      if (disabled) return disabled;
       return handler({
         env: c.env,
         interaction: command,
@@ -58,6 +66,8 @@ interactionsRouter.post("/interactions", async (c) => {
       });
     }
 
+    const customDisabled = await moduleDisabled(c.env, command.guild_id, "custom_commands");
+    if (customDisabled) return customDisabled;
     const custom = await getEnabledSlashCommand(c.env.DB, command.guild_id, command.data.name);
     if (custom) {
       return executeCustomCommand(c.env, command, custom, (p) => c.executionCtx.waitUntil(p));
@@ -70,7 +80,9 @@ interactionsRouter.post("/interactions", async (c) => {
     if (!interaction.guild_id || !interaction.member) {
       return ephemeral("Ce bouton ne fonctionne que dans un serveur.");
     }
-    c.executionCtx.waitUntil(ensureGuild(c.env, interaction.guild_id));
+    await ensureGuild(c.env, interaction.guild_id);
+    const disabled = await moduleDisabled(c.env, interaction.guild_id, moduleForComponent(interaction.data.custom_id));
+    if (disabled) return disabled;
     const handler = findComponentHandler(interaction.data.custom_id);
     if (handler) {
       return handler({ env: c.env, interaction, waitUntil: (p) => c.executionCtx.waitUntil(p) });
@@ -82,6 +94,9 @@ interactionsRouter.post("/interactions", async (c) => {
     if (!interaction.guild_id || !interaction.member) {
       return ephemeral("Ce formulaire ne fonctionne que dans un serveur.");
     }
+    await ensureGuild(c.env, interaction.guild_id);
+    const disabled = await moduleDisabled(c.env, interaction.guild_id, moduleForComponent(interaction.data.custom_id));
+    if (disabled) return disabled;
     const handler = findModalHandler(interaction.data.custom_id);
     if (handler) {
       return handler({ env: c.env, interaction, waitUntil: (p) => c.executionCtx.waitUntil(p) });

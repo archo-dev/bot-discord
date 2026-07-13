@@ -4,8 +4,11 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { Env } from "../env.js";
 import { incrementChannelActivity, insertGatewayEvent, upsertMemberSnapshot } from "../db/queries.js";
+import { requireInternalModule } from "./module-guard.js";
 
 export const internalStatsRouter = new Hono<{ Bindings: Env }>();
+internalStatsRouter.use("/internal/guilds/:guildId/member-snapshots", requireInternalModule("stats"));
+internalStatsRouter.use("/internal/guilds/:guildId/channel-activity", requireInternalModule("stats"));
 
 const SNOWFLAKE = /^\d{5,20}$/;
 

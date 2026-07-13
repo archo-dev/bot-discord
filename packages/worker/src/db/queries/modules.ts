@@ -88,6 +88,25 @@ export async function syncGuildModuleEnabled(db: D1Database, guildId: string, mo
   await setGuildModuleEnabled(db, guildId, moduleId, enabled);
 }
 
+/** Prepared form used to keep a legacy settings write and its governance row in one D1 batch. */
+export function syncGuildModuleStatement(
+  db: D1Database,
+  guildId: string,
+  moduleId: ModuleId,
+  enabled: boolean,
+): D1PreparedStatement {
+  const definition = MODULE_REGISTRY[moduleId];
+  return db.prepare(
+    `INSERT INTO guild_modules (guild_id, module_id, enabled, config_version, authority, updated_at)
+     VALUES (?1, ?2, ?3, ?4, 'governance', datetime('now'))
+     ON CONFLICT(guild_id, module_id) DO UPDATE SET
+       enabled = excluded.enabled,
+       config_version = excluded.config_version,
+       authority = 'governance',
+       updated_at = datetime('now')`,
+  ).bind(guildId, moduleId, enabled ? 1 : 0, definition.configVersion);
+}
+
 export interface ModuleConfigurationSignals {
   tickets: boolean;
   welcome: boolean;

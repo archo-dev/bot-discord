@@ -1,4 +1,5 @@
 /** XP / levels (M13/M22): settings, message/voice XP grants, leaderboard, rank. */
+import { syncGuildModuleStatement } from "./modules.js";
 
 export interface XpSettingsRow {
   guild_id: string;
@@ -32,8 +33,7 @@ export async function upsertXpSettings(
     voiceXpPerMin: number;
   },
 ): Promise<void> {
-  await db
-    .prepare(
+  const settingsStatement = db.prepare(
       `INSERT INTO xp_settings (guild_id, enabled, xp_min, xp_max, cooldown_seconds, announce_level_up, announce_channel_id, rewards, voice_enabled, voice_xp_per_min)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
        ON CONFLICT(guild_id) DO UPDATE SET
@@ -53,8 +53,8 @@ export async function upsertXpSettings(
       JSON.stringify(s.rewards),
       s.voiceEnabled ? 1 : 0,
       s.voiceXpPerMin,
-    )
-    .run();
+    );
+  await db.batch([settingsStatement, syncGuildModuleStatement(db, guildId, "levels", s.enabled)]);
 }
 
 export interface XpMemberRow {

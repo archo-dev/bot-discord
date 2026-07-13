@@ -1,4 +1,5 @@
 /** Starboard (M23): settings + posted-message tracking. */
+import { syncGuildModuleStatement } from "./modules.js";
 
 export interface StarboardSettingsRow {
   guild_id: string;
@@ -17,15 +18,14 @@ export async function upsertStarboardSettings(
   guildId: string,
   s: { enabled: boolean; channelId: string | null; threshold: number; emoji: string },
 ): Promise<void> {
-  await db
-    .prepare(
+  const settingsStatement = db.prepare(
       `INSERT INTO starboard_settings (guild_id, enabled, channel_id, threshold, emoji)
        VALUES (?1, ?2, ?3, ?4, ?5)
        ON CONFLICT(guild_id) DO UPDATE SET
          enabled = ?2, channel_id = ?3, threshold = ?4, emoji = ?5, updated_at = datetime('now')`,
     )
-    .bind(guildId, s.enabled ? 1 : 0, s.channelId, s.threshold, s.emoji)
-    .run();
+    .bind(guildId, s.enabled ? 1 : 0, s.channelId, s.threshold, s.emoji);
+  await db.batch([settingsStatement, syncGuildModuleStatement(db, guildId, "starboard", s.enabled)]);
 }
 
 export interface StarboardPostRow {

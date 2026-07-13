@@ -1,4 +1,5 @@
 /** Welcome/leave messages + server log settings (M11, read by the gateway). */
+import { syncGuildModuleStatement } from "./modules.js";
 
 export interface WelcomeSettingsRow {
   guild_id: string;
@@ -26,8 +27,8 @@ export async function upsertWelcomeSettings(
     leaveMessage: string;
   },
 ): Promise<void> {
-  await db
-    .prepare(
+  const autoRole = await db.prepare(`SELECT 1 AS present FROM auto_roles WHERE guild_id = ?1 AND enabled = 1 LIMIT 1`).bind(guildId).first();
+  const settingsStatement = db.prepare(
       `INSERT INTO welcome_settings (guild_id, welcome_enabled, welcome_channel_id, welcome_message, leave_enabled, leave_channel_id, leave_message)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
        ON CONFLICT(guild_id) DO UPDATE SET
@@ -35,8 +36,11 @@ export async function upsertWelcomeSettings(
          leave_enabled = ?5, leave_channel_id = ?6, leave_message = ?7,
          updated_at = datetime('now')`,
     )
-    .bind(guildId, s.welcomeEnabled ? 1 : 0, s.welcomeChannelId, s.welcomeMessage, s.leaveEnabled ? 1 : 0, s.leaveChannelId, s.leaveMessage)
-    .run();
+    .bind(guildId, s.welcomeEnabled ? 1 : 0, s.welcomeChannelId, s.welcomeMessage, s.leaveEnabled ? 1 : 0, s.leaveChannelId, s.leaveMessage);
+  await db.batch([
+    settingsStatement,
+    syncGuildModuleStatement(db, guildId, "welcome", s.welcomeEnabled || s.leaveEnabled || autoRole !== null),
+  ]);
 }
 
 export interface LogSettingsRow {

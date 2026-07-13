@@ -4,8 +4,11 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { Env } from "../env.js";
 import { getPlaylist, upsertPlaylist } from "../db/queries.js";
+import { requireInternalModule } from "./module-guard.js";
 
 export const internalMusicRouter = new Hono<{ Bindings: Env }>();
+internalMusicRouter.use("/internal/guilds/:guildId/music-state", requireInternalModule("music"));
+internalMusicRouter.use("/internal/guilds/:guildId/playlists", requireInternalModule("music"));
 
 // Music playback snapshot from the gateway → KV (short TTL) for the panel.
 internalMusicRouter.post("/internal/guilds/:guildId/music-state", async (c) => {

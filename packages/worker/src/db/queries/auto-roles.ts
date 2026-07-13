@@ -1,5 +1,7 @@
 /** Auto-roles applied on member join + raw gateway event log. */
 
+import { syncGuildModuleStatement } from "./modules.js";
+
 export interface AutoRoleRow {
   guild_id: string;
   role_id: string;
@@ -12,10 +14,14 @@ export async function listAutoRoles(db: D1Database, guildId: string): Promise<Au
 }
 
 export async function replaceAutoRoles(db: D1Database, guildId: string, roleIds: string[]): Promise<void> {
+  const welcome = await db.prepare(
+    `SELECT 1 AS present FROM welcome_settings WHERE guild_id = ?1 AND (welcome_enabled = 1 OR leave_enabled = 1) LIMIT 1`,
+  ).bind(guildId).first();
   const statements = [db.prepare(`DELETE FROM auto_roles WHERE guild_id = ?1`).bind(guildId)];
   for (const roleId of roleIds) {
     statements.push(db.prepare(`INSERT INTO auto_roles (guild_id, role_id) VALUES (?1, ?2)`).bind(guildId, roleId));
   }
+  statements.push(syncGuildModuleStatement(db, guildId, "welcome", roleIds.length > 0 || welcome !== null));
   await db.batch(statements);
 }
 

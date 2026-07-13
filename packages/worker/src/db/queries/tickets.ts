@@ -1,4 +1,5 @@
 /** Ticket system (M8): settings, atomic numbering, lifecycle + transcripts. */
+import { syncGuildModuleStatement } from "./modules.js";
 
 export interface TicketSettingsRow {
   guild_id: string;
@@ -35,8 +36,7 @@ export async function upsertTicketSettings(
   guildId: string,
   settings: { enabled: boolean; categoryId: string | null; staffRoleIds: string[]; transcriptChannelId: string | null },
 ): Promise<void> {
-  await db
-    .prepare(
+  const settingsStatement = db.prepare(
       `INSERT INTO ticket_settings (guild_id, enabled, category_id, staff_role_ids, transcript_channel_id, updated_at)
        VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'))
        ON CONFLICT(guild_id) DO UPDATE SET
@@ -46,8 +46,8 @@ export async function upsertTicketSettings(
          transcript_channel_id = excluded.transcript_channel_id,
          updated_at = datetime('now')`,
     )
-    .bind(guildId, settings.enabled ? 1 : 0, settings.categoryId, JSON.stringify(settings.staffRoleIds), settings.transcriptChannelId)
-    .run();
+    .bind(guildId, settings.enabled ? 1 : 0, settings.categoryId, JSON.stringify(settings.staffRoleIds), settings.transcriptChannelId);
+  await db.batch([settingsStatement, syncGuildModuleStatement(db, guildId, "tickets", settings.enabled)]);
 }
 
 export async function setTicketPanelMessage(db: D1Database, guildId: string, channelId: string, messageId: string): Promise<void> {

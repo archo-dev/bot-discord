@@ -19,6 +19,7 @@ import { voiceLogsRouter } from "./api/voice-logs.js";
 import { statsRouter } from "./api/stats.js";
 import { healthRouter } from "./api/health.js";
 import { auditRouter } from "./api/audit.js";
+import { modulesRouter } from "./api/modules.js";
 import { internalRouter } from "./internal/routes.js";
 import { enforcePanelMutationPolicy, requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
 import { runScheduled } from "./cron.js";
@@ -71,6 +72,7 @@ api.route("/", voiceLogsRouter);
 api.route("/", statsRouter);
 api.route("/", healthRouter);
 api.route("/", auditRouter);
+api.route("/", modulesRouter);
 api.route("/", guildsRouter);
 app.route("/api", api);
 

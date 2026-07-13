@@ -1,5 +1,7 @@
 /** Salons vocaux temporaires (M26) : réglages + registre des salons vivants. */
 
+import { syncGuildModuleStatement } from "./modules.js";
+
 export interface TempVoiceSettingsRow {
   guild_id: string;
   enabled: number;
@@ -39,8 +41,7 @@ export async function upsertTempVoiceSettings(
     maxChannels: number;
   },
 ): Promise<void> {
-  await db
-    .prepare(
+  const settingsStatement = db.prepare(
       `INSERT INTO guild_tempvoice_settings
          (guild_id, enabled, lobby_channel_id, category_id, lobby_created_by_bot, name_template, user_limit, max_channels)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
@@ -57,27 +58,25 @@ export async function upsertTempVoiceSettings(
       s.nameTemplate,
       s.userLimit,
       s.maxChannels,
-    )
-    .run();
+    );
+  await db.batch([settingsStatement, syncGuildModuleStatement(db, guildId, "temp_voice", s.enabled)]);
 }
 
 /** Disables the system. Optionally clears the lobby reference (on reset / lobby deleted). */
 export async function disableTempVoice(db: D1Database, guildId: string, opts: { clearLobby: boolean }): Promise<void> {
+  let settingsStatement: D1PreparedStatement;
   if (opts.clearLobby) {
-    await db
-      .prepare(
+    settingsStatement = db.prepare(
         `UPDATE guild_tempvoice_settings
          SET enabled = 0, lobby_channel_id = NULL, lobby_created_by_bot = 0, updated_at = datetime('now')
          WHERE guild_id = ?1`,
       )
-      .bind(guildId)
-      .run();
+      .bind(guildId);
   } else {
-    await db
-      .prepare(`UPDATE guild_tempvoice_settings SET enabled = 0, updated_at = datetime('now') WHERE guild_id = ?1`)
-      .bind(guildId)
-      .run();
+    settingsStatement = db.prepare(`UPDATE guild_tempvoice_settings SET enabled = 0, updated_at = datetime('now') WHERE guild_id = ?1`)
+      .bind(guildId);
   }
+  await db.batch([settingsStatement, syncGuildModuleStatement(db, guildId, "temp_voice", false)]);
 }
 
 export async function insertTempVoiceChannel(

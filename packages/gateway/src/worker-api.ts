@@ -1,4 +1,4 @@
-import { signInternalRequest, type MusicStateDto, type MusicTrack, type VoiceLogAction } from "@bot/shared";
+import { signInternalRequest, type GatewayModuleConfig, type MusicStateDto, type MusicTrack, type VoiceLogAction } from "@bot/shared";
 import type { GatewayEnv } from "./env.js";
 import { errMsg } from "./util.js";
 import { logTelemetry, telemetryErrorCode } from "./telemetry.js";
@@ -9,6 +9,8 @@ import { logTelemetry, telemetryErrorCode } from "./telemetry.js";
  */
 
 export interface GuildGatewayConfig {
+  governanceVersion?: number;
+  modules?: GatewayModuleConfig;
   id: string;
   logChannelId: string | null;
   warnThreshold: number;
@@ -17,6 +19,7 @@ export interface GuildGatewayConfig {
   mentionCards: boolean;
   autoRoles: string[];
   welcome: {
+    moduleEnabled?: boolean;
     welcomeEnabled: boolean;
     welcomeChannelId: string | null;
     welcomeMessage: string;
@@ -37,6 +40,7 @@ export interface GuildGatewayConfig {
     voiceState: boolean;
   };
   automod: {
+    moduleEnabled?: boolean;
     antiSpamEnabled: boolean;
     antiSpamMaxMessages: number;
     antiSpamWindowSeconds: number;

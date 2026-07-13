@@ -5,8 +5,10 @@ import { z } from "zod";
 import type { Env } from "../env.js";
 import { deleteStarboardPost, getStarboardPost, getStarboardSettings, upsertStarboardPost } from "../db/queries.js";
 import { DiscordAPIError, discordJson } from "../discord/rest.js";
+import { requireInternalModule } from "./module-guard.js";
 
 export const internalStarboardRouter = new Hono<{ Bindings: Env }>();
+internalStarboardRouter.use("/internal/guilds/:guildId/starboard", requireInternalModule("starboard"));
 
 const starboardPostSchema = z.object({
   messageId: z.string().regex(/^\d{5,20}$/),

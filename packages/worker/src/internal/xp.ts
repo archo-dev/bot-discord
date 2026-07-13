@@ -8,8 +8,11 @@ import type { XpRewardDto } from "@bot/shared";
 import { getXpSettings, grantVoiceXp, grantXp, setXpLevel, type XpMemberRow, type XpSettingsRow } from "../db/queries.js";
 import { discordJson } from "../discord/rest.js";
 import { withMemberCards } from "../discord/member-card.js";
+import { requireInternalModule } from "./module-guard.js";
 
 export const internalXpRouter = new Hono<{ Bindings: Env }>();
+internalXpRouter.use("/internal/guilds/:guildId/xp", requireInternalModule("levels"));
+internalXpRouter.use("/internal/guilds/:guildId/voice-xp", requireInternalModule("levels"));
 
 const xpGrantSchema = z.object({
   userId: z.string().regex(/^\d{5,20}$/),

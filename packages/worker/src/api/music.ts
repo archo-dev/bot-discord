@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { EMPTY_MUSIC_STATE, type MusicCommandPayload, type MusicStateDto, type PlaylistSummaryDto } from "@bot/shared";
-import { listPlaylists } from "../db/queries.js";
+import { isGuildModuleEnabled, listPlaylists } from "../db/queries.js";
 import { forwardMusic } from "../gateway/forward.js";
 import type { AppContext } from "../auth/guard.js";
 import { rateLimit } from "../ratelimit.js";
@@ -18,6 +18,9 @@ musicRouter.get("/guilds/:guildId/music-state", async (c) => {
 const controlSchema = z.object({ action: z.enum(["pause", "resume", "skip", "stop"]) });
 
 musicRouter.post("/guilds/:guildId/music-control", rateLimit({ name: "music-control", limit: 30 }), async (c) => {
+  if (!(await isGuildModuleEnabled(c.env.DB, c.req.param("guildId"), "music"))) {
+    return c.json({ error: "module_disabled" }, 409);
+  }
   const parsed = controlSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
   const payload: MusicCommandPayload = {

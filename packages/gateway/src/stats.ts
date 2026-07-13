@@ -1,6 +1,8 @@
 import { Events, type Client } from "discord.js";
 import type { ChannelActivityEntry, WorkerApi } from "./worker-api.js";
 import { errMsg } from "./util.js";
+import type { ConfigCache } from "./config-cache.js";
+import { isGatewayModuleEnabled } from "./module-config.js";
 
 /*
  * Stats collection (M18). Everything is in-memory and flushed periodically —
@@ -32,7 +34,7 @@ export interface StatsController {
   pendingEntries(): number;
 }
 
-export function registerStats(client: Client, api: WorkerApi): StatsController {
+export function registerStats(client: Client, cache: ConfigCache, api: WorkerApi): StatsController {
   // guildId → channelId → accumulated counts (current flush window).
   const buffer = new Map<string, Map<string, Bucket>>();
   const bump = (guildId: string, channelId: string, patch: Partial<Bucket>) => {
@@ -48,15 +50,19 @@ export function registerStats(client: Client, api: WorkerApi): StatsController {
   };
 
   // Message counts (humans only; bots excluded).
-  client.on(Events.MessageCreate, (msg) => {
+  client.on(Events.MessageCreate, async (msg) => {
     if (!msg.guild || msg.author.bot) return;
+    const cfg = await cache.get(msg.guild.id).catch(() => null);
+    if (!cfg || !isGatewayModuleEnabled(cfg, "stats")) return;
     bump(msg.guild.id, msg.channelId, { messages: 1 });
   });
 
   // Voice session durations. Own VoiceStateUpdate listener, independent of the
   // voice-logging one (voice.ts). A channel change closes the running session.
   const sessions = new Map<string, { guildId: string; channelId: string; since: number }>();
-  client.on(Events.VoiceStateUpdate, (oldState, newState) => {
+  client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
+    const cfg = await cache.get(newState.guild.id).catch(() => null);
+    if (!cfg || !isGatewayModuleEnabled(cfg, "stats")) return;
     const oldCh = oldState.channelId;
     const newCh = newState.channelId;
     if (oldCh === newCh) return; // mute/deaf toggle: no session boundary
@@ -75,6 +81,8 @@ export function registerStats(client: Client, api: WorkerApi): StatsController {
     buffer.clear();
     const day = utcDay();
     for (const [guildId, channels] of windows) {
+      const cfg = await cache.get(guildId).catch(() => null);
+      if (!cfg || !isGatewayModuleEnabled(cfg, "stats")) continue;
       const entries: ChannelActivityEntry[] = [...channels.entries()]
         .map(([channelId, b]) => ({ channelId, day, messageCount: b.messages, voiceSeconds: b.voiceSeconds }))
         .filter((e) => e.messageCount > 0 || e.voiceSeconds > 0);
@@ -92,6 +100,8 @@ export function registerStats(client: Client, api: WorkerApi): StatsController {
   async function snapshotMembers(): Promise<void> {
     const bucket = hourBucket();
     for (const guild of client.guilds.cache.values()) {
+      const cfg = await cache.get(guild.id).catch(() => null);
+      if (!cfg || !isGatewayModuleEnabled(cfg, "stats")) continue;
       let humans = 0;
       let bots = 0;
       try {

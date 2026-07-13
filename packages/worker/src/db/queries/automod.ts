@@ -1,4 +1,5 @@
 /** Auto-moderation settings (M12, read by the gateway). */
+import { syncGuildModuleStatement } from "./modules.js";
 
 export interface AutomodSettingsRow {
   guild_id: string;
@@ -36,8 +37,7 @@ export async function upsertAutomodSettings(
     timeoutMinutes: number;
   },
 ): Promise<void> {
-  await db
-    .prepare(
+  const settingsStatement = db.prepare(
       `INSERT INTO automod_settings (guild_id, anti_spam_enabled, anti_spam_max_messages, anti_spam_window_seconds,
          anti_invite_enabled, anti_link_enabled, link_whitelist, banned_words, exempt_role_ids, exempt_channel_ids,
          action, timeout_minutes)
@@ -61,6 +61,7 @@ export async function upsertAutomodSettings(
       JSON.stringify(s.exemptChannelIds),
       s.action,
       s.timeoutMinutes,
-    )
-    .run();
+    );
+  const enabled = s.antiSpamEnabled || s.antiInviteEnabled || s.antiLinkEnabled || s.bannedWords.length > 0;
+  await db.batch([settingsStatement, syncGuildModuleStatement(db, guildId, "automod", enabled)]);
 }

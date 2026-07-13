@@ -14,8 +14,11 @@ import {
 import { automodRowToDto } from "../api/automod.js";
 import { discordJson } from "../discord/rest.js";
 import { modLogEmbed, postModLog } from "../interactions/builtins/util.js";
+import { requireInternalModule } from "./module-guard.js";
 
 export const internalModerationRouter = new Hono<{ Bindings: Env }>();
+internalModerationRouter.use("/internal/guilds/:guildId/automod-sanctions", requireInternalModule("automod"));
+internalModerationRouter.use("/internal/guilds/:guildId/voice-logs", requireInternalModule("voice_logs"));
 
 const SNOWFLAKE = /^\d{5,20}$/;
 
