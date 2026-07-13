@@ -5,6 +5,7 @@ import type { GuildOverview, MeResponse } from "@bot/shared";
 import { api, ApiError, avatarUrl, guildIconUrl } from "../lib/api.js";
 import { Icon, type IconName } from "../ui/icons.js";
 import { IconButton, ErrorCard } from "../ui/kit.js";
+import { ChunkErrorBoundary } from "../ui/error-boundary.js";
 import { Skeleton, SkeletonSettingsPage } from "../ui/skeleton.js";
 import { MemberResolveProvider } from "../lib/members.js";
 import { AccessContext } from "../lib/access.js";
@@ -307,13 +308,17 @@ export function GuildLayout({ me }: { me: MeResponse }) {
             </span>
           </header>
 
-          {/* Fondu 150 ms au changement de page (D.S. v2 §2.3) — la clé force le re-rendu animé */}
+          {/* Fondu 150 ms au changement de page (D.S. v2 §2.3) — la clé force le re-rendu animé.
+              La clé remonte aussi le boundary → l'état d'erreur se réinitialise à chaque nav. */}
           <div key={location.pathname} className="animate-page-in">
             {/* Chargement du chunk de page (M04, code-splitting) : la nav et l'en-tête
-                restent affichés, seul le contenu montre un squelette Nocturne. */}
-            <Suspense fallback={<SkeletonSettingsPage />}>
-              <Outlet />
-            </Suspense>
+                restent affichés, seul le contenu montre un squelette Nocturne. Le boundary
+                rattrape un échec de chargement de chunk (redéploiement / réseau). */}
+            <ChunkErrorBoundary>
+              <Suspense fallback={<SkeletonSettingsPage />}>
+                <Outlet />
+              </Suspense>
+            </ChunkErrorBoundary>
           </div>
         </div>
       </main>
