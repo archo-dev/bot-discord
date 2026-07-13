@@ -23,6 +23,7 @@ import { enforcePanelMutationPolicy, requireGuildAccess, requireSession, type Ap
 import { runScheduled } from "./cron.js";
 import { requestTelemetry, type TelemetryVariables } from "./telemetry/request.js";
 import { browserMutationOrigin, securityResponseHeaders } from "./security/browser.js";
+import { adminAudit, durablePanelQuota } from "./security/panel.js";
 
 const app = new Hono<{ Bindings: Env; Variables: TelemetryVariables }>();
 
@@ -46,10 +47,14 @@ const api = new Hono<AppContext>();
 api.use("*", requireSession);
 api.use("/guilds/:guildId", requireGuildAccess);
 api.use("/guilds/:guildId/*", requireGuildAccess);
+api.use("/guilds/:guildId", adminAudit);
+api.use("/guilds/:guildId/*", adminAudit);
 // Moderator grants are read-only: every write verb under a guild is 403
 // (see auth/guard.ts). GET/HEAD routes stay open to moderators.
 api.use("/guilds/:guildId", enforcePanelMutationPolicy);
 api.use("/guilds/:guildId/*", enforcePanelMutationPolicy);
+api.use("/guilds/:guildId", durablePanelQuota);
+api.use("/guilds/:guildId/*", durablePanelQuota);
 api.route("/", commandsRouter);
 api.route("/", moderationRouter);
 api.route("/", ticketsRouter);

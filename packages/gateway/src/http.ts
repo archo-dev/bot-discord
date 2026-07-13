@@ -56,7 +56,7 @@ export function createHttpApp(env: GatewayEnv, client: Client, music: MusicContr
     const mode = env.GATEWAY_INTERNAL_AUTH_MODE;
     const hasSignature = c.req.header("x-internal-version") !== undefined;
     if (mode !== "legacy" && hasSignature) {
-      const body = await c.req.raw.clone().text();
+      const body = await c.req.text();
       const verified = await verifyInternalRequest({
         headers: c.req.raw.headers,
         keys: [

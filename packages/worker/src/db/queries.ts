@@ -19,3 +19,4 @@ export * from "./queries/playlists.js";
 export * from "./queries/button-roles.js";
 export * from "./queries/tickets.js";
 export * from "./queries/observability.js";
+export * from "./queries/security.js";
