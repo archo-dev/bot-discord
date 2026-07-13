@@ -22,12 +22,23 @@ export const internalConfigRouter = new Hono<{ Bindings: Env }>();
 
 internalConfigRouter.get("/internal/guilds/:guildId/config", async (c) => {
   const guildId = c.req.param("guildId");
-  const guild = await getGuild(c.env.DB, guildId);
+  // M04: aucune de ces lectures ne dépend d'une autre — un seul aller-retour D1
+  // parallèle au lieu de ~8 séquentiels. La réponse (contrat gateway) est
+  // strictement identique à l'ancienne construction séquentielle.
+  const [guild, autoRoles, moduleRows, welcomeRow, logRow, automodRow, xpRow, starboardRow, tempVoiceRow] =
+    await Promise.all([
+      getGuild(c.env.DB, guildId),
+      listAutoRoles(c.env.DB, guildId),
+      listEffectiveGuildModules(c.env.DB, guildId),
+      getWelcomeSettings(c.env.DB, guildId),
+      getLogSettings(c.env.DB, guildId),
+      getAutomodSettings(c.env.DB, guildId),
+      getXpSettings(c.env.DB, guildId),
+      getStarboardSettings(c.env.DB, guildId),
+      getTempVoiceSettings(c.env.DB, guildId),
+    ]);
   if (!guild) return c.json({ error: "not_found" }, 404);
-  const [autoRoles, moduleRows] = await Promise.all([
-    listAutoRoles(c.env.DB, guildId),
-    listEffectiveGuildModules(c.env.DB, guildId),
-  ]);
+
   const modules: Record<string, { enabled: boolean; configVersion: number }> = Object.fromEntries(
     moduleRows.map((row) => [row.module_id, { enabled: row.enabled === 1, configVersion: row.config_version }]),
   );
@@ -41,37 +52,28 @@ internalConfigRouter.get("/internal/guilds/:guildId/config", async (c) => {
     warnTimeoutMinutes: guild.warn_timeout_minutes,
     mentionCards: guild.mention_cards === 1,
     autoRoles: enabled("welcome") ? autoRoles.filter((r) => r.enabled === 1).map((r) => r.role_id) : [],
-    welcome: { ...welcomeRowToDto(await getWelcomeSettings(c.env.DB, guildId)), moduleEnabled: enabled("welcome") },
-    logs: logRowToDto(await getLogSettings(c.env.DB, guildId)),
-    automod: { ...automodRowToDto(await getAutomodSettings(c.env.DB, guildId)), moduleEnabled: enabled("automod") },
-    xp: await (async () => {
-      const s = await getXpSettings(c.env.DB, guildId);
-      return {
-        enabled: enabled("levels") && (s ? s.enabled === 1 : false),
-        cooldownSeconds: s?.cooldown_seconds ?? 60,
-        voiceEnabled: s ? s.voice_enabled === 1 : false,
-      };
-    })(),
-    starboard: await (async () => {
-      const s = await getStarboardSettings(c.env.DB, guildId);
-      return {
-        enabled: enabled("starboard") && (s ? s.enabled === 1 : false),
-        channelId: s?.channel_id ?? null,
-        threshold: s?.threshold ?? 3,
-        emoji: s?.emoji ?? "⭐",
-      };
-    })(),
-    tempVoice: await (async () => {
-      const s = await getTempVoiceSettings(c.env.DB, guildId);
-      return {
-        enabled: enabled("temp_voice") && (s ? s.enabled === 1 : false),
-        lobbyChannelId: s?.lobby_channel_id ?? null,
-        categoryId: s?.category_id ?? null,
-        nameTemplate: s?.name_template ?? "🎧・{user}",
-        userLimit: s?.user_limit ?? 0,
-        maxChannels: s?.max_channels ?? 10,
-      };
-    })(),
+    welcome: { ...welcomeRowToDto(welcomeRow), moduleEnabled: enabled("welcome") },
+    logs: logRowToDto(logRow),
+    automod: { ...automodRowToDto(automodRow), moduleEnabled: enabled("automod") },
+    xp: {
+      enabled: enabled("levels") && (xpRow ? xpRow.enabled === 1 : false),
+      cooldownSeconds: xpRow?.cooldown_seconds ?? 60,
+      voiceEnabled: xpRow ? xpRow.voice_enabled === 1 : false,
+    },
+    starboard: {
+      enabled: enabled("starboard") && (starboardRow ? starboardRow.enabled === 1 : false),
+      channelId: starboardRow?.channel_id ?? null,
+      threshold: starboardRow?.threshold ?? 3,
+      emoji: starboardRow?.emoji ?? "⭐",
+    },
+    tempVoice: {
+      enabled: enabled("temp_voice") && (tempVoiceRow ? tempVoiceRow.enabled === 1 : false),
+      lobbyChannelId: tempVoiceRow?.lobby_channel_id ?? null,
+      categoryId: tempVoiceRow?.category_id ?? null,
+      nameTemplate: tempVoiceRow?.name_template ?? "🎧・{user}",
+      userLimit: tempVoiceRow?.user_limit ?? 0,
+      maxChannels: tempVoiceRow?.max_channels ?? 10,
+    },
   });
 });
 
