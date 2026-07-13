@@ -10,6 +10,24 @@ Le principal risque avant une ouverture publique n’est pas le manque de foncti
 
 La recommandation est donc : **mesurer d’abord**, **sécuriser ensuite**, puis **ouvrir avec un onboarding guidé**. La grosse différenciation proposée — un studio d’automatisations Discord — doit arriver après ces garde-fous et réutiliser le moteur conditions/actions existant.
 
+Les dix propositions ont été validées le 13 juillet 2026. Les cinq alternatives sont conservées comme backlog officiel. Le classement ci-dessous exprime la valeur intrinsèque ; l’ordre d’implémentation technique validé est défini dans [roadmap.md](./roadmap.md).
+
+## Documentation détaillée
+
+- [Roadmap, dépendances, gates et calendrier](./roadmap.md)
+- [Backlog officiel des cinq alternatives](./alternatives.md)
+- [Passation complète à Claude](./handoff-claude.md)
+- [01 — Observabilité et SLO](./01-observabilite-slo.md)
+- [02 — Sécurité multi-tenant](./02-securite-multitenant.md)
+- [03 — Gouvernance des modules](./03-gouvernance-modules.md)
+- [04 — Performance et coûts](./04-performance-couts.md)
+- [05 — Livraison fiable](./05-livraison-fiable.md)
+- [06 — Onboarding et centre modules](./06-onboarding-modules.md)
+- [07 — Sauvegarde et restauration](./07-sauvegarde-restauration.md)
+- [08 — Analytics produit](./08-analytics-produit.md)
+- [09 — Tickets d’équipe](./09-tickets-equipe.md)
+- [10 — Studio d’automatisations](./10-studio-automatisations.md)
+
 ## Classement synthétique
 
 Les estimations supposent un développement assisté par Codex ou Claude, avec conception et validations humaines. `j` signifie jour de travail effectif, pas jour calendaire.
@@ -244,65 +262,62 @@ Fonctions désormais indispensables : onboarding, modules activables, automod/lo
 - **Indicateurs :** ≥80 % des parcours d’onboarding mesurables de bout en bout ; 0 contenu de message/PII dans les événements ; feedback exploitable de ≥10 % des désinstallations volontaires.
 - **Croissance / freemium :** instrumentation produit gratuite et interne ; statistiques serveur avancées éventuellement premium. Garder analytics produit et données client strictement séparées.
 
-## 5 alternatives de remplacement
+## 5 éléments de backlog validés
 
 ### Alternative A — Suggestions et votes communautaires — 78/100
 
-Module de propositions avec statuts, votes, threads et réponse staff. Valeur forte pour communautés, coût estimé 8–14 j, migration D1 probable. Peut remplacer la proposition 9 si les serveurs cibles privilégient l’engagement au support.
+Module de propositions avec statuts, votes, threads et réponse staff. Valeur forte pour communautés, coût estimé 8–14 j, migration D1 probable. À envisager après onboarding et analytics si les serveurs communautaires confirment le besoin.
 
 ### Alternative B — Tâches planifiées, rappels et giveaways sobres — 82/100
 
-Construire d’abord la brique `scheduled_tasks`, puis tempban/tempmute, rappel et giveaway vérifiable. Très bon socle pour la proposition 6 ; 9–16 j, risque de reprise/idempotence. Peut remplacer la proposition 8 ou précéder le studio d’automatisation.
+Construire d’abord la brique `scheduled_tasks`, puis rappels et giveaway vérifiable. Le moteur est intégré comme prérequis C2.0 du studio ; les giveaways restent un élément de backlog distinct.
 
 ### Alternative C — Base de connaissances et réponses FAQ sans IA payante — 74/100
 
-FAQ administrée, recherche plein texte simple et réponses par commande/bouton ; option locale de similarité seulement si gratuite. Réduit les tickets sans envoyer de contenu à un tiers. 7–13 j, migration D1 oui. Remplacement possible de la proposition 9.
+FAQ administrée, recherche plein texte simple et réponses par commande/bouton ; option locale de similarité seulement si gratuite. Réduit les tickets sans envoyer de contenu à un tiers. 7–13 j, migration D1 probable, à prioriser selon les motifs de support.
 
 ### Alternative D — Internationalisation français/anglais — 73/100
 
-Catalogue de messages partagé, locale par guilde et panel bilingue. Nécessaire pour un vrai public international mais coûteux à maintenir tant que le produit évolue vite : 10–18 j. Peut remplacer la proposition 10 si l’acquisition internationale devient prioritaire.
+Catalogue de messages partagé, locale par guilde et panel bilingue. Nécessaire pour un vrai public international mais coûteux à maintenir tant que le produit évolue vite : 10–18 j. À engager après stabilisation de l’UX d’onboarding.
 
 ### Alternative E — Réputation et saisons d’engagement — 71/100
 
-Compléter l’XP par `/rep`, saisons, classement périodique et récompenses contrôlées. 8–15 j, migration D1 probable. Adoption potentielle élevée mais différenciation plus faible ; remplace la proposition 9 uniquement si l’engagement est le marché cible.
+Compléter l’XP par `/rep`, saisons, classement périodique et récompenses contrôlées. 8–15 j, migration D1 probable. À engager seulement si les analytics confirment l’adoption durable du module Niveaux.
 
-## Dépendances et ordre conseillé
+## Dépendances et ordre d’implémentation
 
 ```text
-1 Observabilité ─────┬──> 4 Livraison fiable ──┐
-                    ├──> 7 Performance         ├──> 6 Studio d’automatisations
-2 Sécurité ─────────┤                          │
-                    └──> 3 Onboarding ──> 5 Modules ──┬──> 8 Sauvegarde
-                                                     ├──> 9 Tickets d’équipe
-                                                     └──> 10 Analytics produit
+A1 Observabilité ─┬─> A4 Performance ─┐
+                  ├─> A2 Sécurité ─────┼─> B1 Livraison fiable
+                  └────────────────────┘
+A2 Sécurité ──> A3 Gouvernance modules ──> B2 Onboarding ──> B3 Sauvegarde
+                                            └──────────────> B4 Analytics
+B1 + B3 ──> C1 Tickets
+A1..A4 + B1 + B3 + B4 ──> C2.0 Scheduler ──> C2 Studio
 ```
 
-Ordre recommandé : **1 → 2 → 3 → 7 → 4 → 5 → 10 → 8 → 9 → 6**. La proposition 10 peut commencer en version minimale avec la 3, mais seulement après définition des règles de confidentialité.
+Ordre technique validé : **Observabilité → Sécurité → Gouvernance modules → Performance → Livraison fiable → Onboarding → Sauvegarde → Analytics → Tickets → Studio**. Ce séquencement diffère du classement de valeur afin de respecter les dépendances. Le scheduler est traité comme sous-phase C2.0 du studio, ou comme milestone autonome si son incrément dépasse 5–7 jours.
 
 ## Roadmap
 
-### Court terme — rendre l’existant publiable
+### Phase A — Fondations
 
 1. Observabilité/SLO et santé par serveur.
 2. Threat model, permissions minimales, quotas et tests multi-tenant.
-3. Onboarding guidé, invitation et première configuration.
+3. Registre de modules/capacités et états de santé.
 4. Premiers budgets de performance et lazy-loading du panel.
-5. Préparer administrativement la vérification Discord avant 100 serveurs.
 
-### Moyen terme — fiabiliser et modulariser
+### Phase B — Fiabilité et croissance
 
 1. Livraison fiable Gateway → Worker.
-2. Registre de modules/capacités et états de santé.
-3. Analytics produit minimales et consenties.
-4. Sauvegarde/restauration des configurations.
-5. Approfondissement tickets si confirmé par les usages.
+2. Onboarding guidé, invitation, centre modules et première configuration.
+3. Sauvegarde/restauration des configurations.
+4. Analytics produit minimales et consenties.
 
-### Long terme — se différencier
+### Phase C — Fonctionnalités avancées
 
-1. Socle de tâches planifiées.
-2. Studio d’automatisations en version limitée et sûre.
-3. Templates communautaires vérifiés.
-4. Entitlements/quota seulement si un modèle premium devient réellement nécessaire.
+1. Tickets d’équipe avancés.
+2. C2.0 socle de tâches planifiées, puis studio d’automatisations limité et sûr.
 
 ## Recommandation finale
 
@@ -313,21 +328,16 @@ Elle doit passer avant les autres parce que le projet ne possède pas encore les
 - **Risque :** faible à moyen, surtout confidentialité et cardinalité.
 - **Coût :** 8–13 jours assistés, validations humaines incluses.
 - **Prérequis :** définir les données interdites, la rétention et cinq SLO maximum.
-- **Après validation :** la phase 2 fournira une fiche complète et un prompt d’implémentation spécifique imposant branche dédiée, plan, migrations réversibles, tests, rollback et aucun déploiement automatique.
+- **Fiche prête :** [01-observabilite-slo.md](./01-observabilite-slo.md), avec prompt spécifique, migrations réversibles, tests et rollback.
 
 ### Deuxième priorité : socle de sécurité publique multi-tenant
 
 Elle réduit le risque le plus coûteux avant d’autoriser des administrateurs inconnus à utiliser le panel et les routes mutantes.
 
-### Troisième priorité : onboarding guidé et centre des modules
+### Troisième priorité technique : gouvernance des modules et capacités
 
-Une fois le produit observable et sécurisé, c’est le levier direct pour transformer une invitation en adoption, sans ajouter de fonctionnalité gadget.
+Elle fournit le contrat stable dont dépendront le centre des modules, les quotas, la sauvegarde et le studio. L’onboarding reste la troisième priorité produit visible, mais vient après ce socle dans l’ordre de développement.
 
-## Décision attendue
+## Statut de validation
 
-La phase 2 ne commencera qu’après validation explicite. Réponses possibles :
-
-- « Valide les 10 propositions » ;
-- « Remplace la proposition 9 par l’alternative A » ;
-- « Retire la proposition 6 et cherche une autre idée » ;
-- « Modifie la priorité des propositions 2 et 3 ».
+Phase 2 documentée. Aucune milestone n’est autorisée à l’implémentation par cette validation globale : chaque démarrage exige sa propre branche, son plan, ses validations, son déploiement séparé et une observation avant la suivante.
