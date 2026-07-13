@@ -21,6 +21,18 @@ const heartbeatSchema = z.object({
   // Per-guild presence counts (M18/M19). Empty/absent until the Presence intent
   // is enabled — the Stats page treats a missing guild as "intent off".
   presence: z.record(z.string(), presenceCountsSchema).optional(),
+  // Optional during the rolling-deploy window: an older gateway continues to
+  // publish a valid heartbeat while the Worker is upgraded first.
+  runtime: z
+    .object({
+      version: z.string().min(1).max(40),
+      uptimeSeconds: z.number().int().min(0).max(31_536_000),
+      memoryRssMb: z.number().int().min(0).max(1_048_576),
+      voiceLogQueueDepth: z.number().int().min(0).max(100_000),
+      channelActivityQueueDepth: z.number().int().min(0).max(100_000),
+      errorsSinceLastHeartbeat: z.number().int().min(0).max(1_000_000),
+    })
+    .optional(),
 });
 
 // Posted every 120 s by the gateway; the KV TTL (300 s) makes a silent gateway
@@ -36,6 +48,7 @@ internalStatsRouter.post("/internal/gateway/heartbeat", async (c) => {
       guildCount: parsed.data.guildCount,
       wsPing: parsed.data.wsPing ?? null,
       presence: parsed.data.presence ?? null,
+      runtime: parsed.data.runtime ?? null,
     }),
     { expirationTtl: 300 },
   );

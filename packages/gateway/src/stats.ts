@@ -28,6 +28,8 @@ interface Bucket {
 export interface StatsController {
   /** Flushes buffered activity now (called on SIGTERM). */
   flush(): Promise<void>;
+  /** Number of channel buckets waiting for the next bounded flush. */
+  pendingEntries(): number;
 }
 
 export function registerStats(client: Client, api: WorkerApi): StatsController {
@@ -115,5 +117,12 @@ export function registerStats(client: Client, api: WorkerApi): StatsController {
   client.once(Events.ClientReady, () => void snapshotMembers());
   setInterval(() => void snapshotMembers(), SNAPSHOT_INTERVAL_MS);
 
-  return { flush };
+  return {
+    flush,
+    pendingEntries: () => {
+      let count = 0;
+      for (const channels of buffer.values()) count += channels.size;
+      return count;
+    },
+  };
 }

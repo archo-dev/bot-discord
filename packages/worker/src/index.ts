@@ -19,9 +19,11 @@ import { statsRouter } from "./api/stats.js";
 import { internalRouter } from "./internal/routes.js";
 import { blockModeratorWrites, requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
 import { runScheduled } from "./cron.js";
+import { requestTelemetry, type TelemetryVariables } from "./telemetry/request.js";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: TelemetryVariables }>();
 
+app.use("*", requestTelemetry);
 app.get("/health", (c) => c.json({ ok: true }));
 app.route("/", interactionsRouter);
 app.route("/", authRouter);
@@ -60,7 +62,7 @@ app.route("/api", api);
 // JS → blank page. So: fingerprinted assets get an immutable long cache and a
 // real 404 when absent; the HTML entry point is never cached (no-store) so a
 // fresh index.html — with current asset hashes — is fetched on every load.
-async function serveIndex(c: Context<{ Bindings: Env }>): Promise<Response> {
+async function serveIndex(c: Context<{ Bindings: Env; Variables: TelemetryVariables }>): Promise<Response> {
   const res = await c.env.ASSETS!.fetch(new Request(new URL("/index.html", c.req.url), c.req.raw));
   const out = new Response(res.body, res);
   out.headers.set("content-type", "text/html; charset=utf-8");

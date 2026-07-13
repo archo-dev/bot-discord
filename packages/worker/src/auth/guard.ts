@@ -4,6 +4,7 @@ import type { Env } from "../env.js";
 import { discordJson, isGuildAccessLost } from "../discord/rest.js";
 import { getGuild, listPanelAccess, setBotInstalled } from "../db/queries.js";
 import { getSession, readSessionCookie, type SessionData } from "./session.js";
+import type { TelemetryVariables } from "../telemetry/request.js";
 
 export interface OAuthGuild {
   id: string;
@@ -21,7 +22,7 @@ export interface OAuthGuild {
  */
 export type GuildAccess = "manage_guild" | "panel_admin" | "panel_moderator";
 
-export interface AppVariables {
+export interface AppVariables extends TelemetryVariables {
   session: SessionData & { id: string };
   guildAccess: GuildAccess;
 }

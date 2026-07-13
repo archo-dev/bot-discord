@@ -1,6 +1,7 @@
 import type { MusicStateDto, MusicTrack, VoiceLogAction } from "@bot/shared";
 import type { GatewayEnv } from "./env.js";
 import { errMsg } from "./util.js";
+import { logTelemetry, telemetryErrorCode } from "./telemetry.js";
 
 /**
  * Typed client for the Worker's /internal/* API — the gateway's ONLY way to
@@ -99,6 +100,7 @@ export interface HeartbeatPayload {
   wsPing: number | null;
   /** Per-guild presence counts; omitted/empty until the Presence intent is on. */
   presence?: Record<string, PresenceCounts>;
+  runtime: import("@bot/shared").GatewayHeartbeatRuntime;
 }
 
 export interface ChannelActivityEntry {
@@ -115,6 +117,8 @@ export interface WorkerApi {
   /** guildDelete (M25): mark bot_installed=0 (data is kept). */
   postGuildUninstalled(guildId: string): Promise<void>;
   postHeartbeat(payload: HeartbeatPayload): Promise<void>;
+  getHealthSnapshot(): { voiceLogQueueDepth: number; errorsSinceLastHeartbeat: number };
+  acknowledgeHeartbeat(): void;
   postEvent(guildId: string, eventType: string, payload: Record<string, unknown>): Promise<void>;
   postAutomodSanction(guildId: string, payload: { userId: string; rule: AutomodRule; action: "warn" | "timeout" }): Promise<void>;
   postXp(guildId: string, payload: { userId: string; username: string | null; channelId: string }): Promise<void>;
@@ -150,20 +154,57 @@ export interface WorkerApi {
 }
 
 export function createWorkerApi(env: GatewayEnv): WorkerApi {
+  let errorsSinceLastHeartbeat = 0;
+
   async function call(method: "GET" | "POST" | "DELETE", path: string, body?: unknown): Promise<Response> {
-    const res = await fetch(`${env.WORKER_ORIGIN}${path}`, {
-      method,
-      headers: {
-        authorization: `Bearer ${env.INTERNAL_API_TOKEN}`,
-        ...(body !== undefined ? { "content-type": "application/json" } : {}),
-      },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok && res.status !== 404) {
-      throw new Error(`worker ${method} ${path} -> ${res.status}`);
+    const requestId = crypto.randomUUID();
+    try {
+      const res = await fetch(`${env.WORKER_ORIGIN}${path}`, {
+        method,
+        headers: {
+          authorization: `Bearer ${env.INTERNAL_API_TOKEN}`,
+          "x-request-id": requestId,
+          ...(body !== undefined ? { "content-type": "application/json" } : {}),
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!res.ok && res.status !== 404) {
+        errorsSinceLastHeartbeat++;
+        throw new Error(`worker request failed with status ${res.status}`);
+      }
+      return res;
+    } catch (error) {
+      if (!(error instanceof Error && error.message.startsWith("worker request failed"))) errorsSinceLastHeartbeat++;
+      const feature = path.split("/").filter(Boolean)[2] ?? path.split("/").filter(Boolean)[1] ?? "";
+      const module =
+        feature === "voice-logs"
+          ? "voice_logs"
+          : feature === "channel-activity" || feature === "member-snapshots" || feature === "events"
+            ? "stats"
+            : feature === "xp" || feature === "voice-xp"
+              ? "levels"
+              : feature === "automod-sanctions"
+                ? "automod"
+                : feature === "starboard"
+                  ? "starboard"
+                  : feature === "temp-voice"
+                    ? "temp_voice"
+                    : feature === "music-state" || feature === "playlists"
+                      ? "music"
+                      : path === "/internal/gateway/heartbeat"
+                        ? "gateway"
+                        : "core";
+      logTelemetry("error", {
+        requestId,
+        module,
+        operation: path === "/internal/gateway/heartbeat" ? "heartbeat" : "internal",
+        outcome: "error",
+        errorCode: telemetryErrorCode(error),
+        source: "gateway",
+      });
+      throw error;
     }
-    return res;
   }
 
   // Voice logs are bursty (a full channel emptying fires many events at once):
@@ -187,6 +228,14 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
   setInterval(() => void flushVoice(), 5000);
 
   return {
+    getHealthSnapshot() {
+      let voiceLogQueueDepth = 0;
+      for (const entries of voiceBuffer.values()) voiceLogQueueDepth += entries.length;
+      return { voiceLogQueueDepth, errorsSinceLastHeartbeat };
+    },
+    acknowledgeHeartbeat() {
+      errorsSinceLastHeartbeat = 0;
+    },
     async getGuildConfig(guildId) {
       const res = await call("GET", `/internal/guilds/${guildId}/config`);
       if (res.status === 404) return null;

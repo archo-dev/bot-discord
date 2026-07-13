@@ -14,7 +14,7 @@ import { registerStarboard } from "./starboard.js";
 import { registerMusic } from "./music.js";
 import { registerGuildLifecycle } from "./guild-lifecycle.js";
 import { registerTempVoice } from "./temp-voice.js";
-import { errMsg } from "./util.js";
+import { logTelemetry, telemetryErrorCode } from "./telemetry.js";
 
 // 120 s (TTL KV côté Worker = 300 s) : reste sous le quota d'écritures KV du
 // plan gratuit (1000/jour) tout en gardant le badge « Gateway » fiable.
@@ -78,14 +78,32 @@ function collectPresence(): Record<string, PresenceCounts> | undefined {
 }
 
 async function heartbeat(): Promise<void> {
+  const requestId = crypto.randomUUID();
+  const health = api.getHealthSnapshot();
   try {
     await api.postHeartbeat({
       guildCount: client.guilds.cache.size,
       wsPing: client.ws.ping >= 0 ? client.ws.ping : null,
       presence: collectPresence(),
+      runtime: {
+        version: process.env.npm_package_version ?? "unknown",
+        uptimeSeconds: Math.max(0, Math.round(process.uptime())),
+        memoryRssMb: Math.max(0, Math.round(process.memoryUsage().rss / 1024 / 1024)),
+        voiceLogQueueDepth: health.voiceLogQueueDepth,
+        channelActivityQueueDepth: stats.pendingEntries(),
+        errorsSinceLastHeartbeat: health.errorsSinceLastHeartbeat,
+      },
     });
+    api.acknowledgeHeartbeat();
   } catch (err) {
-    console.error("heartbeat failed:", errMsg(err));
+    logTelemetry("error", {
+      requestId,
+      module: "gateway",
+      operation: "heartbeat",
+      outcome: "error",
+      errorCode: telemetryErrorCode(err),
+      source: "gateway",
+    });
   }
 }
 
