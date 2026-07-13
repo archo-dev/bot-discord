@@ -2,9 +2,11 @@
 
 ## Statut
 
-M01 est terminée. M02 « sécurité publique multi-tenant » est implémentée sur la branche `milestone/public-security`, en attente de revue, migration D1 distante explicitement autorisée et déploiement séparé. Les milestones M03 à M10 et les cinq éléments de backlog restent validés au niveau produit, sans autorisation implicite d’implémentation.
+M01 et M02 sont terminées et présentes sur `master` au point de départ `7de2b5a`. M03 « gouvernance des modules et capacités » est implémentée sur la branche `milestone/module-governance`, sans migration distante ni déploiement. Les milestones M04 à M10 et les cinq éléments de backlog restent validés au niveau produit, sans autorisation implicite d’implémentation.
 
 M02 apporte la matrice deny-by-default des mutations, le durcissement OAuth/session/navigateur, le protocole HMAC interne avec rotation et anti-rejeu, les quotas durables, l’audit administrateur et les runbooks. La migration additive locale est `0021_public_security.sql`. La cible de rollout est `dual` pendant la rotation puis `signed`; CSP reste volontairement report-only au premier déploiement. Aucun déploiement ni migration distante n’a été effectué pendant le développement.
+
+M03 ajoute un registre partagé de 17 modules, la migration additive locale `0022_module_governance.sql`, une source de vérité `guild_modules`, un dual-read des six flags historiques, les gates Worker/Gateway, le diagnostic signé des intents/permissions, les routes panel GET/PATCH et le Centre des modules. Les modules système ne sont pas désactivables et une désactivation ne supprime aucune donnée. Le catalogue, les états, la procédure d’ajout, le rollout et le rollback sont documentés dans `docs/modules.md`.
 
 ## Architecture actuelle
 
@@ -62,7 +64,7 @@ Suggestions/votes ; tâches planifiées/rappels/giveaways ; FAQ sans IA payante 
 
 - M1 mesure toutes les suivantes.
 - M2 précède toute ouverture et action avancée.
-- M3 est la source de vérité du centre modules, quotas et capacités.
+- M3 est désormais la source de vérité implémentée du centre modules, quotas et capacités ; elle doit être migrée, déployée et observée séparément avant M4.
 - M4 fournit budgets à M5/M10.
 - M5 est requis pour événements fiables de M9/M10.
 - M7 fournit rollback/révisions à M9/M10.
@@ -80,7 +82,7 @@ Suggestions/votes ; tâches planifiées/rappels/giveaways ; FAQ sans IA payante 
 
 ## Décisions encore ouvertes
 
-- Schémas D1 exacts après profilage et revue des volumes.
+- Schémas D1 exacts des milestones M04+ après profilage et revue des volumes ; le schéma M03 est figé dans `0022_module_governance.sql`.
 - Date de passage CSP de `report` à `enforce`, après observation en production.
 - Stockage outbox VPS (SQLite vs fichiers segmentés).
 - Seuils SLO/budgets après baseline.

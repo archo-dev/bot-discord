@@ -58,3 +58,67 @@ La première version évite les dépendances artificielles. Les modules fondamen
 4. Déployer le panel en dernier.
 
 Rollback applicatif : revenir au panel/Worker/Gateway précédent et conserver `guild_modules`. Les anciennes applications ignorent la table ; les flags historiques et toute la configuration restent disponibles.
+
+## Contrat implémenté
+
+Le catalogue est `packages/shared/src/modules.ts`. Il contient exactement 17 IDs stables et doit rester sans état de guilde, sans secret, sans libellé commercial et sans appel réseau. Chaque définition déclare : catégorie, version de configuration, activation par défaut, caractère désactivable, dépendances/conflits, intents, permissions Discord, besoin Gateway/Worker, routes, commandes, stockage, capacités techniques, quotas de protection, module de santé, route panel et conséquence d’une désactivation.
+
+Les états calculés sont :
+
+| État | Sens |
+|---|---|
+| `enabled` | activé et prérequis connus satisfaits |
+| `disabled` | désactivé explicitement pour cette guilde |
+| `unavailable` | non distribuable dans cette version |
+| `degraded` | actif, mais diagnostic runtime incomplet, santé dégradée ou quota atteint |
+| `misconfigured` | configuration fonctionnelle obligatoire absente |
+| `missing_dependency` | autre module requis désactivé |
+| `missing_permission` | permission Discord du bot absente |
+| `missing_intent` | intent Gateway requis absent |
+| `gateway_offline` | Gateway nécessaire non joignable |
+| `incompatible_config` | version de configuration hors plage supportée |
+
+Les raisons utilisent des codes stables de `MODULE_REASON_CODES`. Les DTO publics ne contiennent ni contenu Discord, ni identité de membre, ni secret, ni erreur brute. `activationReasons` décrit les prérequis d’un module désactivé sans prétendre qu’il est déjà actif.
+
+## Routes et autorisations
+
+- `GET /api/guilds/:guildId/modules` : gestionnaires, admins délégués et modérateurs en lecture seule, sous le garde multi-tenant M02.
+- `PATCH /api/guilds/:guildId/modules/:moduleId` : gestionnaire/admin uniquement, body `{ "enabled": boolean }`, politique deny-by-default `guild_config_write`, quota durable et audit administrateur.
+- `GET /modules/:guildId/runtime` sur la Gateway : appel Worker→Gateway signé M02 ; retourne uniquement intents actifs et permissions manquantes du bot.
+- `GET /internal/guilds/:guildId/config` : reste rétrocompatible et ajoute `governanceVersion: 1` et une projection compacte `modules`.
+
+L’activation valide la configuration, la version, les dépendances, l’état Gateway, les intents et les permissions connus avant l’écriture. Une vérification runtime obligatoire indisponible bloque l’activation avec un code stable, sans mutation partielle.
+
+## Gates d’exécution
+
+- Worker interactions : commandes builtin, commandes personnalisées, composants tickets et rôles à boutons.
+- Worker panel/interne : contrôles musique et écritures Gateway signées pour XP, starboard, statistiques, automod, logs vocaux, musique et vocaux temporaires.
+- Gateway : accueil/auto-rôles, automod, XP message/vocal, starboard, logs vocaux, statistiques et vocaux temporaires.
+- Les anciens réglages à flag synchronisent `guild_modules` dans le même batch D1. Les DTO et routes historiques ne changent pas.
+- Une désactivation arrête les nouvelles exécutions mais ne supprime aucune configuration, commande, playlist, panneau publié, ticket, post, historique ou salon existant.
+
+Le Gateway interprète une config sans `modules` comme l’ancien comportement actif. Ce défaut est volontaire pour permettre le déploiement roulant Worker puis Gateway. Le Worker reste l’unique écrivain D1.
+
+## Ajouter un module
+
+1. Ajouter un ID et sa définition complète dans `packages/shared/src/modules.ts` ; ne jamais réutiliser un ancien ID pour un autre produit.
+2. Ajouter la ligne D1 par défaut via `ensureGuildModules` ; une transformation de données reçoit une migration additive dédiée.
+3. Mapper les commandes/composants et protéger chaque chemin d’exécution Worker/Gateway. Un simple affichage panel ne constitue pas une gate.
+4. Ajouter les signaux de configuration nécessaires au calcul d’état, sans exposer la configuration privée dans le DTO.
+5. Ajouter la route de configuration existante au registre et le CTA panel si elle existe réellement.
+6. Tester registre exhaustif, cycles, isolation par guilde, permissions, état désactivé, prérequis runtime et compatibilité sans projection M03.
+7. Documenter conséquence de désactivation, données conservées, coût/quota et ordre de rollout.
+
+Les capacités (`<module>.<read|configure|execute|toggle>`) restent techniques et neutres. Un futur entitlement commercial pourra accorder une capacité, mais ne pourra jamais contourner les permissions Discord, l’isolation de guilde, les modules système ou les contrôles M02.
+
+## Déploiement et rollback détaillés
+
+Ordre recommandé, avec validation entre chaque étape :
+
+1. sauvegarder D1 puis appliquer `0022_module_governance.sql` à la base cible explicitement autorisée ;
+2. vérifier 17 lignes par guilde et les backfills historiques ;
+3. déployer Worker, puis vérifier GET modules et config interne ;
+4. déployer Gateway, vérifier heartbeat et diagnostic runtime ;
+5. déployer le panel ; observer les erreurs 409/5xx, SLO M01 et audit M02.
+
+Rollback : remettre les trois applications au commit antérieur dans l’ordre panel, Gateway, Worker. Ne pas supprimer la table et ne pas tenter de down migration destructive. Les anciennes applications ignorent `guild_modules`. Si seul le panel pose problème, revenir uniquement au panel ; si le Gateway pose problème, l’ancien Gateway ignore les champs ajoutés. Aucun rollback ne nécessite la suppression de données.
