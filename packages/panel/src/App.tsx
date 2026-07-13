@@ -1,32 +1,43 @@
 import { Navigate, Route, Routes } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { lazy, useEffect } from "react";
 import type { MeResponse } from "@bot/shared";
 import { api, ApiError } from "./lib/api.js";
 import { Login } from "./pages/Login.js";
 import { GuildList } from "./pages/GuildList.js";
 import { GuildLayout } from "./pages/GuildLayout.js";
 import { Dashboard } from "./pages/Dashboard.js";
-import { ConfigPage } from "./pages/Config.js";
-import { CommandsPage } from "./pages/Commands.js";
-import { CommandEditorPage } from "./pages/CommandEditor.js";
-import { ModLogPage } from "./pages/ModLog.js";
-import { VoiceLogPage } from "./pages/VoiceLog.js";
-import { StatsPage } from "./pages/Stats.js";
-import { PanelAccessPage } from "./pages/PanelAccess.js";
-import { TicketsPage } from "./pages/Tickets.js";
-import { RolesPage } from "./pages/Roles.js";
-import { WelcomePage } from "./pages/Welcome.js";
-import { AutomodPage } from "./pages/Automod.js";
-import { LevelsPage } from "./pages/Levels.js";
-import { StarboardPage } from "./pages/Starboard.js";
-import { TempVoicePage } from "./pages/TempVoice.js";
-import { MusicPage } from "./pages/Music.js";
-import { HealthPage } from "./pages/Health.js";
-import { AuditPage } from "./pages/Audit.js";
-import { ModulesPage } from "./pages/Modules.js";
 import { ErrorCard } from "./ui/kit.js";
 import { Skeleton, SkeletonGuildGrid } from "./ui/skeleton.js";
+
+/*
+ * Découpage de code (M04) — chaque page secondaire vit dans son propre chunk,
+ * chargé à la navigation. Le shell (GuildList, GuildLayout, Dashboard, Login)
+ * reste dans le chunk initial : c'est le parcours d'atterrissage le plus
+ * probable, il ne doit jamais suspendre. Les modules exportent des composants
+ * nommés → on les réexporte en `default` pour `React.lazy`.
+ * Recharts (~lourd) n'est importé que par Stats : il part donc avec ce chunk.
+ * Le <Suspense> qui couvre ces routes vit dans GuildLayout (autour de l'Outlet),
+ * pour que la nav et l'en-tête restent affichés pendant le chargement.
+ */
+const ConfigPage = lazy(() => import("./pages/Config.js").then((m) => ({ default: m.ConfigPage })));
+const CommandsPage = lazy(() => import("./pages/Commands.js").then((m) => ({ default: m.CommandsPage })));
+const CommandEditorPage = lazy(() => import("./pages/CommandEditor.js").then((m) => ({ default: m.CommandEditorPage })));
+const ModLogPage = lazy(() => import("./pages/ModLog.js").then((m) => ({ default: m.ModLogPage })));
+const VoiceLogPage = lazy(() => import("./pages/VoiceLog.js").then((m) => ({ default: m.VoiceLogPage })));
+const StatsPage = lazy(() => import("./pages/Stats.js").then((m) => ({ default: m.StatsPage })));
+const PanelAccessPage = lazy(() => import("./pages/PanelAccess.js").then((m) => ({ default: m.PanelAccessPage })));
+const TicketsPage = lazy(() => import("./pages/Tickets.js").then((m) => ({ default: m.TicketsPage })));
+const RolesPage = lazy(() => import("./pages/Roles.js").then((m) => ({ default: m.RolesPage })));
+const WelcomePage = lazy(() => import("./pages/Welcome.js").then((m) => ({ default: m.WelcomePage })));
+const AutomodPage = lazy(() => import("./pages/Automod.js").then((m) => ({ default: m.AutomodPage })));
+const LevelsPage = lazy(() => import("./pages/Levels.js").then((m) => ({ default: m.LevelsPage })));
+const StarboardPage = lazy(() => import("./pages/Starboard.js").then((m) => ({ default: m.StarboardPage })));
+const TempVoicePage = lazy(() => import("./pages/TempVoice.js").then((m) => ({ default: m.TempVoicePage })));
+const MusicPage = lazy(() => import("./pages/Music.js").then((m) => ({ default: m.MusicPage })));
+const HealthPage = lazy(() => import("./pages/Health.js").then((m) => ({ default: m.HealthPage })));
+const AuditPage = lazy(() => import("./pages/Audit.js").then((m) => ({ default: m.AuditPage })));
+const ModulesPage = lazy(() => import("./pages/Modules.js").then((m) => ({ default: m.ModulesPage })));
 
 export function App() {
   const queryClient = useQueryClient();

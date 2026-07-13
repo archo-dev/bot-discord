@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { GuildOverview, MeResponse } from "@bot/shared";
 import { api, ApiError, avatarUrl, guildIconUrl } from "../lib/api.js";
 import { Icon, type IconName } from "../ui/icons.js";
 import { IconButton, ErrorCard } from "../ui/kit.js";
-import { Skeleton } from "../ui/skeleton.js";
+import { Skeleton, SkeletonSettingsPage } from "../ui/skeleton.js";
 import { MemberResolveProvider } from "../lib/members.js";
 import { AccessContext } from "../lib/access.js";
 
@@ -309,7 +309,11 @@ export function GuildLayout({ me }: { me: MeResponse }) {
 
           {/* Fondu 150 ms au changement de page (D.S. v2 §2.3) — la clé force le re-rendu animé */}
           <div key={location.pathname} className="animate-page-in">
-            <Outlet />
+            {/* Chargement du chunk de page (M04, code-splitting) : la nav et l'en-tête
+                restent affichés, seul le contenu montre un squelette Nocturne. */}
+            <Suspense fallback={<SkeletonSettingsPage />}>
+              <Outlet />
+            </Suspense>
           </div>
         </div>
       </main>
