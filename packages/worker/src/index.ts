@@ -18,7 +18,7 @@ import { voiceLogsRouter } from "./api/voice-logs.js";
 import { statsRouter } from "./api/stats.js";
 import { healthRouter } from "./api/health.js";
 import { internalRouter } from "./internal/routes.js";
-import { blockModeratorWrites, requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
+import { enforcePanelMutationPolicy, requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
 import { runScheduled } from "./cron.js";
 import { requestTelemetry, type TelemetryVariables } from "./telemetry/request.js";
 
@@ -38,8 +38,8 @@ api.use("/guilds/:guildId", requireGuildAccess);
 api.use("/guilds/:guildId/*", requireGuildAccess);
 // Moderator grants are read-only: every write verb under a guild is 403
 // (see auth/guard.ts). GET/HEAD routes stay open to moderators.
-api.use("/guilds/:guildId", blockModeratorWrites);
-api.use("/guilds/:guildId/*", blockModeratorWrites);
+api.use("/guilds/:guildId", enforcePanelMutationPolicy);
+api.use("/guilds/:guildId/*", enforcePanelMutationPolicy);
 api.route("/", commandsRouter);
 api.route("/", moderationRouter);
 api.route("/", ticketsRouter);

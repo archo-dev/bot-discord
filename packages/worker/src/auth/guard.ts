@@ -1,5 +1,5 @@
 import type { MiddlewareHandler } from "hono";
-import { canManageGuild } from "@bot/shared";
+import { canManageGuild, isPanelMutationAllowed, matchPanelMutationPolicy } from "@bot/shared";
 import type { Env } from "../env.js";
 import { discordJson, isGuildAccessLost } from "../discord/rest.js";
 import { getGuild, listPanelAccess, setBotInstalled } from "../db/queries.js";
@@ -157,9 +157,16 @@ const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
  * a guild with 403. Mounted centrally in index.ts so new write routes are
  * born protected — route-level checks must never be the only barrier.
  */
-export const blockModeratorWrites: MiddlewareHandler<AppContext> = async (c, next) => {
-  if (c.get("guildAccess") === "panel_moderator" && WRITE_METHODS.has(c.req.method)) {
-    return c.json({ error: "read_only_access" }, 403);
+export const enforcePanelMutationPolicy: MiddlewareHandler<AppContext> = async (c, next) => {
+  if (!WRITE_METHODS.has(c.req.method)) {
+    await next();
+    return;
+  }
+  const policy = matchPanelMutationPolicy(c.req.method, new URL(c.req.url).pathname);
+  if (!policy) return c.json({ error: "security_policy_missing" }, 403);
+  const access = c.get("guildAccess");
+  if (!isPanelMutationAllowed(policy, access)) {
+    return c.json({ error: access === "panel_moderator" ? "read_only_access" : "forbidden" }, 403);
   }
   await next();
 };

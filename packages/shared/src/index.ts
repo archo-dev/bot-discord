@@ -5,3 +5,4 @@ export * from "./api-types/index.js";
 export * from "./xp.js";
 export * from "./member-card.js";
 export * from "./telemetry.js";
+export * from "./security.js";
