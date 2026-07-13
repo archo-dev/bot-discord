@@ -1,7 +1,31 @@
-import { signInternalRequest, type GatewayModuleConfig, type MusicStateDto, type MusicTrack, type VoiceLogAction } from "@bot/shared";
+import {
+  RELIABLE_DELIVERY_SCHEMA_VERSION,
+  RELIABLE_EVENT_PRIORITY,
+  reliablePartitionKey,
+  signInternalRequest,
+  type GatewayModuleConfig,
+  type MusicStateDto,
+  type MusicTrack,
+  type ReliableAck,
+  type ReliableBatchResponse,
+  type ReliableEnvelope,
+  type ReliableEventType,
+  type VoiceLogAction,
+} from "@bot/shared";
 import type { GatewayEnv } from "./env.js";
+import type { Outbox } from "./outbox/index.js";
 import { errMsg } from "./util.js";
 import { logTelemetry, telemetryErrorCode } from "./telemetry.js";
+
+/**
+ * Result of a reliable batch delivery. `ok` carries per-event ACKs; `transient`
+ * means retry with backoff (network / timeout / 429 / 5xx), optionally honouring
+ * Retry-After; `reject` means the batch is permanently invalid (400) → dead-letter.
+ */
+export type ReliableBatchSendResult =
+  | { kind: "ok"; results: ReliableAck[] }
+  | { kind: "transient"; retryAfterMs?: number }
+  | { kind: "reject" };
 
 /**
  * Typed client for the Worker's /internal/* API — the gateway's ONLY way to
@@ -155,10 +179,34 @@ export interface WorkerApi {
   registerTempVoiceChannel(guildId: string, payload: { channelId: string; ownerId: string }): Promise<void>;
   unregisterTempVoiceChannel(guildId: string, channelId: string): Promise<void>;
   postTempVoiceLobbyDeleted(guildId: string): Promise<void>;
+  /** Reliable delivery (M05): signed batch of enveloped events; never throws. */
+  postReliableBatch(events: ReliableEnvelope[]): Promise<ReliableBatchSendResult>;
+  /** Wires the outbox so reliable-typed flows enqueue durably instead of direct-calling. */
+  attachOutbox(outbox: Outbox): void;
 }
 
 export function createWorkerApi(env: GatewayEnv): WorkerApi {
   let errorsSinceLastHeartbeat = 0;
+  // Reliable delivery (M05): set via attachOutbox after construction (the outbox
+  // needs postReliableBatch, so the wiring is two-step to avoid a cycle).
+  let outbox: Outbox | null = null;
+
+  function envelope<T extends ReliableEventType>(
+    type: T,
+    guildId: string,
+    payload: Extract<ReliableEnvelope, { type: T }>["payload"],
+  ): ReliableEnvelope {
+    return {
+      schemaVersion: RELIABLE_DELIVERY_SCHEMA_VERSION,
+      eventId: crypto.randomUUID(),
+      type,
+      guildId,
+      partitionKey: reliablePartitionKey(guildId),
+      priority: RELIABLE_EVENT_PRIORITY[type],
+      occurredAt: Date.now(),
+      payload,
+    } as ReliableEnvelope;
+  }
 
   async function call(method: "GET" | "POST" | "DELETE", path: string, body?: unknown): Promise<Response> {
     const requestId = crypto.randomUUID();
@@ -266,6 +314,10 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
       await call("POST", "/internal/gateway/heartbeat", payload);
     },
     async postEvent(guildId, eventType, payload) {
+      if (outbox?.isReliable("gateway_event")) {
+        outbox.enqueue(envelope("gateway_event", guildId, { eventType: eventType as never, payload }));
+        return;
+      }
       await call("POST", `/internal/guilds/${guildId}/events`, { eventType, payload });
     },
     async postAutomodSanction(guildId, payload) {
@@ -281,14 +333,28 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
       await call("POST", `/internal/guilds/${guildId}/starboard`, payload);
     },
     async postVoiceLogs(guildId, entries) {
+      if (outbox?.isReliable("voice_log")) {
+        // Reliable path: each entry becomes a durable, deduplicated event. The
+        // outbox is now the buffer; the 5 s in-memory batch is bypassed.
+        for (const e of entries) outbox.enqueue(envelope("voice_log", guildId, e));
+        return;
+      }
       const buf = voiceBuffer.get(guildId) ?? [];
       buf.push(...entries);
       voiceBuffer.set(guildId, buf);
     },
     async postMemberSnapshot(guildId, payload) {
+      if (outbox?.isReliable("member_snapshot")) {
+        outbox.enqueue(envelope("member_snapshot", guildId, payload));
+        return;
+      }
       await call("POST", `/internal/guilds/${guildId}/member-snapshots`, payload);
     },
     async postChannelActivity(guildId, entries) {
+      if (outbox?.isReliable("channel_activity")) {
+        for (const e of entries) outbox.enqueue(envelope("channel_activity", guildId, e));
+        return;
+      }
       await call("POST", `/internal/guilds/${guildId}/channel-activity`, { entries });
     },
     async postMusicState(guildId, state) {
@@ -318,6 +384,61 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
     },
     async postTempVoiceLobbyDeleted(guildId) {
       await call("POST", `/internal/guilds/${guildId}/temp-voice/lobby-deleted`);
+    },
+    attachOutbox(next) {
+      outbox = next;
+    },
+    async postReliableBatch(events): Promise<ReliableBatchSendResult> {
+      // Own signed fetch (not `call`): a non-2xx is a normal control-flow signal
+      // for the dispatcher (retry/dead-letter), never an exception. Same M02
+      // signature and a fresh nonce per HTTP attempt; the eventId dedups business-side.
+      const path = "/internal/events/batch";
+      const serializedBody = JSON.stringify({ events });
+      const requestId = crypto.randomUUID();
+      try {
+        const signature = await signInternalRequest({
+          masterSecret: env.INTERNAL_API_TOKEN,
+          keyId: env.INTERNAL_API_KEY_ID,
+          direction: "gateway-to-worker",
+          audience: "worker-internal",
+          method: "POST",
+          path,
+          body: serializedBody,
+        });
+        const res = await fetch(`${env.WORKER_ORIGIN}${path}`, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${env.INTERNAL_API_TOKEN}`,
+            "x-request-id": requestId,
+            ...signature,
+            "content-type": "application/json",
+          },
+          body: serializedBody,
+          signal: AbortSignal.timeout(15_000),
+        });
+        if (res.status === 200) {
+          const body = (await res.json()) as ReliableBatchResponse;
+          return { kind: "ok", results: body.results };
+        }
+        errorsSinceLastHeartbeat++;
+        if (res.status === 400) return { kind: "reject" }; // poison batch
+        if (res.status === 429) {
+          const ra = Number(res.headers.get("retry-after"));
+          return { kind: "transient", retryAfterMs: Number.isFinite(ra) ? Math.max(0, ra) * 1000 : undefined };
+        }
+        return { kind: "transient" }; // 5xx / 401 during rotation / etc.
+      } catch (error) {
+        errorsSinceLastHeartbeat++;
+        logTelemetry("error", {
+          requestId,
+          module: "stats",
+          operation: "internal",
+          outcome: "error",
+          errorCode: telemetryErrorCode(error),
+          source: "gateway",
+        });
+        return { kind: "transient" };
+      }
     },
   };
 }

@@ -21,6 +21,22 @@ const envSchema = z.object({
    * client crashes at login with "Used disallowed intents". Default off = safe.
    */
   PRESENCE_ENABLED: z.string().optional(),
+
+  // --- Reliable delivery (M05) ---------------------------------------------
+  /**
+   * Comma-separated reliable event types routed through the persistent outbox
+   * instead of a direct call. EMPTY = off (historical direct behavior, safe
+   * default). Enable progressively, e.g. "voice_log" then more.
+   * Valid: voice_log,channel_activity,member_snapshot,gateway_event
+   */
+  GATEWAY_RELIABLE_TYPES: z.string().optional(),
+  /** Outbox SQLite file. Default: <home>/.botdiscord/outbox.db (perms 0600). */
+  GATEWAY_OUTBOX_PATH: z.string().optional(),
+  GATEWAY_OUTBOX_MAX_EVENTS: z.coerce.number().int().min(100).max(5_000_000).default(20_000),
+  GATEWAY_OUTBOX_MAX_BYTES: z.coerce.number().int().min(1_000_000).default(64 * 1024 * 1024),
+  GATEWAY_OUTBOX_MAX_AGE_MS: z.coerce.number().int().min(60_000).default(24 * 3600 * 1000),
+  GATEWAY_OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(1000).default(12),
+  GATEWAY_OUTBOX_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(2),
 });
 
 export type GatewayEnv = z.infer<typeof envSchema>;

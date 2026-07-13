@@ -16,6 +16,7 @@ import { registerGuildLifecycle } from "./guild-lifecycle.js";
 import { registerTempVoice } from "./temp-voice.js";
 import { logTelemetry, telemetryErrorCode } from "./telemetry.js";
 import { buildGatewayRuntimeSnapshot } from "./health.js";
+import { createOutbox } from "./outbox/index.js";
 
 // 120 s (TTL KV côté Worker = 300 s) : reste sous le quota d'écritures KV du
 // plan gratuit (1000/jour) tout en gardant le badge « Gateway » fiable.
@@ -23,6 +24,11 @@ const HEARTBEAT_INTERVAL_MS = 120_000;
 
 const env = loadEnv();
 const api = createWorkerApi(env);
+// Reliable delivery (M05): opens the outbox only if GATEWAY_RELIABLE_TYPES lists
+// a type (else a no-op → direct delivery unchanged). Two-step wiring: the outbox
+// delivers via api.postReliableBatch; api routes reliable flows into the outbox.
+const outbox = createOutbox(env, (events) => api.postReliableBatch(events));
+api.attachOutbox(outbox);
 const configCache = createConfigCache(api);
 
 // GuildMembers + MessageContent are privileged: they must also be enabled in
@@ -110,6 +116,7 @@ async function heartbeat(): Promise<void> {
 
 client.once(Events.ClientReady, (c) => {
   console.log(`gateway ready as ${c.user.tag} (${c.guilds.cache.size} guilds)`);
+  outbox.start(); // drains any events persisted from a previous run, then live traffic
   void heartbeat();
   setInterval(() => void heartbeat(), HEARTBEAT_INTERVAL_MS);
 });
@@ -122,9 +129,13 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
     console.log(`${signal} received, shutting down`);
     server.close();
-    // Flush buffered stats before exit; in-flight voice sessions are lost (accepted).
+    // Graceful stop: flush buffered stats, then stop the outbox dispatcher (waits
+    // for the in-flight batch, closes the DB — persisted events resume next boot).
+    // In-flight voice sessions are lost (accepted).
     void stats
       .flush()
+      .catch(() => {})
+      .then(() => outbox.stop())
       .catch(() => {})
       .finally(() => client.destroy().finally(() => process.exit(0)));
   });
