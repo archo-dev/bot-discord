@@ -5,13 +5,7 @@ import { api, ApiError } from "../lib/api.js";
 import { Badge, Card, EmptyState, ErrorCard, InfoCard } from "../ui/kit.js";
 import { Skeleton, SkeletonList } from "../ui/skeleton.js";
 import { Icon } from "../ui/icons.js";
-
-const stateMeta: Record<HealthState, { label: string; tone: "success" | "warning" | "danger" | "neutral"; dot: string }> = {
-  operational: { label: "Opérationnel", tone: "success", dot: "bg-green-400" },
-  degraded: { label: "Dégradé", tone: "warning", dot: "bg-amber-300" },
-  unavailable: { label: "Indisponible", tone: "danger", dot: "bg-red-400" },
-  inactive: { label: "Inactif", tone: "neutral", dot: "bg-zinc-500" },
-};
+import { formatP95, formatSuccessRate, healthStateMeta } from "../lib/health.js";
 
 const moduleLabels: Partial<Record<TelemetryModule, string>> = {
   interactions: "Interactions Discord",
@@ -30,7 +24,7 @@ const moduleLabels: Partial<Record<TelemetryModule, string>> = {
 };
 
 function StatusBadge({ state }: { state: HealthState }) {
-  const meta = stateMeta[state];
+  const meta = healthStateMeta[state];
   return (
     <Badge tone={meta.tone}>
       <span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full ${meta.dot}`} aria-hidden />
@@ -108,8 +102,8 @@ export function HealthPage() {
                   <StatusBadge state={module.state} />
                 </div>
                 <div className="mt-3 flex gap-4 text-xs text-zinc-400">
-                  <span>Succès : {module.successRate == null ? "—" : `${(module.successRate * 100).toFixed(1)} %`}</span>
-                  <span>p95 : {module.approximateP95Ms == null ? "—" : `≤ ${module.approximateP95Ms} ms`}</span>
+                  <span>Succès : {formatSuccessRate(module.successRate)}</span>
+                  <span>p95 : {formatP95(module.approximateP95Ms)}</span>
                 </div>
               </li>
             ))}

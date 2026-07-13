@@ -53,15 +53,35 @@ describe("internal API (future gateway)", () => {
 
     const ok = await req(
       "/internal/gateway/heartbeat",
-      { method: "POST", body: JSON.stringify({ guildCount: 2, wsPing: 42 }) },
+      {
+        method: "POST",
+        body: JSON.stringify({
+          guildCount: 2,
+          wsPing: 42,
+          runtime: {
+            version: "0.0.1",
+            uptimeSeconds: 120,
+            memoryRssMb: 128,
+            voiceLogQueueDepth: 3,
+            channelActivityQueueDepth: 4,
+            errorsSinceLastHeartbeat: 1,
+          },
+        }),
+      },
       "test-internal-token",
     );
     expect(ok.status).toBe(200);
 
-    const status = JSON.parse((await env.KV.get("gateway:status"))!) as { guildCount: number; wsPing: number | null; at: number };
+    const status = JSON.parse((await env.KV.get("gateway:status"))!) as {
+      guildCount: number;
+      wsPing: number | null;
+      at: number;
+      runtime: { memoryRssMb: number; voiceLogQueueDepth: number };
+    };
     expect(status.guildCount).toBe(2);
     expect(status.wsPing).toBe(42);
     expect(status.at).toBeGreaterThan(0);
+    expect(status.runtime).toMatchObject({ memoryRssMb: 128, voiceLogQueueDepth: 3 });
   });
 
   it("accepts gateway events and mod actions", async () => {

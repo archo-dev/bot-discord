@@ -15,6 +15,7 @@ import { registerMusic } from "./music.js";
 import { registerGuildLifecycle } from "./guild-lifecycle.js";
 import { registerTempVoice } from "./temp-voice.js";
 import { logTelemetry, telemetryErrorCode } from "./telemetry.js";
+import { buildGatewayRuntimeSnapshot } from "./health.js";
 
 // 120 s (TTL KV côté Worker = 300 s) : reste sous le quota d'écritures KV du
 // plan gratuit (1000/jour) tout en gardant le badge « Gateway » fiable.
@@ -85,14 +86,14 @@ async function heartbeat(): Promise<void> {
       guildCount: client.guilds.cache.size,
       wsPing: client.ws.ping >= 0 ? client.ws.ping : null,
       presence: collectPresence(),
-      runtime: {
+      runtime: buildGatewayRuntimeSnapshot({
         version: process.env.npm_package_version ?? "unknown",
-        uptimeSeconds: Math.max(0, Math.round(process.uptime())),
-        memoryRssMb: Math.max(0, Math.round(process.memoryUsage().rss / 1024 / 1024)),
+        uptimeSeconds: process.uptime(),
+        memoryRssBytes: process.memoryUsage().rss,
         voiceLogQueueDepth: health.voiceLogQueueDepth,
         channelActivityQueueDepth: stats.pendingEntries(),
         errorsSinceLastHeartbeat: health.errorsSinceLastHeartbeat,
-      },
+      }),
     });
     api.acknowledgeHeartbeat();
   } catch (err) {

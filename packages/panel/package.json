@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@bot/shared": "workspace:*",
@@ -23,6 +24,7 @@
     "@vitejs/plugin-react": "^4.6.0",
     "tailwindcss": "^4.1.11",
     "typescript": "^5.8.3",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "vitest": "~3.2.4"
   }
 }
