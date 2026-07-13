@@ -47,7 +47,7 @@
     "SECURITY_ORIGIN_MODE": "enforce",
     "SECURITY_CSP_MODE": "report",
     "SESSION_GLOBAL_VERSION": "1",
-    "INTERNAL_AUTH_MODE": "dual"
+    "INTERNAL_AUTH_MODE": "signed"
   }
   // Secrets (wrangler secret put …, mirrored in .dev.vars for local dev):
   //   DISCORD_TOKEN, DISCORD_PUBLIC_KEY, DISCORD_CLIENT_SECRET,
