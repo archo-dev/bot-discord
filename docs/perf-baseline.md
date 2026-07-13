@@ -82,6 +82,59 @@ Couverture composite solide sur tous les parcours chauds (`voice_logs`, `mod_act
 - **P6 — Rate limiter KV non atomique.** `ratelimit.ts` fait get puis put (best-effort acté,
   CLAUDE.md/README). **Non remplacé** en M04.
 
+## Résultats M04 — avant / après
+
+### Bundle panel
+
+| Métrique | Avant | Après | Δ |
+|---|---:|---:|---:|
+| **JS initial (brut)** | 1 018 374 o | **382 613 o** | **−62 %** |
+| **JS initial (gzip)** | 294 424 o | **119 577 o** | **−59 %** |
+| Nombre de chunks JS | 1 | ~29 (par route + communs) | découpage |
+| Chunk Recharts (Stats) | dans l'initial | **425 kB / 121.7 kB gzip, chargé à la nav** | isolé |
+
+- Cible **< 180 kB gzip** : atteinte (119.6 kB, marge ~60 kB).
+- Le chunk `modules-*.js` (@bot/shared, 86 kB / 22.5 kB gzip) est **asynchrone**
+  (non préchargé dans `index.html`) : il ne pèse pas sur le chargement initial.
+- Pas de sur-découpage : split par route + quelques chunks communs automatiques,
+  aucun `manualChunks` manuel ajouté.
+
+### Lectures D1 sur `/internal/config`
+
+| | Avant | Après |
+|---|---:|---:|
+| Requêtes D1 | 9 | 9 |
+| **Allers-retours (guilde existante)** | **~8 séquentiels** | **1 parallèle** |
+
+Contrat de réponse identique (vérifié par les tests worker existants). Le cas 404
+(guilde inconnue, rare) exécute désormais 9 lectures au lieu d'1 : compromis assumé.
+
+### Appels Worker sur cache froid concurrent (gateway)
+
+| Scénario | Avant | Après |
+|---|---:|---:|
+| 10 événements simultanés, même guilde, cache froid | **10 appels** `/internal/config` | **1 appel** (coalescence) |
+
+`null` mis en cache 5 s (au lieu de 60 s) ; un échec n'est jamais mis en cache.
+
+### Retries Discord REST
+
+| Cas | Avant | Après |
+|---|---|---|
+| GET sur 429 | 1 retry (Retry-After ≤5 s) | retry borné (≤2), backoff exp. + jitter, Retry-After respecté (plafond 5 s) |
+| GET sur 5xx | aucun retry | retry borné idempotent |
+| GET sur erreur transport | aucun retry | retry borné idempotent |
+| Mutation (POST/PATCH/PUT/DELETE) sur 429/5xx/erreur | 1 retry sur 429 | **aucun retry** (jamais rejouée) |
+
+### Budget automatisé
+
+`packages/panel/scripts/check-bundle-budget.mjs`, câblé dans `build` (donc dans
+`deploy`). Mesure le JS initial (entrée + imports statiques de `index.html`),
+échoue (exit 1) au-delà de **180 KiB gzip**. Override : `BUNDLE_BUDGET_GZIP_BYTES`.
+
+- Build actuel : **116.8 kB gzip** (niveau 9) → ✓ sous budget, marge 63.2 kB.
+- Dépassement simulé (budget 97.7 kB) → exit 1 (garde-fou vérifié).
+
 ## Préservation M01/M02/M03
 
 M04 ne touche ni au schéma D1, ni aux contrats d'API, ni aux gates de modules :
