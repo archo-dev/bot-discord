@@ -87,7 +87,7 @@ async function heartbeat(): Promise<void> {
       wsPing: client.ws.ping >= 0 ? client.ws.ping : null,
       presence: collectPresence(),
       runtime: buildGatewayRuntimeSnapshot({
-        version: process.env.npm_package_version ?? "unknown",
+        version: process.env.GATEWAY_VERSION ?? process.env.GATEWAY_BUILD_VERSION ?? process.env.npm_package_version,
         uptimeSeconds: process.uptime(),
         memoryRssBytes: process.memoryUsage().rss,
         voiceLogQueueDepth: health.voiceLogQueueDepth,
