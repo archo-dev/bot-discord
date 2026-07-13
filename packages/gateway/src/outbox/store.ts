@@ -1,7 +1,18 @@
-import { DatabaseSync } from "node:sqlite";
+import { createRequire } from "node:module";
 import { chmodSync, mkdirSync, statSync } from "node:fs";
 import { dirname } from "node:path";
+import type { DatabaseSync } from "node:sqlite";
 import type { ReliableEnvelope, ReliableEventType } from "@bot/shared";
+
+/*
+ * node:sqlite is a "node:"-only builtin (no bare "sqlite" alias). The bundler
+ * (esbuild via tsup) rewrites a static `import ... from "node:sqlite"` to bare
+ * "sqlite", which Node can't resolve → ERR_MODULE_NOT_FOUND. Loading it through
+ * createRequire keeps the "node:sqlite" specifier verbatim at runtime, while the
+ * type-only import above preserves full typing. `node:module` has a bare alias,
+ * so it survives the same rewrite.
+ */
+const { DatabaseSync: SqliteDatabase } = createRequire(import.meta.url)("node:sqlite") as typeof import("node:sqlite");
 
 /*
  * Persistent, bounded outbox (M05) backed by node:sqlite — zero external
@@ -46,7 +57,7 @@ export class OutboxStore {
   constructor(path: string) {
     this.path = path;
     if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
-    this.db = new DatabaseSync(path);
+    this.db = new SqliteDatabase(path);
     // WAL + NORMAL: durable across a process crash, fast enough for this volume.
     this.db.exec("PRAGMA journal_mode = WAL");
     this.db.exec("PRAGMA synchronous = NORMAL");
