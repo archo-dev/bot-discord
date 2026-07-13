@@ -3,18 +3,17 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Env } from "../env.js";
-import { requireInternalModule } from "./module-guard.js";
 import {
   countTempVoiceChannels,
   deleteTempVoiceChannel,
   disableTempVoice,
   insertTempVoiceChannel,
+  isGuildModuleEnabled,
   listAllTempVoiceChannels,
   listTempVoiceChannels,
 } from "../db/queries.js";
 
 export const internalTempVoiceRouter = new Hono<{ Bindings: Env }>();
-internalTempVoiceRouter.use("/internal/guilds/:guildId/temp-voice/*", requireInternalModule("temp_voice"));
 
 const SNOWFLAKE = /^\d{5,20}$/;
 
@@ -42,6 +41,9 @@ const registerSchema = z.object({
 });
 
 internalTempVoiceRouter.post("/internal/guilds/:guildId/temp-voice/channels", async (c) => {
+  if (!(await isGuildModuleEnabled(c.env.DB, c.req.param("guildId"), "temp_voice"))) {
+    return c.json({ ok: true, skipped: true, reason: "module_disabled" });
+  }
   const parsed = registerSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
   await insertTempVoiceChannel(c.env.DB, c.req.param("guildId"), parsed.data.channelId, parsed.data.ownerId);

@@ -57,7 +57,8 @@ interactionsRouter.post("/interactions", async (c) => {
 
     const handler = builtins[command.data.name];
     if (handler) {
-      const disabled = await moduleDisabled(c.env, command.guild_id, moduleForCommand(command.data.name));
+      // Existing temporary channels remain manageable after creation is disabled.
+      const disabled = await moduleDisabled(c.env, command.guild_id, command.data.name === "voice" ? null : moduleForCommand(command.data.name));
       if (disabled) return disabled;
       return handler({
         env: c.env,

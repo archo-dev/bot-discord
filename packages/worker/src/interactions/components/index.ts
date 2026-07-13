@@ -41,7 +41,7 @@ export function findModalHandler(customId: string): ModalHandler | undefined {
 }
 
 export function moduleForComponent(customId: string): ModuleId | null {
-  if (customId.startsWith("ticket:")) return "tickets";
+  if (customId === "ticket:open") return "tickets";
   if (customId.startsWith("brole:")) return "button_roles";
   return null;
 }

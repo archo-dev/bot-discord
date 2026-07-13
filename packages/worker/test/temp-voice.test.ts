@@ -13,6 +13,7 @@ import {
   listTempVoiceChannels,
   purgeTempVoiceChannels,
   setTempVoiceOwner,
+  setGuildModuleEnabled,
   upsertGuild,
   upsertTempVoiceSettings,
 } from "../src/db/queries.js";
@@ -168,6 +169,7 @@ describe("temp voice — internal API", () => {
   });
 
   it("registers, lists, counts and unregisters channels", async () => {
+    await setGuildModuleEnabled(env.DB, G, "temp_voice", true);
     const reg = await internal(`/internal/guilds/${G}/temp-voice/channels`, {
       method: "POST",
       body: JSON.stringify({ channelId: CH1, ownerId: OWNER }),

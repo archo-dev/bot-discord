@@ -66,6 +66,8 @@ export async function listEffectiveGuildModules(db: D1Database, guildId: string)
 }
 
 export async function isGuildModuleEnabled(db: D1Database, guildId: string, moduleId: ModuleId): Promise<boolean> {
+  const guild = await db.prepare(`SELECT 1 AS present FROM guilds WHERE id = ?1`).bind(guildId).first();
+  if (!guild) return MODULE_REGISTRY[moduleId].defaultEnabled || MODULE_REGISTRY[moduleId].toggleable === false;
   const rows = await listEffectiveGuildModules(db, guildId);
   const row = rows.find((candidate) => candidate.module_id === moduleId);
   return row?.enabled === 1 || MODULE_REGISTRY[moduleId].toggleable === false;

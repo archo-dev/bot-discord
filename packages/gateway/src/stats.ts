@@ -62,7 +62,10 @@ export function registerStats(client: Client, cache: ConfigCache, api: WorkerApi
   const sessions = new Map<string, { guildId: string; channelId: string; since: number }>();
   client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     const cfg = await cache.get(newState.guild.id).catch(() => null);
-    if (!cfg || !isGatewayModuleEnabled(cfg, "stats")) return;
+    if (!cfg || !isGatewayModuleEnabled(cfg, "stats")) {
+      sessions.delete(newState.id);
+      return;
+    }
     const oldCh = oldState.channelId;
     const newCh = newState.channelId;
     if (oldCh === newCh) return; // mute/deaf toggle: no session boundary
@@ -77,6 +80,12 @@ export function registerStats(client: Client, cache: ConfigCache, api: WorkerApi
   });
 
   async function flush(): Promise<void> {
+    // Do not count disabled time retroactively if a voice session crosses a
+    // module toggle without producing a VoiceStateUpdate while disabled.
+    for (const [userId, session] of sessions) {
+      const cfg = await cache.get(session.guildId).catch(() => null);
+      if (!cfg || !isGatewayModuleEnabled(cfg, "stats")) sessions.delete(userId);
+    }
     const windows = [...buffer.entries()];
     buffer.clear();
     const day = utcDay();

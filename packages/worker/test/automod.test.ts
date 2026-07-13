@@ -3,7 +3,7 @@ import { env, createExecutionContext, fetchMock } from "cloudflare:test";
 import type { AutomodSettingsDto } from "@bot/shared";
 import app from "../src/index.js";
 import { createSession } from "../src/auth/session.js";
-import { activeWarningCount, upsertAutomodSettings, upsertGuild } from "../src/db/queries.js";
+import { activeWarningCount, setGuildModuleEnabled, upsertAutomodSettings, upsertGuild } from "../src/db/queries.js";
 
 const G = "930000000000000001";
 const TARGET = "930000000000000777";
@@ -133,6 +133,10 @@ describe("automod settings API", () => {
 });
 
 describe("internal automod sanctions", () => {
+  beforeAll(async () => {
+    await setGuildModuleEnabled(env.DB, G, "automod", true);
+  });
+
   it("warn inserts a warning and trips the threshold into an auto-timeout", async () => {
     // Default threshold is 3: two prior automod warns + this one = auto-timeout.
     await internal(`/internal/guilds/${G}/automod-sanctions`, { userId: TARGET, rule: "invite", action: "warn" });
