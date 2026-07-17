@@ -12,6 +12,8 @@ M04 (performance) est livrée : code-splitting du panel (JS initial ~117 kB gzip
 
 M05 (livraison fiable) : migration additive `0023_reliable_delivery.sql` (`processed_events`), endpoint signé `POST /internal/events/batch` (dédup atomique par `eventId`, ACK par événement), outbox persistante `node:sqlite` sur le VPS (dispatcher partitionné, backoff+jitter, Retry-After, dead-letter bornée, backpressure, arrêt gracieux). Fiabilise `voice_log/channel_activity/member_snapshot/gateway_event` derrière `GATEWAY_RELIABLE_TYPES` (**vide par défaut = livraison directe inchangée**). xp/automod/starboard restent directs (effet Discord non rejouable). Exploitation, runbooks, replay et rollback dans `docs/reliable-delivery.md`. Le Worker reste seul écrivain D1.
 
+M06 (onboarding + centre modules) : migration additive `0024_onboarding.sql` (colonnes `onboarding_completed_at/onboarding_preset/onboarding_dismissed_steps` sur `guilds`). Landing publique React + endpoint public `GET /api/invite` (invitation à permissions minimales calculées depuis le registre, jamais Administrateur). `GET /api/guilds/:id/onboarding` dérive une checklist du DTO modules M03 (réutilise `responseFor`) ; presets transactionnels `POST /onboarding/preset` (dryRun/apply, admin-only via la matrice M02, modules bloqués ignorés, rien hors preset touché) ; `POST /onboarding/dismiss`. Le centre des modules M03 est réutilisé tel quel. Documentation dans `docs/onboarding.md`. Aucune modification Gateway. Livré sur `master` ? non — développé sur `milestone/onboarding-modules`, sans migration distante ni déploiement.
+
 ## Architecture actuelle
 
 - Monorepo pnpm, TypeScript strict.
