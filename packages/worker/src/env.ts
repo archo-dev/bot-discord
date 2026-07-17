@@ -11,6 +11,8 @@ export interface Env {
   SECURITY_ORIGIN_MODE?: "report" | "enforce";
   SECURITY_CSP_MODE?: "report" | "enforce";
   SESSION_GLOBAL_VERSION?: string;
+  PRODUCT_ANALYTICS_ENABLED?: "true" | "false";
+  APP_VERSION?: string;
 
   // secrets
   DISCORD_TOKEN: string;

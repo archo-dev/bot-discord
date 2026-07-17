@@ -13,3 +13,5 @@ GATEWAY_HTTP_TOKEN=change-me-different-64-random-chars
 GATEWAY_HTTP_KEY_ID=worker-current
 # Optional comma-separated exact origins; never use wildcards.
 PANEL_ALLOWED_ORIGINS=
+PRODUCT_ANALYTICS_ENABLED=true
+APP_VERSION=dev

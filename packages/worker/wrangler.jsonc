@@ -47,6 +47,8 @@
     "SECURITY_ORIGIN_MODE": "enforce",
     "SECURITY_CSP_MODE": "report",
     "SESSION_GLOBAL_VERSION": "1",
+    "PRODUCT_ANALYTICS_ENABLED": "true",
+    "APP_VERSION": "m08",
     "INTERNAL_AUTH_MODE": "signed"
   }
   // Secrets (wrangler secret put …, mirrored in .dev.vars for local dev):
