@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { Env } from "../env.js";
 import { setBotInstalled, upsertGuild } from "../db/queries.js";
+import { recordProductMetric } from "../analytics/service.js";
 
 export const internalGuildsRouter = new Hono<{ Bindings: Env }>();
 
@@ -21,6 +22,7 @@ internalGuildsRouter.post("/internal/guilds/:guildId/installed", async (c) => {
   const parsed = installedSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
   await upsertGuild(c.env.DB, c.req.param("guildId"), parsed.data.name, parsed.data.icon);
+  await recordProductMetric(c.env, c.req.param("guildId"), { event: "guild_installed", module: null, step: null, outcome: "success" }).catch(() => false);
   return c.json({ ok: true }, 201);
 });
 
@@ -31,5 +33,6 @@ internalGuildsRouter.post("/internal/guilds/:guildId/installed", async (c) => {
  */
 internalGuildsRouter.post("/internal/guilds/:guildId/uninstalled", async (c) => {
   await setBotInstalled(c.env.DB, c.req.param("guildId"), false);
+  await recordProductMetric(c.env, c.req.param("guildId"), { event: "guild_uninstalled", module: null, step: null, outcome: "success" }).catch(() => false);
   return c.json({ ok: true }, 201);
 });

@@ -20,6 +20,7 @@ import {
   type ModuleConfigurationSignals,
 } from "../db/queries.js";
 import { fetchGatewayModuleRuntime } from "../gateway/forward.js";
+import { recordProductMetric } from "../analytics/service.js";
 
 export const modulesRouter = new Hono<AppContext>();
 const moduleIdSchema = z.enum(MODULE_IDS);
@@ -162,6 +163,10 @@ modulesRouter.patch("/guilds/:guildId/modules/:moduleId", async (c) => {
   }
 
   await setGuildModuleEnabled(c.env.DB, c.req.param("guildId")!, parsedId.data, parsed.data.enabled);
+  await recordProductMetric(c.env, c.req.param("guildId")!, {
+    event: "module_activation_changed", module: parsedId.data, step: null,
+    outcome: parsed.data.enabled ? "enabled" : "disabled",
+  }).catch(() => false);
   const updated = await responseFor(c);
   return c.json(updated.modules.find((candidate) => candidate.id === parsedId.data)!);
 });

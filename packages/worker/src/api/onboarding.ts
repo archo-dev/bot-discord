@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   ONBOARDING_PRESETS,
   ONBOARDING_PRESET_IDS,
+  PRODUCT_STEP_VALUES,
   getOnboardingPreset,
   invitePermissionBitfield,
   invitePermissionUsage,
@@ -33,6 +34,7 @@ import {
 } from "../db/queries.js";
 import { rateLimit } from "../ratelimit.js";
 import { invalidBody } from "./validation.js";
+import { recordProductMetric } from "../analytics/service.js";
 
 export const onboardingRouter = new Hono<AppContext>();
 
@@ -181,6 +183,9 @@ onboardingRouter.post("/guilds/:guildId/onboarding/preset", rateLimit({ name: "o
     applyOnboardingPresetStatement(c.env.DB, guildId, preset.id),
   ];
   await c.env.DB.batch(statements);
+  await recordProductMetric(c.env, guildId, {
+    event: "onboarding_completed", module: null, step: "preset", outcome: "completed",
+  }).catch(() => false);
 
   const result: OnboardingPresetResult = {
     preset: preset.id,
@@ -202,11 +207,18 @@ onboardingRouter.post("/guilds/:guildId/onboarding/dismiss", rateLimit({ name: "
 
   if (parsed.data.step === "__complete__") {
     await markOnboardingComplete(c.env.DB, guildId);
+    await recordProductMetric(c.env, guildId, {
+      event: "onboarding_completed", module: null, step: "checklist", outcome: "completed",
+    }).catch(() => false);
   } else {
     const progress = await getOnboardingProgress(c.env.DB, guildId);
     const steps = new Set(parseDismissedSteps(progress.onboarding_dismissed_steps));
     steps.add(parsed.data.step);
     await setOnboardingDismissedSteps(c.env.DB, guildId, [...steps]);
+    const knownStep = PRODUCT_STEP_VALUES.find((step) => step === parsed.data.step);
+    if (knownStep) await recordProductMetric(c.env, guildId, {
+      event: "onboarding_step", module: null, step: knownStep, outcome: "dismissed",
+    }).catch(() => false);
   }
   return c.json(await buildOnboarding(c));
 });
