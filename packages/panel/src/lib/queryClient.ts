@@ -31,7 +31,9 @@ export const queryClient = new QueryClient({
     onError: (error, _variables, _context, mutation) => {
       if (mutation.meta?.silentError) return;
       const fallback = error instanceof ApiError
-        ? error.code === "quota_exceeded"
+        ? error.code === "target_is_guild_owner"
+          ? "Action refusée : le propriétaire du serveur ne peut pas être sanctionné. Un avertissement automatique a été enregistré."
+          : error.code === "quota_exceeded"
           ? "Quota de sécurité atteint — réessayez demain."
           : error.code === "csrf_rejected"
             ? "Origine de la requête refusée — rechargez le panel officiel."

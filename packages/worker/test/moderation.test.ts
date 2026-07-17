@@ -136,14 +136,17 @@ describe("moderation built-ins", () => {
       ["mute", muteHandler, moderate],
       ["warn", warnHandler, moderate],
     ];
+    let refusals = 0;
     for (const [name, handler, permissions] of cases) {
       const options: Array<{ name: string; type: number; value: string | number }> = [{ name: "membre", type: 6, value: TARGET }];
       if (name === "mute") options.push({ name: "duree", type: 4, value: 10 });
       const ctx = makeCtx(name, { permissions, options });
-      await handler(ctx);
+      const response = await handler(ctx);
+      const body = await response.json() as { type: number; data?: { content?: string; flags?: number } };
+      if (body.type === 4 && body.data?.content?.includes("propriétaire du serveur")) refusals++;
       await Promise.all(ctx.background);
     }
     guildOwnerId = "970000000000000099";
-    expect(patchedContents.filter((c) => c.includes("propriétaire du serveur"))).toHaveLength(4);
+    expect(refusals).toBe(4);
   });
 });

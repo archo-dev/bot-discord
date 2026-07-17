@@ -5,16 +5,19 @@ import {
   finishPanelSanctionRequest,
   getSanctionExemptions,
   insertModAction,
+  listWarnings,
   listModActions,
   replaceSanctionExemptions,
   revokeModAction,
   upsertGuild,
 } from "../src/db/queries.js";
 import { matchPanelMutationPolicy } from "@bot/shared";
+import { recordOwnerTargetAttempt } from "../src/moderation/owner-attempt.js";
 
 const GUILD = "880000000000000001";
 const USER = "880000000000000002";
 const ROLE = "880000000000000003";
+const OWNER = "880000000000000004";
 
 beforeAll(async () => { await upsertGuild(env.DB, GUILD, "Sanctions", null); });
 
@@ -49,5 +52,28 @@ describe("panel sanctions persistence", () => {
     expect(matchPanelMutationPolicy("POST", `/api/guilds/${GUILD}/sanctions`)?.capability).toBe("moderation_write");
     expect(matchPanelMutationPolicy("POST", `/api/guilds/${GUILD}/sanctions/42/revoke`)?.capability).toBe("moderation_write");
     expect(matchPanelMutationPolicy("PUT", `/api/guilds/${GUILD}/sanction-exemptions`)?.capability).toBe("moderation_write");
+  });
+
+  it("records one reversible automatic warning per owner-target request", async () => {
+    const requestId = "owner-attempt-00000001";
+    await expect(recordOwnerTargetAttempt(env.DB, {
+      guildId: GUILD, actorId: USER, ownerId: OWNER, sanctionType: "ban", origin: "panel", requestId,
+    })).resolves.toBe("warn_recorded");
+    await expect(recordOwnerTargetAttempt(env.DB, {
+      guildId: GUILD, actorId: USER, ownerId: OWNER, sanctionType: "ban", origin: "panel", requestId,
+    })).resolves.toBe("duplicate");
+    const warnings = await listWarnings(env.DB, GUILD, USER);
+    expect(warnings.filter((warning) => warning.reason?.includes("propriétaire du serveur"))).toHaveLength(1);
+    const actions = await listModActions(env.DB, GUILD, { page: 1, pageSize: 25, action: "warn", targetId: USER });
+    expect(actions.rows.some((action) => action.metadata?.includes("owner_target_attempt"))).toBe(true);
+  });
+
+  it("keeps an owner or system actor audit-only", async () => {
+    await expect(recordOwnerTargetAttempt(env.DB, {
+      guildId: GUILD, actorId: OWNER, ownerId: OWNER, sanctionType: "warn", origin: "slash", requestId: "owner-attempt-00000002",
+    })).resolves.toBe("audit_only");
+    await expect(recordOwnerTargetAttempt(env.DB, {
+      guildId: GUILD, actorId: "automod", ownerId: OWNER, sanctionType: "warn", origin: "automation", requestId: "owner-attempt-00000003",
+    })).resolves.toBe("audit_only");
   });
 });

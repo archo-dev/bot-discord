@@ -16,6 +16,7 @@ import { discordJson } from "../discord/rest.js";
 import { modLogEmbed, postModLog } from "../interactions/builtins/util.js";
 import { requireInternalModule } from "./module-guard.js";
 import { isDiscordGuildOwner } from "../moderation/owner.js";
+import { recordOwnerTargetAttempt } from "../moderation/owner-attempt.js";
 
 export const internalModerationRouter = new Hono<{ Bindings: Env }>();
 internalModerationRouter.use("/internal/guilds/:guildId/automod-sanctions", requireInternalModule("automod"));
@@ -41,7 +42,14 @@ internalModerationRouter.post("/internal/guilds/:guildId/automod-sanctions", asy
   if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
   const { userId, rule, action } = parsed.data;
   // Gateway input is authenticated, but it is still a moderation target.
-  if (await isDiscordGuildOwner(c.env, guildId, userId)) return c.json({ error: "target_is_guild_owner" }, 403);
+  if (await isDiscordGuildOwner(c.env, guildId, userId)) {
+    try {
+      await recordOwnerTargetAttempt(c.env.DB, { guildId, actorId: "automod", ownerId: userId, sanctionType: action === "timeout" ? "timeout" : "warn", origin: "automation", requestId: c.req.header("x-request-id") ?? crypto.randomUUID() });
+    } catch (error) {
+      console.error("owner-target automation audit failed:", error);
+    }
+    return c.json({ error: "target_is_guild_owner" }, 403);
+  }
   const reason = `Automod : ${RULE_LABELS[rule]}`;
   const automod = automodRowToDto(await getAutomodSettings(c.env.DB, guildId));
 

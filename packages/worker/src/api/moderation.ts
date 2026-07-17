@@ -23,6 +23,7 @@ import { DiscordAPIError, discordJson, discordRequest } from "../discord/rest.js
 import { isGuildModuleEnabled } from "../db/queries/modules.js";
 import type { ModActionRow } from "../db/queries/mod-actions.js";
 import { getDiscordGuildOwnerId } from "../moderation/owner.js";
+import { recordOwnerTargetAttempt } from "../moderation/owner-attempt.js";
 
 export const moderationRouter = new Hono<AppContext>();
 const SNOWFLAKE = /^\d{5,20}$/;
@@ -196,7 +197,22 @@ moderationRouter.post("/guilds/:guildId/sanctions", rateLimit({ name: "sanction-
   if (claim === "completed") return c.json({ error: "idempotency_replayed" }, 409);
   if (claim !== "claimed") return c.json({ error: "request_in_progress" }, 409);
   const valid = await validateTarget(c, guildId, parsed.data.targetId, parsed.data.type);
-  if (valid.error) { await finishPanelSanctionRequest(c.env.DB, guildId, parsed.data.idempotencyKey, "failed", null); return c.json({ error: valid.error }, 403); }
+  if (valid.error) {
+    if (valid.error === "target_is_guild_owner") {
+      try {
+        await recordOwnerTargetAttempt(c.env.DB, {
+          guildId, actorId: c.get("session").userId, ownerId: parsed.data.targetId,
+          // The panel's mutation key survives a retry/double-click; the HTTP
+          // request id does not, so it cannot be the idempotency boundary.
+          sanctionType: parsed.data.type, origin: "panel", requestId: parsed.data.idempotencyKey,
+        });
+      } catch (error) {
+        console.error("owner-target panel attempt audit failed:", error);
+      }
+    }
+    await finishPanelSanctionRequest(c.env.DB, guildId, parsed.data.idempotencyKey, "failed", null);
+    return c.json({ error: valid.error }, 403);
+  }
   const { type, targetId, reason, durationMinutes, idempotencyKey } = parsed.data;
   const expiresAt = type === "timeout" ? new Date(Date.now() + durationMinutes! * 60_000).toISOString() : null;
   try {
