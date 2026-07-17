@@ -1,13 +1,14 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { env, fetchMock } from "cloudflare:test";
 import type { APIChatInputApplicationCommandInteraction, APIUser } from "discord-api-types/v10";
-import { banHandler, warnHandler } from "../src/interactions/builtins/moderation.js";
+import { banHandler, kickHandler, muteHandler, warnHandler } from "../src/interactions/builtins/moderation.js";
 import type { BuiltinContext } from "../src/interactions/builtins/index.js";
 import { activeWarningCount, listModActions, updateGuildConfig, upsertGuild } from "../src/db/queries.js";
 
 const G = "970000000000000001";
 const MOD = "970000000000000002";
 const TARGET = "970000000000000003";
+let guildOwnerId = "970000000000000099";
 
 const targetUser: APIUser = {
   id: TARGET,
@@ -70,6 +71,7 @@ beforeAll(async () => {
     .persist();
   discord.intercept({ path: `/api/v10/guilds/${G}/bans/${TARGET}`, method: "PUT" }).reply(204, "").persist();
   discord.intercept({ path: `/api/v10/guilds/${G}/members/${TARGET}`, method: "PATCH" }).reply(200, {}).persist();
+  discord.intercept({ path: `/api/v10/guilds/${G}`, method: "GET" }).reply(() => ({ statusCode: 200, data: { owner_id: guildOwnerId } })).persist();
 });
 
 describe("moderation built-ins", () => {
@@ -123,5 +125,25 @@ describe("moderation built-ins", () => {
     expect(autoTimeouts.total).toBe(1);
     expect(autoTimeouts.rows[0]?.moderator_id).toBe("system");
     expect(patchedContents.some((c) => c.includes("mute automatique"))).toBe(true);
+  });
+
+  it("refuses every slash-command sanction against the guild owner before a mutation", async () => {
+    guildOwnerId = TARGET;
+    const moderate = (1n << 40n).toString();
+    const cases: Array<[string, typeof banHandler, string]> = [
+      ["ban", banHandler, "4"],
+      ["kick", kickHandler, "2"],
+      ["mute", muteHandler, moderate],
+      ["warn", warnHandler, moderate],
+    ];
+    for (const [name, handler, permissions] of cases) {
+      const options: Array<{ name: string; type: number; value: string | number }> = [{ name: "membre", type: 6, value: TARGET }];
+      if (name === "mute") options.push({ name: "duree", type: 4, value: 10 });
+      const ctx = makeCtx(name, { permissions, options });
+      await handler(ctx);
+      await Promise.all(ctx.background);
+    }
+    guildOwnerId = "970000000000000099";
+    expect(patchedContents.filter((c) => c.includes("propriétaire du serveur"))).toHaveLength(4);
   });
 });

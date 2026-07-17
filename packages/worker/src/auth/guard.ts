@@ -124,7 +124,8 @@ export const requireGuildAccess: MiddlewareHandler<AppContext> = async (c, next)
   if (userGuilds === null) return c.json({ error: "session_expired" }, 401);
 
   const oauthGuild = userGuilds.find((g) => g.id === guildId);
-  if (oauthGuild && canManageGuild(oauthGuild.permissions)) {
+  // Discord can report an owner with a bitfield without MANAGE_GUILD.
+  if (oauthGuild && (oauthGuild.owner || canManageGuild(oauthGuild.permissions))) {
     c.set("guildAccess", "manage_guild");
     await next();
     return;

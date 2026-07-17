@@ -15,6 +15,7 @@ import { automodRowToDto } from "../api/automod.js";
 import { discordJson } from "../discord/rest.js";
 import { modLogEmbed, postModLog } from "../interactions/builtins/util.js";
 import { requireInternalModule } from "./module-guard.js";
+import { isDiscordGuildOwner } from "../moderation/owner.js";
 
 export const internalModerationRouter = new Hono<{ Bindings: Env }>();
 internalModerationRouter.use("/internal/guilds/:guildId/automod-sanctions", requireInternalModule("automod"));
@@ -39,6 +40,8 @@ internalModerationRouter.post("/internal/guilds/:guildId/automod-sanctions", asy
   const parsed = sanctionSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
   const { userId, rule, action } = parsed.data;
+  // Gateway input is authenticated, but it is still a moderation target.
+  if (await isDiscordGuildOwner(c.env, guildId, userId)) return c.json({ error: "target_is_guild_owner" }, 403);
   const reason = `Automod : ${RULE_LABELS[rule]}`;
   const automod = automodRowToDto(await getAutomodSettings(c.env.DB, guildId));
 

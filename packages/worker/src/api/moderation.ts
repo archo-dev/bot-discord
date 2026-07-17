@@ -5,6 +5,7 @@ import {
   claimPanelSanctionRequest,
   finishPanelSanctionRequest,
   getModAction,
+  getWarning,
   getSanctionExemptions,
   insertModAction,
   insertWarning,
@@ -21,6 +22,7 @@ import { invalidBody } from "./validation.js";
 import { DiscordAPIError, discordJson, discordRequest } from "../discord/rest.js";
 import { isGuildModuleEnabled } from "../db/queries/modules.js";
 import type { ModActionRow } from "../db/queries/mod-actions.js";
+import { getDiscordGuildOwnerId } from "../moderation/owner.js";
 
 export const moderationRouter = new Hono<AppContext>();
 const SNOWFLAKE = /^\d{5,20}$/;
@@ -91,6 +93,10 @@ moderationRouter.delete("/guilds/:guildId/warnings/:warnId", rateLimit({ name: "
   const guildId = c.req.param("guildId");
   const warnId = Number(c.req.param("warnId"));
   if (!Number.isSafeInteger(warnId) || warnId < 1) return c.json({ error: "invalid_warning_id" }, 400);
+  const warning = await getWarning(c.env.DB, guildId, warnId);
+  if (!warning || warning.revoked_at) return c.json({ error: "not_found_or_already_revoked" }, 404);
+  const revocationError = await validateRevocation(c, guildId, warning.user_id, "warn");
+  if (revocationError) return c.json({ error: revocationError }, 403);
   const revoked = await revokeWarning(c.env.DB, guildId, warnId, c.get("session").userId);
   if (!revoked) return c.json({ error: "not_found_or_already_revoked" }, 404);
   await insertModAction(c.env.DB, { guildId, action: "unwarn", targetId: null, moderatorId: c.get("session").userId, reason: `Warn #${warnId} révoqué depuis le panel`, source: "panel" });
@@ -115,7 +121,6 @@ moderationRouter.put("/guilds/:guildId/sanction-exemptions", rateLimit({ name: "
 
 interface Role { id: string; position: number; permissions: string; }
 interface Member { roles: string[]; user?: { bot?: boolean }; }
-interface Guild { owner_id: string; }
 
 function memberPermissions(member: Member, roles: Role[]): string {
   const roleIds = new Set(member.roles);
@@ -129,20 +134,22 @@ function requiredPermission(type: PanelSanctionType): bigint { return type === "
 async function validateTarget(c: Context<AppContext>, guildId: string, targetId: string, type: PanelSanctionType): Promise<{ error?: string; target?: Member }> {
   try {
     const bot = await discordJson<{ id: string }>(c.env, "GET", "/users/@me");
-    const [guild, roles, actor, target, botMember, exemptions] = await Promise.all([
-      discordJson<Guild>(c.env, "GET", `/guilds/${guildId}`), discordJson<Role[]>(c.env, "GET", `/guilds/${guildId}/roles`),
+    const [ownerId, roles, actor, target, botMember, exemptions] = await Promise.all([
+      getDiscordGuildOwnerId(c.env, guildId), discordJson<Role[]>(c.env, "GET", `/guilds/${guildId}/roles`),
       discordJson<Member>(c.env, "GET", `/guilds/${guildId}/members/${c.get("session").userId}`),
       discordJson<Member>(c.env, "GET", `/guilds/${guildId}/members/${targetId}`),
       discordJson<Member>(c.env, "GET", `/guilds/${guildId}/members/${bot.id}`), getSanctionExemptions(c.env.DB, guildId),
     ]);
     if (targetId === c.get("session").userId) return { error: "self_sanction_forbidden" };
-    if (targetId === guild.owner_id) return { error: "target_is_guild_owner" };
+    if (targetId === ownerId) return { error: "target_is_guild_owner" };
     if (target.user?.bot) return { error: "target_is_bot" };
-    if (!hasPermission(memberPermissions(actor, roles), requiredPermission(type))) return { error: "actor_missing_discord_permission" };
+    // The guild owner has an application-level panel override. Bot capability
+    // and hierarchy remain mandatory checks below.
+    if (c.get("session").userId !== ownerId && !hasPermission(memberPermissions(actor, roles), requiredPermission(type))) return { error: "actor_missing_discord_permission" };
     if (!hasPermission(memberPermissions(botMember, roles), requiredPermission(type))) return { error: "bot_missing_discord_permission" };
     const actorPosition = highestRole(actor, roles);
     const targetPosition = highestRole(target, roles);
-    if (c.get("session").userId !== guild.owner_id && actorPosition <= targetPosition) return { error: "actor_hierarchy_insufficient" };
+    if (c.get("session").userId !== ownerId && actorPosition <= targetPosition) return { error: "actor_hierarchy_insufficient" };
     if (highestRole(botMember, roles) <= targetPosition) return { error: "bot_hierarchy_insufficient" };
     if (target.roles.some((id) => exemptions[type].includes(id))) return { error: "target_has_exempt_role" };
     return { target };
@@ -152,16 +159,26 @@ async function validateTarget(c: Context<AppContext>, guildId: string, targetId:
   }
 }
 
-async function validateActorPermission(c: Context<AppContext>, guildId: string, type: PanelSanctionType): Promise<string | null> {
+/**
+ * Reversal authorization is intentionally separate from application. Target
+ * exemptions and the historic moderator must never prevent a current owner
+ * from revoking a reversible sanction.
+ */
+async function validateRevocation(c: Context<AppContext>, guildId: string, targetId: string | null, type: PanelSanctionType): Promise<string | null> {
   const bot = await discordJson<{ id: string }>(c.env, "GET", "/users/@me");
-  const [roles, actor, botMember] = await Promise.all([
+  const [ownerId, roles, actor, botMember, target] = await Promise.all([
+    getDiscordGuildOwnerId(c.env, guildId),
     discordJson<Role[]>(c.env, "GET", `/guilds/${guildId}/roles`),
     discordJson<Member>(c.env, "GET", `/guilds/${guildId}/members/${c.get("session").userId}`),
     discordJson<Member>(c.env, "GET", `/guilds/${guildId}/members/${bot.id}`),
+    targetId ? discordJson<Member>(c.env, "GET", `/guilds/${guildId}/members/${targetId}`).catch(() => null) : Promise.resolve(null),
   ]);
   const permission = requiredPermission(type);
-  if (!hasPermission(memberPermissions(actor, roles), permission)) return "actor_missing_discord_permission";
+  const isOwner = c.get("session").userId === ownerId;
+  if (!isOwner && !hasPermission(memberPermissions(actor, roles), permission)) return "actor_missing_discord_permission";
   if (!hasPermission(memberPermissions(botMember, roles), permission)) return "bot_missing_discord_permission";
+  if (!isOwner && targetId === ownerId) return "target_is_guild_owner";
+  if (!isOwner && target && highestRole(actor, roles) <= highestRole(target, roles)) return "actor_hierarchy_insufficient";
   return null;
 }
 
@@ -214,10 +231,8 @@ moderationRouter.post("/guilds/:guildId/sanctions/:id/revoke", rateLimit({ name:
     // A banned member is expected to be absent from the guild. Unban therefore
     // rechecks the actor and bot permissions but deliberately does not require
     // resolving the former member; Discord's 404 remains an idempotent success.
-    const currentCheck = action.action === "ban" || !action.target_id
-      ? { error: await validateActorPermission(c, guildId, type) }
-      : await validateTarget(c, guildId, action.target_id, type);
-    if (currentCheck.error) return c.json({ error: currentCheck.error }, 403);
+    const revocationError = await validateRevocation(c, guildId, action.action === "ban" ? null : action.target_id, type);
+    if (revocationError) return c.json({ error: revocationError }, 403);
     if (action.action === "ban" && action.target_id) { const response = await discordRequest(c.env, "DELETE", `/guilds/${guildId}/bans/${action.target_id}`, undefined, { auditLogReason: parsed.data.reason || undefined }); if (!response.ok && response.status !== 404) throw new DiscordAPIError(response.status, await response.text(), "unban"); }
     if ((action.action === "timeout" || action.action === "auto_timeout") && action.target_id) await discordJson(c.env, "PATCH", `/guilds/${guildId}/members/${action.target_id}`, { communication_disabled_until: null }, { auditLogReason: parsed.data.reason || undefined });
     if (action.action === "warn") { const warningId = parseMetadata(action.metadata)?.warningId; if (typeof warningId === "number") await revokeWarning(c.env.DB, guildId, warningId, c.get("session").userId); }

@@ -45,6 +45,10 @@ export async function listWarnings(db: D1Database, guildId: string, userId?: str
   return (await stmt.all<WarningRow>()).results;
 }
 
+export async function getWarning(db: D1Database, guildId: string, warningId: number): Promise<WarningRow | null> {
+  return db.prepare(`SELECT * FROM warnings WHERE guild_id = ?1 AND id = ?2`).bind(guildId, warningId).first<WarningRow>();
+}
+
 export async function revokeWarning(
   db: D1Database,
   guildId: string,

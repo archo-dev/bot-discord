@@ -40,11 +40,12 @@ beforeAll(async () => {
     .reply((req) => {
       const headers = req.headers as Record<string, string | string[]>;
       const auth = String(headers["authorization"] ?? headers["Authorization"] ?? "");
-      const permissions = auth.includes("token-810000000000000042") ? "0" : "32";
+      const permissions = auth.includes("token-810000000000000042") || auth.includes("token-810000000000000077") ? "0" : "32";
+      const owner = auth.includes("token-810000000000000077");
       return {
         statusCode: 200,
         data: [
-          { id: INSTALLED, name: "Installed Guild", icon: null, owner: false, permissions },
+          { id: INSTALLED, name: "Installed Guild", icon: null, owner, permissions },
           { id: NOT_INSTALLED, name: "Other Guild", icon: null, owner: false, permissions },
         ],
       };
@@ -106,5 +107,13 @@ describe("panel API auth", () => {
 
     await replacePanelAccess(env.DB, INSTALLED, [{ subjectType: "user", subjectId: outsider, level: "admin" }], "someone");
     expect((await get(`/api/guilds/${INSTALLED}`, sid)).status).toBe(200);
+  });
+
+  it("recognizes the Discord owner even when OAuth omits MANAGE_GUILD", async () => {
+    const owner = "810000000000000077";
+    const sid = await makeSession(owner);
+    expect((await get(`/api/guilds/${INSTALLED}`, sid)).status).toBe(200);
+    const guilds = await get("/api/guilds", sid);
+    expect((await guilds.json() as Array<{ id: string }>).map((g) => g.id)).toContain(INSTALLED);
   });
 });

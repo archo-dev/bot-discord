@@ -12,6 +12,7 @@ import { DiscordAPIError, discordJson, discordRequest } from "../../discord/rest
 import { deferred, editOriginal, ephemeral } from "../respond.js";
 import type { BuiltinContext, BuiltinHandler } from "./index.js";
 import { displayName, integerOption, modLogEmbed, postModLog, stringOption, userOption } from "./util.js";
+import { isDiscordGuildOwner } from "../../moderation/owner.js";
 
 interface ModResult {
   content: string;
@@ -61,6 +62,7 @@ export const banHandler = moderation(PermissionBits.BAN_MEMBERS, { ephemeral: fa
   const reason = stringOption(ctx.interaction, "raison") ?? null;
   if (!target) return { content: "⚠️ Membre introuvable." };
   if (target.id === moderatorId) return { content: "⚠️ Vous ne pouvez pas vous bannir vous-même." };
+  if (await isDiscordGuildOwner(ctx.env, guildId, target.id)) return { content: "⚠️ Le propriétaire du serveur ne peut pas être sanctionné." };
 
   await discordJson(ctx.env, "PUT", `/guilds/${guildId}/bans/${target.id}`, {}, { auditLogReason: reason ?? undefined });
   const caseId = await insertModAction(ctx.env.DB, { guildId, action: "ban", targetId: target.id, moderatorId, reason });
@@ -93,6 +95,7 @@ export const kickHandler = moderation(PermissionBits.KICK_MEMBERS, { ephemeral: 
   const reason = stringOption(ctx.interaction, "raison") ?? null;
   if (!target) return { content: "⚠️ Membre introuvable." };
   if (target.id === moderatorId) return { content: "⚠️ Vous ne pouvez pas vous expulser vous-même." };
+  if (await isDiscordGuildOwner(ctx.env, guildId, target.id)) return { content: "⚠️ Le propriétaire du serveur ne peut pas être sanctionné." };
 
   await discordJson(ctx.env, "DELETE", `/guilds/${guildId}/members/${target.id}`, undefined, {
     auditLogReason: reason ?? undefined,
@@ -109,6 +112,7 @@ export const muteHandler = moderation(PermissionBits.MODERATE_MEMBERS, { ephemer
   const minutes = integerOption(ctx.interaction, "duree");
   const reason = stringOption(ctx.interaction, "raison") ?? null;
   if (!target || !minutes) return { content: "⚠️ Paramètres invalides." };
+  if (await isDiscordGuildOwner(ctx.env, guildId, target.id)) return { content: "⚠️ Le propriétaire du serveur ne peut pas être sanctionné." };
 
   const until = new Date(Date.now() + minutes * 60_000).toISOString();
   await discordJson(
@@ -149,9 +153,10 @@ export const warnHandler = moderation(PermissionBits.MODERATE_MEMBERS, { ephemer
   const reason = stringOption(ctx.interaction, "raison") ?? null;
   if (!target) return { content: "⚠️ Membre introuvable." };
   if (target.bot) return { content: "⚠️ Impossible d'avertir un bot." };
+  if (await isDiscordGuildOwner(ctx.env, guildId, target.id)) return { content: "⚠️ Le propriétaire du serveur ne peut pas être sanctionné." };
 
-  await insertWarning(ctx.env.DB, guildId, target.id, moderatorId, reason);
-  const caseId = await insertModAction(ctx.env.DB, { guildId, action: "warn", targetId: target.id, moderatorId, reason });
+  const warningId = await insertWarning(ctx.env.DB, guildId, target.id, moderatorId, reason);
+  const caseId = await insertModAction(ctx.env.DB, { guildId, action: "warn", targetId: target.id, moderatorId, reason, metadata: { warningId } });
   await postModLog(ctx.env, guildId, modLogEmbed({ action: "warn", title: "⚠️ Avertissement", targetId: target.id, moderatorId, reason, caseId }));
 
   const count = await activeWarningCount(ctx.env.DB, guildId, target.id);

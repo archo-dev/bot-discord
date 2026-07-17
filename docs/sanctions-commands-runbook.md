@@ -1,5 +1,29 @@
 # Centre de sanctions et commandes Discord
 
+## Owner-protection remediation
+
+The Worker reads the current owner from Discord for each sanction and
+revocation. The owner is rejected as a target by the panel, slash commands,
+and Gateway auto-moderation. Revocation is a separate authorization decision:
+the current owner bypasses application-level role exemptions and hierarchy, but
+never Discord's bot permission or hierarchy limits. Kicks remain irreversible.
+
+After deployment, identify pre-fix records without modifying D1:
+
+```sql
+SELECT id, action, target_id, moderator_id, reason, source, status, created_at,
+       revoked_at, revoked_by
+FROM mod_actions
+WHERE guild_id = ?1 AND target_id = ?2
+ORDER BY created_at DESC, id DESC;
+```
+
+Use the current Discord owner snowflake for `?2`; do not delete the results.
+Revoke reversible cases through the panel so the original audit record is
+retained. Timeout and ban revocations check Discord before changing D1. A
+legacy warn without `metadata.warningId` also needs its matching warning
+revoked from the warnings list.
+
 ## Port\u00e9e
 
 Le centre de sanctions du panel g\u00e8re les avertissements, timeout, kick et

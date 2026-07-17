@@ -47,7 +47,7 @@ guildsRouter.get("/guilds", async (c) => {
   const userGuilds = await getUserGuilds(c.env, session);
   if (userGuilds === null) return c.json({ error: "session_expired" }, 401);
 
-  const manageable = userGuilds.filter((g) => canManageGuild(g.permissions));
+  const manageable = userGuilds.filter((g) => g.owner || canManageGuild(g.permissions));
   const installed = await filterInstalledGuilds(
     c.env.DB,
     manageable.map((g) => g.id),
