@@ -122,7 +122,7 @@ function buildModuleDto(input: {
   };
 }
 
-async function responseFor(c: ModulesContext, override?: { moduleId: ModuleId; enabled: boolean }): Promise<GuildModulesResponse> {
+export async function responseFor(c: ModulesContext, override?: { moduleId: ModuleId; enabled: boolean }): Promise<GuildModulesResponse> {
   const guildId = c.req.param("guildId")!;
   const [rows, signals, gateway] = await Promise.all([
     listEffectiveGuildModules(c.env.DB, guildId),

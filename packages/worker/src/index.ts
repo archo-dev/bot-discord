@@ -20,6 +20,7 @@ import { statsRouter } from "./api/stats.js";
 import { healthRouter } from "./api/health.js";
 import { auditRouter } from "./api/audit.js";
 import { modulesRouter } from "./api/modules.js";
+import { onboardingRouter } from "./api/onboarding.js";
 import { internalRouter } from "./internal/routes.js";
 import { enforcePanelMutationPolicy, requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
 import { runScheduled } from "./cron.js";
@@ -73,6 +74,7 @@ api.route("/", statsRouter);
 api.route("/", healthRouter);
 api.route("/", auditRouter);
 api.route("/", modulesRouter);
+api.route("/", onboardingRouter);
 api.route("/", guildsRouter);
 app.route("/api", api);
 
