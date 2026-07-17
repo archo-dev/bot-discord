@@ -1,4 +1,5 @@
 /** Moderation audit log (mod_actions), paginated for the ModLog panel page. */
+import { subscribedAutomationEventStatement } from "./automations.js";
 
 export interface ModActionRow {
   id: number;
@@ -32,8 +33,9 @@ export async function insertModAction(
     idempotencyKey?: string;
   },
 ): Promise<number> {
-  const row = await db
-    .prepare(
+  const eventId = `mute:${crypto.randomUUID()}`;
+  const results = await db.batch([
+    db.prepare(
       `INSERT INTO mod_actions (guild_id, action, target_id, moderator_id, reason, metadata, source, expires_at, idempotency_key)
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) RETURNING id`,
     )
@@ -47,8 +49,24 @@ export async function insertModAction(
       entry.source ?? "interaction",
       entry.expiresAt ?? null,
       entry.idempotencyKey ?? null,
-    )
-    .first<{ id: number }>();
+    ),
+    subscribedAutomationEventStatement(db, {
+      id: eventId,
+      guildId: entry.guildId,
+      triggerType: "mute_applied",
+      context: {
+        event: { type: "mute_applied", id: eventId, depth: 0 },
+        guild: { id: entry.guildId },
+        ...(entry.targetId ? { user: { id: entry.targetId } } : {}),
+        reason: entry.reason ?? "",
+      },
+      enabled: entry.moderatorId !== "automation"
+        && entry.targetId !== null
+        && (entry.action === "timeout" || entry.action === "auto_timeout"),
+      requirePreviousChange: true,
+    }),
+  ]);
+  const row = results[0]?.results[0] as { id: number } | undefined;
   return row!.id;
 }
 

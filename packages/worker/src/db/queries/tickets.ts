@@ -1,5 +1,6 @@
 /** Ticket system: legacy lifecycle plus bounded M09 team triage. */
 import type { TicketFormConfig, TicketPriority, TicketState } from "@bot/shared";
+import { subscribedAutomationEventStatement } from "./automations.js";
 import { syncGuildModuleStatement } from "./modules.js";
 
 export interface TicketSettingsRow {
@@ -195,11 +196,33 @@ export async function finalizeTicketChannel(
   placeholder: string,
   channelId: string,
 ): Promise<boolean> {
-  const result = await db.prepare(
-    `UPDATE tickets SET channel_id = ?4, updated_at = datetime('now')
+  const ticket = await db.prepare(
+    `SELECT user_id, category_key FROM tickets
      WHERE guild_id = ?1 AND id = ?2 AND channel_id = ?3 AND status = 'open'`,
-  ).bind(guildId, ticketId, placeholder, channelId).run();
-  return result.meta.changes > 0;
+  ).bind(guildId, ticketId, placeholder).first<{ user_id: string; category_key: string | null }>();
+  if (!ticket) return false;
+  const eventId = `ticket-open:${ticketId}:${channelId}`;
+  const results = await db.batch([
+    db.prepare(
+      `UPDATE tickets SET channel_id = ?4, updated_at = datetime('now')
+       WHERE guild_id = ?1 AND id = ?2 AND channel_id = ?3 AND status = 'open'`,
+    ).bind(guildId, ticketId, placeholder, channelId),
+    subscribedAutomationEventStatement(db, {
+      id: eventId,
+      guildId,
+      triggerType: "ticket_opened",
+      context: {
+        event: { type: "ticket_opened", id: eventId, depth: 0 },
+        guild: { id: guildId },
+        user: { id: ticket.user_id },
+        channel: { id: channelId },
+        ticket: { id: ticketId, channelId },
+      },
+      enabled: ticket.category_key !== "automation",
+      requirePreviousChange: true,
+    }),
+  ]);
+  return results[0]!.meta.changes > 0;
 }
 
 export async function cancelTicketReservation(db: D1Database, ticketId: number, guildId: string, userId: string): Promise<void> {
@@ -233,9 +256,10 @@ export async function closeTicket(
   reason: string | null,
   transcript: string,
 ): Promise<boolean> {
-  const current = await db.prepare(`SELECT guild_id, user_id FROM tickets WHERE guild_id = ?1 AND id = ?2 AND status = 'open'`)
-    .bind(guildId, id).first<{ guild_id: string; user_id: string }>();
+  const current = await db.prepare(`SELECT guild_id, user_id, channel_id FROM tickets WHERE guild_id = ?1 AND id = ?2 AND status = 'open'`)
+    .bind(guildId, id).first<{ guild_id: string; user_id: string; channel_id: string }>();
   if (!current) return false;
+  const eventId = `ticket-close:${id}:${crypto.randomUUID()}`;
   const results = await db.batch([
     db.prepare(
       `UPDATE tickets SET status = 'closed', state = 'closed', closed_at = datetime('now'), updated_at = datetime('now'),
@@ -244,6 +268,21 @@ export async function closeTicket(
            ELSE transcript || '\n\n--- Nouvelle période après réouverture ---\n\n' || ?5 END
        WHERE guild_id = ?1 AND id = ?2 AND status = 'open'`,
     ).bind(guildId, id, closedBy, reason, transcript),
+    subscribedAutomationEventStatement(db, {
+      id: eventId,
+      guildId,
+      triggerType: "ticket_closed",
+      context: {
+        event: { type: "ticket_closed", id: eventId, depth: 0 },
+        guild: { id: guildId },
+        user: { id: current.user_id },
+        channel: { id: current.channel_id },
+        ticket: { id, channelId: current.channel_id },
+        reason: reason ?? "",
+      },
+      enabled: closedBy !== "automation",
+      requirePreviousChange: true,
+    }),
     db.prepare(`DELETE FROM ticket_open_claims WHERE guild_id = ?1 AND user_id = ?2 AND ticket_id = ?3`)
       .bind(current.guild_id, current.user_id, id),
     db.prepare(
@@ -289,6 +328,14 @@ export async function compensateFailedTicketClose(
          SELECT id FROM ticket_events WHERE guild_id = ?1 AND ticket_id = ?2 AND type = 'closed' ORDER BY id DESC LIMIT 1
        )`,
     ).bind(ticket.guild_id, ticket.id),
+    db.prepare(
+      `DELETE FROM automation_event_queue WHERE id = (
+         SELECT id FROM automation_event_queue
+         WHERE guild_id = ?1 AND trigger_type = 'ticket_closed'
+           AND instr(id, 'ticket-close:' || CAST(CAST(?2 AS INTEGER) AS TEXT) || ':') = 1 AND status = 'queued'
+         ORDER BY created_at DESC LIMIT 1
+       )`,
+    ).bind(ticket.guild_id, ticket.id),
   ]);
   return true;
 }
@@ -330,6 +377,9 @@ export async function finalizeTicketReopen(
   actorId: string,
   channelId: string,
 ): Promise<TicketRow | null> {
+  const pending = await getTicketById(db, guildId, id);
+  if (!pending || pending.status !== "closed") return null;
+  const eventId = `ticket-open:${id}:${channelId}`;
   const results = await db.batch([
     db.prepare(
       `UPDATE tickets SET channel_id = ?3, status = 'open', state = 'open', closed_at = NULL,
@@ -338,6 +388,20 @@ export async function finalizeTicketReopen(
          AND EXISTS (SELECT 1 FROM ticket_open_claims
            WHERE guild_id = ?1 AND user_id = tickets.user_id AND ticket_id = ?2)`,
     ).bind(guildId, id, channelId),
+    subscribedAutomationEventStatement(db, {
+      id: eventId,
+      guildId,
+      triggerType: "ticket_opened",
+      context: {
+        event: { type: "ticket_opened", id: eventId, depth: 0 },
+        guild: { id: guildId },
+        user: { id: pending.user_id },
+        channel: { id: channelId },
+        ticket: { id, channelId },
+      },
+      enabled: pending.category_key !== "automation",
+      requirePreviousChange: true,
+    }),
     db.prepare(
       `INSERT INTO ticket_events (guild_id, ticket_id, type, actor_id, from_value, to_value)
        SELECT ?1, ?2, 'state_changed', ?3, 'closed', 'open'

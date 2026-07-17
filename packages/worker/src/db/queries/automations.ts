@@ -133,6 +133,46 @@ export async function listAutomationRevisions(db: D1Database, guildId: string, w
 
 export interface AutomationQueueRow { id:string;guild_id:string;trigger_type:AutomationTriggerId;context:string;correlation_id:string;root_event_id:string;depth:number;expires_at:number;attempts:number; }
 
+/**
+ * Builds the durable queue write used beside a domain mutation in D1Database.batch().
+ * The INSERT remains a no-op unless the module and a matching workflow are active,
+ * so regular moderation and ticket writes keep constant cost while automation is off.
+ */
+export function subscribedAutomationEventStatement(db: D1Database, input: {
+  id: string;
+  guildId: string;
+  triggerType: AutomationTriggerId;
+  context: AutomationEventContext;
+  enabled?: boolean;
+  requirePreviousChange?: boolean;
+}): D1PreparedStatement {
+  const now = Date.now();
+  const context = automationEventContextSchema.parse(input.context);
+  const depth = context.event.depth ?? 0;
+  const correlationId = crypto.randomUUID();
+  return db.prepare(
+    `INSERT OR IGNORE INTO automation_event_queue
+       (id,guild_id,trigger_type,context,correlation_id,root_event_id,depth,expires_at,status,attempts,available_at,created_at,updated_at)
+     SELECT ?1,?2,?3,?4,?5,?1,?6,?7,'queued',0,?8,?8,?8
+     WHERE ?9=1 AND (?10=0 OR changes()=1)
+       AND EXISTS (SELECT 1 FROM guild_module_extensions
+         WHERE guild_id=?2 AND module_id='automations' AND enabled=1)
+       AND EXISTS (SELECT 1 FROM automation_workflows
+         WHERE guild_id=?2 AND trigger_type=?3 AND enabled=1)`,
+  ).bind(
+    input.id,
+    input.guildId,
+    input.triggerType,
+    JSON.stringify(context),
+    correlationId,
+    depth,
+    now + AUTOMATION_EVENT_TTL_MS,
+    now,
+    input.enabled === false ? 0 : 1,
+    input.requirePreviousChange === true ? 1 : 0,
+  );
+}
+
 export async function enqueueAutomationEvent(db: D1Database, input: { id?:string; guildId:string; triggerType:AutomationTriggerId; context:AutomationEventContext; correlationId?:string; rootEventId?:string; depth?:number; availableAt?:number }): Promise<string> {
   const id = input.id ?? crypto.randomUUID();
   const now = Date.now();

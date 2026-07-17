@@ -7,7 +7,7 @@ Le Studio exécute des workflows multiguildes de forme « SI / ET-OU / ALORS ».
 ```text
 Discord Gateway ──> outbox SQLite ──> POST /internal/events/batch
 Interactions HTTP ──────────────────> Worker emit
-Writes métier D1 ──> triggers SQL ──> automation_event_queue
+Writes métier D1 ──> producteurs transactionnels ──> automation_event_queue
 Cron Worker ────────────────────────> automation_event_queue
                                       │
                                       v

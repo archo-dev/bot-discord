@@ -19,6 +19,13 @@ import {
   createAutomationWorkflow,
   deleteAutomationWorkflow,
   ensureGuildModules,
+  closeTicket,
+  compensateFailedTicketClose,
+  finalizeTicketChannel,
+  getTicketById,
+  insertModAction,
+  insertTicket,
+  insertWarning,
   listAutomationRevisions,
   suppressAutomationEvent,
   updateAutomationWorkflow,
@@ -129,17 +136,46 @@ describe("automation persistence, concurrency and rollback", () => {
     expect(await consumeAutomationEventSuppression(env.DB, GUILD, "role_added", context)).toBe(false);
   });
 
-  it("does not re-emit D1 domain triggers created by the automation actor", async () => {
+  it("does not re-emit D1 domain events created by the automation actor", async () => {
     await createAutomationWorkflow(env.DB, GUILD, ACTOR, { ...workflow(), trigger: { type: "warn_created", config: {} }, conditions: [], actions: [{ type: "stop_workflow", config: {}, continueOnError: false }] });
     await ensureGuildModules(env.DB, GUILD);
     await env.DB.prepare("UPDATE guild_module_extensions SET enabled=1 WHERE guild_id=?1 AND module_id='automations'").bind(GUILD).run();
     const before = (await env.DB.prepare("SELECT COUNT(*) n FROM automation_event_queue WHERE guild_id=?1 AND trigger_type='warn_created'").bind(GUILD).first<{ n: number }>())?.n ?? 0;
-    await env.DB.prepare("INSERT INTO warnings(guild_id,user_id,moderator_id,reason) VALUES(?1,?2,'automation','loop guard')").bind(GUILD, "111111111111111119").run();
+    await insertWarning(env.DB, GUILD, "111111111111111119", "automation", "loop guard");
     const afterAutomation = (await env.DB.prepare("SELECT COUNT(*) n FROM automation_event_queue WHERE guild_id=?1 AND trigger_type='warn_created'").bind(GUILD).first<{ n: number }>())?.n ?? 0;
-    await env.DB.prepare("INSERT INTO warnings(guild_id,user_id,moderator_id,reason) VALUES(?1,?2,?3,'external')").bind(GUILD, "111111111111111118", ACTOR).run();
+    await insertWarning(env.DB, GUILD, "111111111111111118", ACTOR, "external");
     const afterExternal = (await env.DB.prepare("SELECT COUNT(*) n FROM automation_event_queue WHERE guild_id=?1 AND trigger_type='warn_created'").bind(GUILD).first<{ n: number }>())?.n ?? 0;
     expect(afterAutomation).toBe(before);
     expect(afterExternal).toBe(before + 1);
+  });
+
+  it("enqueues mute events atomically and suppresses automation-originated timeouts", async () => {
+    await createAutomationWorkflow(env.DB, GUILD, ACTOR, { ...workflow(), trigger: { type: "mute_applied", config: {} }, conditions: [], actions: [{ type: "stop_workflow", config: {}, continueOnError: false }] });
+    await ensureGuildModules(env.DB, GUILD);
+    await env.DB.prepare("UPDATE guild_module_extensions SET enabled=1 WHERE guild_id=?1 AND module_id='automations'").bind(GUILD).run();
+    const count = async () => (await env.DB.prepare("SELECT COUNT(*) n FROM automation_event_queue WHERE guild_id=?1 AND trigger_type='mute_applied'").bind(GUILD).first<{ n: number }>())?.n ?? 0;
+    const before = await count();
+    await insertModAction(env.DB, { guildId: GUILD, action: "timeout", targetId: "111111111111111117", moderatorId: ACTOR, reason: "external" });
+    expect(await count()).toBe(before + 1);
+    await insertModAction(env.DB, { guildId: GUILD, action: "timeout", targetId: "111111111111111116", moderatorId: "automation", reason: "loop guard" });
+    expect(await count()).toBe(before + 1);
+  });
+
+  it("enqueues ticket lifecycle events from the transactional ticket helpers", async () => {
+    await createAutomationWorkflow(env.DB, GUILD, ACTOR, { ...workflow("Ticket opened workflow"), trigger: { type: "ticket_opened", config: {} }, conditions: [], actions: [{ type: "stop_workflow", config: {}, continueOnError: false }] });
+    await createAutomationWorkflow(env.DB, GUILD, ACTOR, { ...workflow("Ticket closed workflow"), trigger: { type: "ticket_closed", config: {} }, conditions: [], actions: [{ type: "stop_workflow", config: {}, continueOnError: false }] });
+    await ensureGuildModules(env.DB, GUILD);
+    await env.DB.prepare("UPDATE guild_module_extensions SET enabled=1 WHERE guild_id=?1 AND module_id='automations'").bind(GUILD).run();
+    const ticketId = await insertTicket(env.DB, { guildId: GUILD, number: 501, channelId: "pending:automation-test", userId: "111111111111111115" });
+    expect(await finalizeTicketChannel(env.DB, GUILD, ticketId, "pending:automation-test", "555555555555555501")).toBe(true);
+    const openTicket = await getTicketById(env.DB, GUILD, ticketId);
+    expect(openTicket).not.toBeNull();
+    expect(await closeTicket(env.DB, GUILD, ticketId, ACTOR, "resolved", "transcript")).toBe(true);
+    const rows = await env.DB.prepare("SELECT trigger_type FROM automation_event_queue WHERE guild_id=?1 AND trigger_type IN ('ticket_opened','ticket_closed') ORDER BY trigger_type").bind(GUILD).all<{ trigger_type: string }>();
+    expect(rows.results.map((row) => row.trigger_type)).toEqual(["ticket_closed", "ticket_opened"]);
+    expect(await compensateFailedTicketClose(env.DB, openTicket!)).toBe(true);
+    const afterCompensation = await env.DB.prepare("SELECT trigger_type FROM automation_event_queue WHERE guild_id=?1 AND trigger_type IN ('ticket_opened','ticket_closed') ORDER BY trigger_type").bind(GUILD).all<{ trigger_type: string }>();
+    expect(afterCompensation.results.map((row) => row.trigger_type)).toEqual(["ticket_opened"]);
   });
 
   it("keeps immutable revisions through update and deletion for rollback audit", async () => {

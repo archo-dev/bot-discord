@@ -4,7 +4,7 @@
 
 Ordre obligatoire : typecheck → tests → build/budget → CI Linux → sauvegarde D1 → migration `0031_automation_studio.sql` → Worker/Panel → Gateway → contrôles de production. La migration est additive et laisse le module désactivé sur tous les serveurs existants.
 
-Après migration, vérifier les onze tables ajoutées/étendues par M10, les quatre triggers SQL et les index `idx_automation_*`. Activer ensuite le module depuis le Panel seulement sur un serveur de validation, créer un workflow inactif, lancer la simulation, puis activer.
+Après migration, vérifier les onze tables ajoutées/étendues par M10 et les index `idx_automation_*`. Les producteurs métier de warn, mute et tickets ajoutent leur événement dans le même batch D1 que la mutation, uniquement si le module et un workflow correspondant sont actifs. Activer ensuite le module depuis le Panel seulement sur un serveur de validation, créer un workflow inactif, lancer la simulation, puis activer.
 
 ## Diagnostic
 

@@ -1,4 +1,5 @@
 /** Warnings: insert/list/revoke + active count (feeds the auto-timeout threshold). */
+import { subscribedAutomationEventStatement } from "./automations.js";
 
 export interface WarningRow {
   id: number;
@@ -18,13 +19,28 @@ export async function insertWarning(
   moderatorId: string,
   reason: string | null,
 ): Promise<number> {
-  const row = await db
-    .prepare(
+  const eventId = `warn:${crypto.randomUUID()}`;
+  const results = await db.batch([
+    db.prepare(
       `INSERT INTO warnings (guild_id, user_id, moderator_id, reason)
        VALUES (?1, ?2, ?3, ?4) RETURNING id`,
     )
-    .bind(guildId, userId, moderatorId, reason)
-    .first<{ id: number }>();
+      .bind(guildId, userId, moderatorId, reason),
+    subscribedAutomationEventStatement(db, {
+      id: eventId,
+      guildId,
+      triggerType: "warn_created",
+      context: {
+        event: { type: "warn_created", id: eventId, depth: 0 },
+        guild: { id: guildId },
+        user: { id: userId },
+        reason: reason ?? "",
+      },
+      enabled: moderatorId !== "automation",
+      requirePreviousChange: true,
+    }),
+  ]);
+  const row = results[0]?.results[0] as { id: number } | undefined;
   return row!.id;
 }
 

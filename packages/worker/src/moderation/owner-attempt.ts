@@ -1,3 +1,5 @@
+import { subscribedAutomationEventStatement } from "../db/queries/automations.js";
+
 const REASON = "Tentative non autorisée de sanction contre le propriétaire du serveur.";
 const HUMAN_ID = /^\d{5,20}$/;
 const WARN_LIMIT_PER_MINUTE = 5;
@@ -41,6 +43,7 @@ export async function recordOwnerTargetAttempt(db: D1Database, input: OwnerTarge
   }
 
   try {
+    const eventId = `warn:${crypto.randomUUID()}`;
     // D1 batch is transactional: a failed case write rolls the warning back,
     // so there can never be an active automatic warning without its audit case.
     await db.batch([
@@ -48,6 +51,18 @@ export async function recordOwnerTargetAttempt(db: D1Database, input: OwnerTarge
         .bind(input.guildId, input.actorId, REASON),
       db.prepare(`UPDATE owner_target_attempts SET warning_id = last_insert_rowid(), updated_at = datetime('now') WHERE guild_id = ?1 AND request_id = ?2`)
         .bind(input.guildId, input.requestId),
+      subscribedAutomationEventStatement(db, {
+        id: eventId,
+        guildId: input.guildId,
+        triggerType: "warn_created",
+        context: {
+          event: { type: "warn_created", id: eventId, depth: 0 },
+          guild: { id: input.guildId },
+          user: { id: input.actorId },
+          reason: REASON,
+        },
+        requirePreviousChange: true,
+      }),
       db.prepare(
         `INSERT INTO mod_actions (guild_id, action, target_id, moderator_id, reason, metadata, source)
          SELECT guild_id, 'warn', actor_id, 'system', ?3,
