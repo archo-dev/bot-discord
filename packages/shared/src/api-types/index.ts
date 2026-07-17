@@ -18,4 +18,5 @@ export * from "./stats.js";
 export * from "./security.js";
 export * from "./modules.js";
 export * from "./onboarding.js";
+export * from "./config-backup.js";
 export * from "./common.js";

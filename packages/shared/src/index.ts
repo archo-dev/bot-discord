@@ -9,4 +9,5 @@ export * from "./security.js";
 export * from "./internal-auth.js";
 export * from "./modules.js";
 export * from "./onboarding.js";
+export * from "./config-backup.js";
 export * from "./reliable-delivery.js";
