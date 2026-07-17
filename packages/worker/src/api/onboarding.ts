@@ -1,12 +1,20 @@
 import { Hono, type Context } from "hono";
+import { z } from "zod";
 import {
   ONBOARDING_PRESETS,
+  ONBOARDING_PRESET_IDS,
+  getOnboardingPreset,
   invitePermissionBitfield,
   invitePermissionUsage,
   type GuildModuleDto,
+  type GuildModulesResponse,
   type ModuleId,
   type OnboardingInvite,
+  type OnboardingPreset,
+  type OnboardingPresetEntry,
   type OnboardingPresetId,
+  type OnboardingPresetPreview,
+  type OnboardingPresetResult,
   type OnboardingResponse,
   type OnboardingStep,
   type OnboardingStepStatus,
@@ -14,7 +22,17 @@ import {
 import type { Env } from "../env.js";
 import type { AppContext } from "../auth/guard.js";
 import { responseFor } from "./modules.js";
-import { getGuild, getOnboardingProgress, parseDismissedSteps } from "../db/queries.js";
+import {
+  applyOnboardingPresetStatement,
+  getGuild,
+  getOnboardingProgress,
+  markOnboardingComplete,
+  parseDismissedSteps,
+  setOnboardingDismissedSteps,
+  syncGuildModuleStatement,
+} from "../db/queries.js";
+import { rateLimit } from "../ratelimit.js";
+import { invalidBody } from "./validation.js";
 
 export const onboardingRouter = new Hono<AppContext>();
 
@@ -119,3 +137,72 @@ export async function buildOnboarding(c: OnboardingContext): Promise<OnboardingR
 }
 
 onboardingRouter.get("/guilds/:guildId/onboarding", async (c) => c.json(await buildOnboarding(c)));
+
+// --- Presets ----------------------------------------------------------------
+
+/**
+ * Diff of what applying a preset would change. Preset modules have no
+ * inter-dependencies, so each is evaluated independently against the current
+ * module DTO: `canEnable` already folds in prerequisites, gateway and permissions.
+ */
+function previewPreset(modules: GuildModulesResponse, preset: OnboardingPreset): OnboardingPresetEntry[] {
+  return preset.modules.map((id) => {
+    const dto = modules.modules.find((module) => module.id === id)!;
+    if (dto.enabled) return { moduleId: id, publicName: dto.publicName, action: "already_enabled", reason: null };
+    if (dto.actions.canEnable) return { moduleId: id, publicName: dto.publicName, action: "enable", reason: null };
+    return { moduleId: id, publicName: dto.publicName, action: "blocked", reason: dto.activationReasons[0] ?? null };
+  });
+}
+
+const presetSchema = z.object({ preset: z.enum(ONBOARDING_PRESET_IDS), dryRun: z.boolean().optional() });
+
+onboardingRouter.post("/guilds/:guildId/onboarding/preset", rateLimit({ name: "onboarding-preset", limit: 10 }), async (c) => {
+  const parsed = presetSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return invalidBody(c, parsed.error);
+  const preset = getOnboardingPreset(parsed.data.preset);
+  const modules = await responseFor(c);
+  const entries = previewPreset(modules, preset);
+
+  if (parsed.data.dryRun) {
+    const preview: OnboardingPresetPreview = { preset: preset.id, entries, applicable: entries.some((entry) => entry.action === "enable") };
+    return c.json(preview);
+  }
+
+  // Only the modules that pass prerequisites are toggled; blocked ones are reported
+  // as skipped. Nothing outside the preset's module set is touched.
+  const guildId = c.req.param("guildId")!;
+  const toEnable = entries.filter((entry) => entry.action === "enable").map((entry) => entry.moduleId);
+  const statements = [
+    ...toEnable.map((id) => syncGuildModuleStatement(c.env.DB, guildId, id, true)),
+    applyOnboardingPresetStatement(c.env.DB, guildId, preset.id),
+  ];
+  await c.env.DB.batch(statements);
+
+  const result: OnboardingPresetResult = {
+    preset: preset.id,
+    enabled: toEnable,
+    skipped: entries.filter((entry) => entry.action === "blocked" && entry.reason).map((entry) => ({ moduleId: entry.moduleId, reason: entry.reason! })),
+    completedAt: new Date().toISOString(),
+  };
+  return c.json(result);
+});
+
+// --- Checklist progress -----------------------------------------------------
+
+const dismissSchema = z.object({ step: z.string().min(1).max(40) });
+
+onboardingRouter.post("/guilds/:guildId/onboarding/dismiss", rateLimit({ name: "onboarding-dismiss", limit: 30 }), async (c) => {
+  const parsed = dismissSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return invalidBody(c, parsed.error);
+  const guildId = c.req.param("guildId")!;
+
+  if (parsed.data.step === "__complete__") {
+    await markOnboardingComplete(c.env.DB, guildId);
+  } else {
+    const progress = await getOnboardingProgress(c.env.DB, guildId);
+    const steps = new Set(parseDismissedSteps(progress.onboarding_dismissed_steps));
+    steps.add(parsed.data.step);
+    await setOnboardingDismissedSteps(c.env.DB, guildId, [...steps]);
+  }
+  return c.json(await buildOnboarding(c));
+});
