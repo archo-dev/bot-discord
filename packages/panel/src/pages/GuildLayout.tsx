@@ -31,6 +31,7 @@ const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
       { to: "audit", label: "Audit", icon: "shield", subtitle: "Historique administratif minimal, sécurisé et conservé pendant 90 jours." },
       { to: "config", label: "Configuration", icon: "sliders", subtitle: "Réglages généraux du bot : salon de logs et seuil d'avertissements." },
       { to: "backup", label: "Sauvegarde", icon: "scroll", subtitle: "Sauvegardez, comparez, restaurez et transférez la configuration des modules." },
+      { to: "privacy", label: "Confidentialité", icon: "shield", subtitle: "Contrôlez les analytics produit minimales et envoyez un retour volontaire." },
       { to: "access", label: "Accès panel", icon: "key", subtitle: "Choisissez qui peut accéder à ce panel en plus des gestionnaires du serveur." },
     ],
   },

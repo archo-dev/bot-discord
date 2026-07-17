@@ -28,6 +28,7 @@ const lazyRoutes: Array<{ path: string; load: () => Promise<Record<string, unkno
   { path: "Health", name: "HealthPage", load: () => import("../src/pages/Health.js") },
   { path: "Audit", name: "AuditPage", load: () => import("../src/pages/Audit.js") },
   { path: "Modules", name: "ModulesPage", load: () => import("../src/pages/Modules.js") },
+  { path: "Privacy", name: "PrivacyPage", load: () => import("../src/pages/Privacy.js") },
 ];
 
 describe("lazy route chunks", () => {

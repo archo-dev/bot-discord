@@ -22,6 +22,7 @@ import { auditRouter } from "./api/audit.js";
 import { modulesRouter } from "./api/modules.js";
 import { onboardingRouter } from "./api/onboarding.js";
 import { configBackupRouter } from "./api/config-backup.js";
+import { privacyRouter } from "./api/privacy.js";
 import { publicRouter } from "./api/public.js";
 import { internalRouter } from "./internal/routes.js";
 import { enforcePanelMutationPolicy, requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
@@ -80,6 +81,7 @@ api.route("/", auditRouter);
 api.route("/", modulesRouter);
 api.route("/", onboardingRouter);
 api.route("/", configBackupRouter);
+api.route("/", privacyRouter);
 api.route("/", guildsRouter);
 app.route("/api", api);
 
