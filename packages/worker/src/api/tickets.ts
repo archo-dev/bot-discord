@@ -12,12 +12,15 @@ import {
   type TicketStatsDto,
 } from "@bot/shared";
 import {
+  cancelTicketReopen,
   claimTicket,
+  finalizeTicketReopen,
   getTicketById,
   getTicketSettings,
   getTicketStats,
   listTicketEvents,
   listTickets,
+  reserveTicketReopen,
   setTicketPanelMessage,
   setTicketPriority,
   setTicketState,
@@ -34,6 +37,19 @@ import { invalidBody } from "./validation.js";
 export const ticketsRouter = new Hono<AppContext>();
 
 const SNOWFLAKE = /^\d{5,20}$/;
+const MEMBER_ALLOW = "117760";
+const STAFF_ALLOW = "125952";
+const BOT_ALLOW = "117776";
+const EVERYONE_DENY = "1024";
+
+function parseStaffRoleIds(raw: string): string[] {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : [];
+  } catch {
+    return [];
+  }
+}
 
 function parseForm(raw: string | null | undefined) {
   if (!raw) return DEFAULT_TICKET_FORM;
@@ -196,6 +212,7 @@ ticketsRouter.get("/guilds/:guildId/tickets/stats", async (c) => {
 const patchSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("claim") }).strict(),
   z.object({ action: z.literal("unassign") }).strict(),
+  z.object({ action: z.literal("reopen") }).strict(),
   z.object({ action: z.literal("set_state"), state: z.enum(["open", "pending"]) }).strict(),
   z.object({ action: z.literal("set_priority"), priority: z.enum(TICKET_PRIORITIES) }).strict(),
 ]);
@@ -211,7 +228,62 @@ ticketsRouter.patch(
     if (!parsed.success) return invalidBody(c, parsed.error);
     const actorId = c.get("session").userId;
     let ticket: TicketRow | null = null;
-    if (parsed.data.action === "claim") {
+    if (parsed.data.action === "reopen") {
+      const settings = await getTicketSettings(c.env.DB, guildId);
+      if (!settings || settings.enabled !== 1 || !settings.category_id) {
+        return c.json({ error: "not_configured" }, 400);
+      }
+      const reservation = await reserveTicketReopen(c.env.DB, guildId, ticketId);
+      if (reservation.outcome === "not_found" || !reservation.ticket) return c.json({ error: "not_found_or_not_closed" }, 404);
+      if (reservation.outcome === "conflict") return c.json({ error: "active_ticket_exists" }, 409);
+      const closedTicket = reservation.ticket;
+      let channelId: string | null = null;
+      try {
+        const staffRoleIds = parseStaffRoleIds(settings.staff_role_ids);
+        const channel = await discordJson<{ id: string }>(c.env, "POST", `/guilds/${guildId}/channels`, {
+          name: `ticket-${String(closedTicket.number).padStart(4, "0")}`,
+          type: 0,
+          parent_id: settings.category_id,
+          topic: `Ticket #${closedTicket.number} — rouvert pour ${closedTicket.user_id}`,
+          permission_overwrites: [
+            { id: guildId, type: 0, deny: EVERYONE_DENY },
+            { id: closedTicket.user_id, type: 1, allow: MEMBER_ALLOW },
+            { id: c.env.DISCORD_CLIENT_ID, type: 1, allow: BOT_ALLOW },
+            ...staffRoleIds.map((roleId) => ({ id: roleId, type: 0, allow: STAFF_ALLOW })),
+          ],
+        }, { auditLogReason: `Ticket #${closedTicket.number} rouvert par ${actorId}` });
+        channelId = channel.id;
+        await discordJson(c.env, "POST", `/channels/${channel.id}/messages`, {
+          content: `<@${closedTicket.user_id}>`,
+          embeds: [{
+            title: `🎫 Ticket #${closedTicket.number} rouvert`,
+            description: "Ce ticket a été rouvert par l'équipe support.",
+            color: 0x5865f2,
+          }],
+          components: [{
+            type: 1,
+            components: [
+              { type: 2, style: 1, label: "Prendre", custom_id: `ticket:claim:${closedTicket.id}` },
+              { type: 2, style: 2, label: "En attente", custom_id: `ticket:state:${closedTicket.id}:pending` },
+              { type: 2, style: 2, label: "Priorité", custom_id: `ticket:priority:${closedTicket.id}` },
+              { type: 2, style: 4, label: "Fermer", custom_id: "ticket:close", emoji: { name: "🔒" } },
+            ],
+          }],
+          allowed_mentions: { users: [closedTicket.user_id] },
+        });
+        ticket = await finalizeTicketReopen(c.env.DB, guildId, ticketId, actorId, channel.id);
+        if (!ticket) throw new Error("ticket reopen reservation could not be finalized");
+      } catch (error) {
+        if (channelId) {
+          await discordJson(c.env, "DELETE", `/channels/${channelId}`, undefined, {
+            auditLogReason: "Compensation d'une réouverture de ticket incomplète",
+          }).catch((deleteError) => console.error(`ticket reopen channel compensation ${channelId} failed:`, deleteError));
+        }
+        await cancelTicketReopen(c.env.DB, guildId, closedTicket.user_id, ticketId);
+        if (error instanceof DiscordAPIError) return c.json({ error: "discord_error", detail: error.message }, 502);
+        throw error;
+      }
+    } else if (parsed.data.action === "claim") {
       const result = await claimTicket(c.env.DB, guildId, ticketId, actorId);
       if (result.outcome === "conflict") return c.json({ error: "already_assigned" }, 409);
       ticket = result.ticket;

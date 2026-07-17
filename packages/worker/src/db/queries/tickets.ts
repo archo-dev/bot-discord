@@ -188,10 +188,17 @@ export async function reserveTicket(
   }
 }
 
-export async function finalizeTicketChannel(db: D1Database, ticketId: number, placeholder: string, channelId: string): Promise<boolean> {
+export async function finalizeTicketChannel(
+  db: D1Database,
+  guildId: string,
+  ticketId: number,
+  placeholder: string,
+  channelId: string,
+): Promise<boolean> {
   const result = await db.prepare(
-    `UPDATE tickets SET channel_id = ?3, updated_at = datetime('now') WHERE id = ?1 AND channel_id = ?2 AND status = 'open'`,
-  ).bind(ticketId, placeholder, channelId).run();
+    `UPDATE tickets SET channel_id = ?4, updated_at = datetime('now')
+     WHERE guild_id = ?1 AND id = ?2 AND channel_id = ?3 AND status = 'open'`,
+  ).bind(guildId, ticketId, placeholder, channelId).run();
   return result.meta.changes > 0;
 }
 
@@ -210,8 +217,8 @@ export async function getOpenTicketForUser(db: D1Database, guildId: string, user
   ).bind(guildId, userId).first<TicketRow>();
 }
 
-export async function getTicketByChannel(db: D1Database, channelId: string): Promise<TicketRow | null> {
-  return db.prepare(`SELECT * FROM tickets WHERE channel_id = ?1`).bind(channelId).first<TicketRow>();
+export async function getTicketByChannel(db: D1Database, guildId: string, channelId: string): Promise<TicketRow | null> {
+  return db.prepare(`SELECT * FROM tickets WHERE guild_id = ?1 AND channel_id = ?2`).bind(guildId, channelId).first<TicketRow>();
 }
 
 export async function getTicketById(db: D1Database, guildId: string, id: number): Promise<TicketRow | null> {
@@ -220,28 +227,43 @@ export async function getTicketById(db: D1Database, guildId: string, id: number)
 
 export async function closeTicket(
   db: D1Database,
+  guildId: string,
   id: number,
   closedBy: string,
   reason: string | null,
   transcript: string,
 ): Promise<boolean> {
-  const current = await db.prepare(`SELECT guild_id, user_id FROM tickets WHERE id = ?1 AND status = 'open'`)
-    .bind(id).first<{ guild_id: string; user_id: string }>();
+  const current = await db.prepare(`SELECT guild_id, user_id FROM tickets WHERE guild_id = ?1 AND id = ?2 AND status = 'open'`)
+    .bind(guildId, id).first<{ guild_id: string; user_id: string }>();
   if (!current) return false;
   const results = await db.batch([
     db.prepare(
       `UPDATE tickets SET status = 'closed', state = 'closed', closed_at = datetime('now'), updated_at = datetime('now'),
-         closed_by = ?2, close_reason = ?3, transcript = ?4
-       WHERE id = ?1 AND status = 'open'`,
-    ).bind(id, closedBy, reason, transcript),
+         closed_by = ?3, close_reason = ?4,
+         transcript = CASE WHEN transcript IS NULL THEN ?5
+           ELSE transcript || '\n\n--- Nouvelle période après réouverture ---\n\n' || ?5 END
+       WHERE guild_id = ?1 AND id = ?2 AND status = 'open'`,
+    ).bind(guildId, id, closedBy, reason, transcript),
     db.prepare(`DELETE FROM ticket_open_claims WHERE guild_id = ?1 AND user_id = ?2 AND ticket_id = ?3`)
       .bind(current.guild_id, current.user_id, id),
     db.prepare(
       `INSERT INTO ticket_events (guild_id, ticket_id, type, actor_id, to_value)
        SELECT ?1, ?2, 'closed', ?3, 'closed'
-       WHERE EXISTS (SELECT 1 FROM tickets WHERE id = ?2 AND status = 'closed' AND closed_by = ?3)
-         AND NOT EXISTS (SELECT 1 FROM ticket_events WHERE ticket_id = ?2 AND type = 'closed')`,
+       WHERE EXISTS (SELECT 1 FROM tickets WHERE guild_id = ?1 AND id = ?2 AND status = 'closed' AND closed_by = ?3)
+         AND NOT EXISTS (
+           SELECT 1 FROM ticket_events
+           WHERE guild_id = ?1 AND ticket_id = ?2 AND type = 'closed'
+             AND id > COALESCE((
+               SELECT MAX(id) FROM ticket_events
+               WHERE guild_id = ?1 AND ticket_id = ?2 AND type = 'state_changed'
+                 AND from_value = 'closed' AND to_value = 'open'
+             ), 0)
+         )`,
     ).bind(current.guild_id, id, closedBy),
+    db.prepare(
+      `DELETE FROM ticket_events WHERE guild_id = ?1 AND ticket_id = ?2 AND id NOT IN
+       (SELECT id FROM ticket_events WHERE guild_id = ?1 AND ticket_id = ?2 ORDER BY created_at DESC, id DESC LIMIT 100)`,
+    ).bind(current.guild_id, id),
   ]);
   return results[0]!.meta.changes > 0;
 }
@@ -249,13 +271,13 @@ export async function closeTicket(
 /** Restores the active state when Discord refused to delete the channel after the D1 close. */
 export async function compensateFailedTicketClose(
   db: D1Database,
-  ticket: Pick<TicketRow, "id" | "guild_id" | "user_id" | "state">,
+  ticket: Pick<TicketRow, "id" | "guild_id" | "user_id" | "state" | "transcript">,
 ): Promise<boolean> {
   const restored = await db.prepare(
-    `UPDATE tickets SET status = 'open', state = ?2, closed_at = NULL, closed_by = NULL,
-       close_reason = NULL, transcript = NULL, updated_at = datetime('now')
-     WHERE id = ?1 AND status = 'closed' RETURNING id`,
-  ).bind(ticket.id, ticket.state === "pending" ? "pending" : "open").first<{ id: number }>();
+    `UPDATE tickets SET status = 'open', state = ?3, closed_at = NULL, closed_by = NULL,
+       close_reason = NULL, transcript = ?4, updated_at = datetime('now')
+     WHERE guild_id = ?1 AND id = ?2 AND status = 'closed' RETURNING id`,
+  ).bind(ticket.guild_id, ticket.id, ticket.state === "pending" ? "pending" : "open", ticket.transcript).first<{ id: number }>();
   if (!restored) return false;
   await db.batch([
     db.prepare(
@@ -264,11 +286,76 @@ export async function compensateFailedTicketClose(
     ).bind(ticket.guild_id, ticket.user_id, ticket.id),
     db.prepare(
       `DELETE FROM ticket_events WHERE id = (
-         SELECT id FROM ticket_events WHERE ticket_id = ?1 AND type = 'closed' ORDER BY id DESC LIMIT 1
+         SELECT id FROM ticket_events WHERE guild_id = ?1 AND ticket_id = ?2 AND type = 'closed' ORDER BY id DESC LIMIT 1
        )`,
-    ).bind(ticket.id),
+    ).bind(ticket.guild_id, ticket.id),
   ]);
   return true;
+}
+
+/** Acquires the user's single-active-ticket claim before a closed ticket is recreated on Discord. */
+export async function reserveTicketReopen(
+  db: D1Database,
+  guildId: string,
+  id: number,
+): Promise<{ outcome: "reserved" | "conflict" | "not_found"; ticket: TicketRow | null }> {
+  const ticket = await getTicketById(db, guildId, id);
+  if (!ticket || ticket.status !== "closed") return { outcome: "not_found", ticket };
+  await db.prepare(
+    `DELETE FROM ticket_open_claims
+     WHERE guild_id = ?1 AND user_id = ?2 AND (
+       (ticket_id IS NULL AND created_at < datetime('now', '-10 minutes')) OR
+       (ticket_id IS NOT NULL AND NOT EXISTS (
+         SELECT 1 FROM tickets WHERE tickets.id = ticket_open_claims.ticket_id
+           AND tickets.guild_id = ticket_open_claims.guild_id AND tickets.status = 'open'
+       ))
+     )`,
+  ).bind(guildId, ticket.user_id).run();
+  const claim = await db.prepare(
+    `INSERT OR IGNORE INTO ticket_open_claims (guild_id, user_id, ticket_id)
+     SELECT ?1, ?2, ?3 WHERE NOT EXISTS (
+       SELECT 1 FROM tickets WHERE guild_id = ?1 AND user_id = ?2 AND status = 'open'
+     )`,
+  ).bind(guildId, ticket.user_id, id).run();
+  return claim.meta.changes > 0
+    ? { outcome: "reserved", ticket }
+    : { outcome: "conflict", ticket };
+}
+
+/** Finalizes a reopened ticket only while its durable claim is still held. */
+export async function finalizeTicketReopen(
+  db: D1Database,
+  guildId: string,
+  id: number,
+  actorId: string,
+  channelId: string,
+): Promise<TicketRow | null> {
+  const results = await db.batch([
+    db.prepare(
+      `UPDATE tickets SET channel_id = ?3, status = 'open', state = 'open', closed_at = NULL,
+         closed_by = NULL, close_reason = NULL, updated_at = datetime('now')
+       WHERE guild_id = ?1 AND id = ?2 AND status = 'closed'
+         AND EXISTS (SELECT 1 FROM ticket_open_claims
+           WHERE guild_id = ?1 AND user_id = tickets.user_id AND ticket_id = ?2)`,
+    ).bind(guildId, id, channelId),
+    db.prepare(
+      `INSERT INTO ticket_events (guild_id, ticket_id, type, actor_id, from_value, to_value)
+       SELECT ?1, ?2, 'state_changed', ?3, 'closed', 'open'
+       WHERE EXISTS (SELECT 1 FROM tickets WHERE guild_id = ?1 AND id = ?2 AND channel_id = ?4 AND status = 'open')`,
+    ).bind(guildId, id, actorId, channelId),
+    db.prepare(
+      `DELETE FROM ticket_events WHERE guild_id = ?1 AND ticket_id = ?2 AND id NOT IN
+       (SELECT id FROM ticket_events WHERE guild_id = ?1 AND ticket_id = ?2 ORDER BY created_at DESC, id DESC LIMIT 100)`,
+    ).bind(guildId, id),
+  ]);
+  return results[0]!.meta.changes > 0 ? getTicketById(db, guildId, id) : null;
+}
+
+export async function cancelTicketReopen(db: D1Database, guildId: string, userId: string, id: number): Promise<void> {
+  await db.prepare(
+    `DELETE FROM ticket_open_claims WHERE guild_id = ?1 AND user_id = ?2 AND ticket_id = ?3
+       AND EXISTS (SELECT 1 FROM tickets WHERE guild_id = ?1 AND id = ?3 AND status = 'closed')`,
+  ).bind(guildId, userId, id).run();
 }
 
 export async function claimTicket(

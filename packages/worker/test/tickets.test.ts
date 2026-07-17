@@ -266,7 +266,7 @@ describe("ticket system", () => {
     expect(((await res.json()) as { type: number }).type).toBe(5);
     await waitOnExecutionContext(ctx);
 
-    const ticket = await getTicketByChannel(env.DB, TICKET_CHANNEL);
+    const ticket = await getTicketByChannel(env.DB, G, TICKET_CHANNEL);
     expect(ticket!.status).toBe("closed");
     expect(ticket!.closed_by).toBe(CREATOR);
     expect(ticket!.close_reason).toBe("problème résolu");
@@ -306,7 +306,7 @@ describe("ticket system", () => {
     expect(publish.status).toBe(200);
 
     const id = await insertTicket(env.DB, { guildId: G, number: 9, channelId: TICKET_CHANNEL, userId: CREATOR });
-    await closeTicket(env.DB, id, CREATOR, "raison", "contenu du transcript");
+    await closeTicket(env.DB, G, id, CREATOR, "raison", "contenu du transcript");
 
     const list = (await (await apiRequest(`/api/guilds/${G}/tickets`, sid)).json()) as {
       items: Array<{ number: number; status: string; hasTranscript: boolean }>;
@@ -317,6 +317,20 @@ describe("ticket system", () => {
 
     const transcript = await apiRequest(`/api/guilds/${G}/tickets/${id}/transcript`, sid);
     expect(transcript.status).toBe(200);
+
+    const reopened = await apiRequest(`/api/guilds/${G}/tickets/${id}`, sid, {
+      method: "PATCH",
+      body: JSON.stringify({ action: "reopen" }),
+    });
+    expect(reopened.status).toBe(200);
+    expect(await reopened.json()).toMatchObject({ status: "open", state: "open", channelId: TICKET_CHANNEL, closedAt: null, hasTranscript: true });
+    expect((await listTicketEvents(env.DB, G, id)).some((event) => event.type === "state_changed" && event.from_value === "closed" && event.to_value === "open")).toBe(true);
+
+    expect(await closeTicket(env.DB, G, id, CREATOR, "seconde résolution", "nouvelle période")).toBe(true);
+    const reclosed = await getTicketById(env.DB, G, id);
+    expect(reclosed!.transcript).toContain("contenu du transcript");
+    expect(reclosed!.transcript).toContain("nouvelle période");
+    expect((await listTicketEvents(env.DB, G, id)).filter((event) => event.type === "closed")).toHaveLength(2);
   });
 
   it("collects a bounded form and rejects hostile modal fields", async () => {
@@ -405,7 +419,7 @@ describe("ticket system", () => {
     const id = await insertTicket(env.DB, { guildId: G, number: 35, channelId: TICKET_CHANNEL, userId: CREATOR });
     await setTicketState(env.DB, G, id, CREATOR, "pending");
     const before = (await getTicketById(env.DB, G, id))!;
-    expect(await closeTicket(env.DB, id, CREATOR, "temporary", "private transcript")).toBe(true);
+    expect(await closeTicket(env.DB, G, id, CREATOR, "temporary", "private transcript")).toBe(true);
     expect((await getTicketById(env.DB, G, id))!.state).toBe("closed");
 
     expect(await compensateFailedTicketClose(env.DB, before)).toBe(true);

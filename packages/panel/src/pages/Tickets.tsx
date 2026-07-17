@@ -365,6 +365,11 @@ function TicketList({ guildId, form, canWrite }: { guildId: string; form: Ticket
                     {ticket.assigneeId === me.data?.id ? "Libérer" : "Prendre"}
                   </Button>
                 )}
+                {canWrite && ticket.state === "closed" && (
+                  <Button size="sm" variant="secondary" loading={patch.isPending && detail?.id === ticket.id} onClick={() => patch.mutate({ ticketId: ticket.id, action: { action: "reopen" } })}>
+                    Rouvrir
+                  </Button>
+                )}
                 <Button size="sm" variant="ghost" onClick={() => setDetail(ticket)}>Détails</Button>
               </div>
             </div>
@@ -381,6 +386,9 @@ function TicketList({ guildId, form, canWrite }: { guildId: string; form: Ticket
             <Button size="sm" variant="secondary" onClick={() => patch.mutate({ ticketId: detail.id, action: detail.assigneeId === me.data?.id ? { action: "unassign" } : { action: "claim" } })}>{detail.assigneeId === me.data?.id ? "Libérer" : "Me l'assigner"}</Button>
             <Button size="sm" variant="secondary" onClick={() => patch.mutate({ ticketId: detail.id, action: { action: "set_state", state: detail.state === "pending" ? "open" : "pending" } })}>{detail.state === "pending" ? "Repasser ouvert" : "Mettre en attente"}</Button>
             <Button size="sm" variant="secondary" onClick={() => patch.mutate({ ticketId: detail.id, action: { action: "set_priority", priority: detail.priority === "high" ? "normal" : "high" } })}>{detail.priority === "high" ? "Priorité normale" : "Priorité haute"}</Button>
+          </div>}
+          {canWrite && detail.state === "closed" && <div className="border-y border-zinc-800 py-3">
+            <Button size="sm" variant="secondary" loading={patch.isPending} onClick={() => patch.mutate({ ticketId: detail.id, action: { action: "reopen" } })}>Rouvrir dans un nouveau salon</Button>
           </div>}
           <div><h3 className="mb-3 text-sm font-semibold text-zinc-200">Timeline</h3>{events.isPending ? <SkeletonList rows={3} /> : events.data?.length ? <div className="space-y-2">{events.data.map((event) => <div key={event.id} className="flex flex-wrap items-center gap-2 text-sm"><span className="text-zinc-200">{EVENT_LABELS[event.type]}</span>{event.toValue && <Badge>{event.toValue}</Badge>}<span className="inline-flex items-center gap-1 text-zinc-500">par <UserCell userId={event.actorId} /> · <TimeAgo iso={event.createdAt} /></span></div>)}</div> : <p className="text-sm text-zinc-500">Aucun événement M09 pour ce ticket historique.</p>}</div>
           {detail.hasTranscript && <Button variant="secondary" onClick={() => { setTranscriptOf(detail); setDetail(null); }}>Charger le transcript</Button>}

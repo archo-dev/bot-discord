@@ -111,5 +111,6 @@ export interface TicketStatsDto {
 export type TicketPatchAction =
   | { action: "claim" }
   | { action: "unassign" }
+  | { action: "reopen" }
   | { action: "set_state"; state: "open" | "pending" }
   | { action: "set_priority"; priority: TicketPriority };

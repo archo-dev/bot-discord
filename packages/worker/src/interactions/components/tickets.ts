@@ -115,7 +115,7 @@ async function startTicketCreation(
         ],
       }, { auditLogReason: `Ticket #${reserved.number} ouvert par ${userId}` });
       channelId = channel.id;
-      if (!(await finalizeTicketChannel(env.DB, reserved.id, reserved.placeholderChannelId, channel.id))) {
+      if (!(await finalizeTicketChannel(env.DB, guildId, reserved.id, reserved.placeholderChannelId, channel.id))) {
         throw new Error("ticket reservation could not be finalized");
       }
 
@@ -284,8 +284,7 @@ export async function toggleTicketPriority(ctx: ComponentContext<APIMessageCompo
 
 export async function promptCloseTicket(ctx: ComponentContext<APIMessageComponentInteraction>): Promise<Response> {
   const { env, interaction } = ctx;
-  const found = await getTicketByChannel(env.DB, interaction.channel.id);
-  const ticket = found && found.guild_id === interaction.guild_id ? found : null;
+  const ticket = await getTicketByChannel(env.DB, interaction.guild_id!, interaction.channel.id);
   if (!ticket || ticket.status !== "open") return ephemeral("Ce salon n'est pas (ou plus) un ticket ouvert.");
   const settings = await getTicketSettings(env.DB, ticket.guild_id);
   if (!canCloseTicket(ticket, interaction.member!, parseStaffRoleIds(settings))) {
@@ -330,7 +329,7 @@ export async function submitCloseTicket(ctx: ComponentContext<APIModalSubmitInte
     let channelDeleted = false;
     try {
       const transcript = await buildTranscript(env, ticket.channel_id);
-      const closed = await closeTicket(env.DB, ticket.id, member.user.id, reason, transcript);
+      const closed = await closeTicket(env.DB, guildId, ticket.id, member.user.id, reason, transcript);
       if (!closed) {
         await editOriginal(env, interaction, { content: "Ce ticket vient déjà d'être fermé." });
         return;

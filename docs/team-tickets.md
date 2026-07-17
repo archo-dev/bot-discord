@@ -7,6 +7,7 @@ M09 transforme le module tickets existant en file de triage volontairement born�
 - formulaire Discord versionné avec 1 à 5 catégories et 0 à 3 questions ;
 - questions courtes ou paragraphe, 1 000 caractères maximum ;
 - assignation unique, priorité `normal|high` et états `open|pending|closed` ;
+- réouverture admin d'un ticket fermé dans un nouveau salon, sans perdre le transcript historique ;
 - actions de triage depuis Discord pour les rôles support et les administrateurs ;
 - actions de triage depuis le panel pour les accès administrateur uniquement ;
 - timeline de métadonnées bornée à 100 événements par ticket et purgée après 180 jours ;
@@ -60,6 +61,8 @@ La configuration tickets fait partie des snapshots M07. Les références à la c
 4. Vérifier ouverture, claim concurrent, attente, priorité, fermeture et accès transcript sur une guilde pilote.
 
 Rollback applicatif : redéployer la version précédente. Elle continue de voir `pending` comme un ticket historique `status = 'open'` et peut le fermer. Les colonnes et tables M09 restent en place ; elles sont additives. Ne pas supprimer la migration en production. Pour revenir à une configuration antérieure, restaurer le snapshot M07 pris avant modification.
+
+La réouverture réserve d'abord l'unique ticket actif du membre, recrée le salon Discord, puis finalise D1. Tout échec supprime le nouveau salon et libère la réservation. Une nouvelle fermeture concatène le transcript de la nouvelle période au transcript historique.
 
 ## Limites
 
