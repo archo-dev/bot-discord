@@ -288,9 +288,23 @@ async function main(): Promise<void> {
   const apply = process.argv.includes("--apply");
   const aliases: Record<string, "sync-guild" | "sync-global"> = { dev: "sync-guild", global: "sync-global" };
   const normalized = mode ? (aliases[mode] ?? mode) : undefined;
-  if (!normalized || !["list", "diff", "sync-global", "sync-guild", "cleanup-guild"].includes(normalized)) {
-    console.error("Usage: tsx scripts/register-commands.ts <list|diff|sync-global|sync-guild|cleanup-guild> [--apply]");
+  if (!normalized || !["validate", "list", "diff", "sync-global", "sync-guild", "cleanup-guild"].includes(normalized)) {
+    console.error("Usage: tsx scripts/register-commands.ts <validate|list|diff|sync-global|sync-guild|cleanup-guild> [--apply]");
     process.exit(1);
+  }
+
+  // This diagnostic intentionally needs neither a Discord token nor network
+  // access, so it can run in CI. It protects the command namespace and the
+  // /voice kick subcommand while the top-level /kick is cleaned up separately.
+  if (normalized === "validate") {
+    const keys = commands.map((command) => `1:${command.name}`);
+    const duplicate = keys.find((key, index) => keys.indexOf(key) !== index);
+    if (duplicate) throw new Error(`D\u00e9finition de commande dupliqu\u00e9e : ${duplicate.slice(2)}`);
+    const voice = commands.find((command) => command.name === "voice");
+    const hasVoiceKick = Array.isArray(voice?.options) && voice.options.some((option) => option.type === 1 && option.name === "kick");
+    if (!hasVoiceKick) throw new Error("La sous-commande /voice kick est absente.");
+    console.log(`\u2705 ${commands.length} d\u00e9finitions uniques valid\u00e9es ; /voice kick est pr\u00e9serv\u00e9e.`);
+    return;
   }
 
   const token = getVar("DISCORD_TOKEN");

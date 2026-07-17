@@ -13,6 +13,7 @@
     "test": "pnpm -r test",
     "register:dev": "tsx scripts/register-commands.ts dev",
     "register:global": "tsx scripts/register-commands.ts global",
+    "commands:validate": "tsx scripts/register-commands.ts validate",
     "commands:list": "tsx scripts/register-commands.ts list",
     "commands:diff": "tsx scripts/register-commands.ts diff",
     "commands:sync:global": "tsx scripts/register-commands.ts sync-global",

@@ -52,6 +52,12 @@ jobs:
       - name: Tests (all packages)
         run: pnpm -r test
 
+      - name: Targeted sanctions and authorization tests
+        run: pnpm --filter @bot/worker test -- sanctions.test.ts security-policy.test.ts moderation.test.ts
+
+      - name: Command definition diagnostics
+        run: pnpm commands:validate
+
       # 2) Rebuild panel final (revérifie le budget bundle < 180 KiB gzip).
       - name: Build panel (final, budget gate)
         run: pnpm --filter @bot/panel build
