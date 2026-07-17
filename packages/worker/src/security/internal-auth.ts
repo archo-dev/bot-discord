@@ -6,6 +6,7 @@ import { consumeInternalNonce } from "../db/queries.js";
 const ROUTES: ReadonlyArray<[string, RegExp]> = [
   ["GET", /^\/internal\/guilds\/\d{5,20}\/(config|commands)$/],
   ["GET", /^\/internal\/temp-voice\/channels$/],
+  ["GET", /^\/internal\/product-metrics$/],
   ["GET", /^\/internal\/guilds\/\d{5,20}\/temp-voice\/channels$/],
   ["GET", /^\/internal\/guilds\/\d{5,20}\/playlists\/[^/]+$/],
   ["POST", /^\/internal\/gateway\/heartbeat$/],

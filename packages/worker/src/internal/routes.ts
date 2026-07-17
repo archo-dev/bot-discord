@@ -9,6 +9,7 @@ import { internalModerationRouter } from "./moderation.js";
 import { internalGuildsRouter } from "./guilds.js";
 import { internalTempVoiceRouter } from "./temp-voice.js";
 import { internalEventsRouter } from "./events.js";
+import { internalAnalyticsRouter } from "./analytics.js";
 import { internalAuthentication } from "../security/internal-auth.js";
 
 /**
@@ -31,3 +32,4 @@ internalRouter.route("/", internalModerationRouter);
 internalRouter.route("/", internalGuildsRouter);
 internalRouter.route("/", internalTempVoiceRouter);
 internalRouter.route("/", internalEventsRouter);
+internalRouter.route("/", internalAnalyticsRouter);

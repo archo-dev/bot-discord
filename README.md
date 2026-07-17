@@ -127,6 +127,8 @@ Smoke test : `/ping` sur un serveur, login sur `https://<votre-worker>.workers.d
 | `DISCORD_CLIENT_SECRET` | secret | Secret OAuth2 |
 | `SESSION_SECRET` | secret | Aléatoire (sessions) |
 | `INTERNAL_API_TOKEN` | secret | Bearer de l'API `/internal/*` (gateway → Worker) |
+| `PRODUCT_ANALYTICS_ENABLED` | var | Coupe-circuit global des analytics produit M08 (`true`/`false`) |
+| `APP_VERSION` | var | Version bornée associée aux agrégats produit |
 | `GATEWAY_ORIGIN` | secret (optionnel) | URL du tunnel vers le gateway (Worker → gateway, M14) |
 | `GATEWAY_HTTP_TOKEN` | secret (optionnel) | Bearer des endpoints HTTP du gateway |
 | `DEV_GUILD_ID` | `.dev.vars` uniquement | Serveur de test pour `pnpm register:dev` |
