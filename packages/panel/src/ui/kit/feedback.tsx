@@ -28,20 +28,22 @@ export function EmptyState({
   title,
   description,
   action,
+  compact = false,
 }: {
   icon: ReactNode;
   title: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
+  compact?: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center py-8 text-center">
+    <div className={`flex flex-col items-center text-center ${compact ? "py-3" : "py-6"}`}>
       <span className="flex h-10 w-10 items-center justify-center rounded-full bg-(--surface-2) text-zinc-500" aria-hidden>
         {icon}
       </span>
       <p className="mt-3 text-sm font-semibold text-zinc-100">{title}</p>
       {description && <p className="mt-1 max-w-sm text-[13px] leading-relaxed text-zinc-400">{description}</p>}
-      {action && <div className="mt-4">{action}</div>}
+      {action && <div className={compact ? "mt-3" : "mt-4"}>{action}</div>}
     </div>
   );
 }

@@ -47,7 +47,7 @@ export function SkeletonList({ rows = 5 }: { rows?: number }) {
 /** Carte de section avec champs (pages de réglages). */
 export function SkeletonFormCard({ fields = 2 }: { fields?: number }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 sm:p-6" aria-busy="true">
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5" aria-busy="true">
       <Skeleton className="h-4 w-44" />
       <Skeleton className="mt-2 h-3 w-72 max-w-full" />
       <div className="mt-5 space-y-4">
@@ -65,7 +65,7 @@ export function SkeletonFormCard({ fields = 2 }: { fields?: number }) {
 /** Page de réglages complète (empilement de cartes). */
 export function SkeletonSettingsPage({ cards = 3 }: { cards?: number }) {
   return (
-    <div className="max-w-2xl space-y-6" aria-busy="true">
+    <div className="max-w-2xl space-y-4" aria-busy="true">
       {Array.from({ length: cards }, (_, i) => (
         <SkeletonFormCard key={i} fields={i === 0 ? 1 : 2} />
       ))}
@@ -76,16 +76,16 @@ export function SkeletonSettingsPage({ cards = 3 }: { cards?: number }) {
 /** Dashboard complet : KPI + deux cartes. */
 export function SkeletonDashboard() {
   return (
-    <div className="space-y-5" aria-busy="true">
+    <div className="space-y-4" aria-busy="true">
       <SkeletonStatRow />
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 sm:p-6 lg:col-span-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5 lg:col-span-2">
           <Skeleton className="h-4 w-48" />
           <div className="mt-4">
             <SkeletonList rows={5} />
           </div>
         </div>
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 sm:p-6">
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5">
           <Skeleton className="h-4 w-36" />
           <div className="mt-4 space-y-3">
             {Array.from({ length: 5 }, (_, i) => (

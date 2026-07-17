@@ -43,10 +43,8 @@ export function HealthPage() {
 
   if (health.isPending) {
     return (
-      <div className="space-y-5" aria-busy="true">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-32 rounded-xl" />)}
-        </div>
+      <div className="space-y-4" aria-busy="true">
+        <Skeleton className="h-24 rounded-xl" />
         <SkeletonList rows={5} />
       </div>
     );
@@ -63,15 +61,21 @@ export function HealthPage() {
 
   const data = health.data;
   return (
-    <div className="space-y-5">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {data.slos.map((slo) => (
-          <Card key={slo.id} pad="compact" title={slo.label} action={<StatusBadge state={slo.state} />}>
-            <p className="text-2xl font-bold text-zinc-100">{slo.value}</p>
-            <p className="mt-1 text-xs text-zinc-400">Objectif : {slo.target}</p>
-          </Card>
-        ))}
-      </div>
+    <div className="space-y-4">
+      <Card title="Indicateurs de service" description="Les quatre objectifs essentiels, réunis dans une seule vue.">
+        <div className="grid divide-y divide-zinc-800/80 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
+          {data.slos.map((slo) => (
+            <div key={slo.id} className="px-3 py-2 first:pl-0 last:pr-0">
+              <div className="flex items-center justify-between gap-2">
+                <p className="truncate text-xs font-medium text-zinc-400">{slo.label}</p>
+                <StatusBadge state={slo.state} />
+              </div>
+              <p className="mt-1 text-xl font-bold text-zinc-100">{slo.value}</p>
+              <p className="text-[11px] text-zinc-500">Objectif : {slo.target}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
 
       <Card title="Gateway" description="État temps réel global, actualisé toutes les deux minutes.">
         <div className="flex flex-wrap items-center gap-3">

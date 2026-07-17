@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { OnboardingResponse, OnboardingStep, OnboardingStepStatus } from "@bot/shared";
 import { api } from "../lib/api.js";
 import { useCanWrite } from "../lib/access.js";
+import { DisclosureCard } from "../ui/disclosure.js";
 import { Badge, Button, Card, ErrorCard } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
 import { Skeleton } from "../ui/skeleton.js";
@@ -107,7 +108,7 @@ export function OnboardingPage() {
   const pct = data.progress.total === 0 ? 100 : Math.round((data.progress.done / data.progress.total) * 100);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Progression */}
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -142,11 +143,10 @@ export function OnboardingPage() {
       </Card>
 
       {/* Invitation / permissions */}
-      <Card>
+      <DisclosureCard title="Permissions du bot" description="Ré-invitation et permissions requises par les modules.">
         <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-300" aria-hidden><Icon.key /></span>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-300" aria-hidden><Icon.key /></span>
           <div className="min-w-0 flex-1">
-            <h2 className="font-semibold text-zinc-100">Permissions du bot</h2>
             <p className="mt-1 text-[13px] leading-relaxed text-zinc-400">
               Si un module signale une permission manquante, ré-invitez le bot pour accorder l'accès. Chaque permission
               correspond aux modules qui en ont besoin — le bot ne demande jamais l'accès administrateur global.
@@ -161,7 +161,7 @@ export function OnboardingPage() {
             </a>
           </div>
         </div>
-      </Card>
+      </DisclosureCard>
     </div>
   );
 }

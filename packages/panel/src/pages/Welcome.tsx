@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LogSettingsDto, WelcomeSettingsDto } from "@bot/shared";
 import { api, fieldError } from "../lib/api.js";
-import { InfoCard, Toggle } from "../ui/kit.js";
+import { Card, InfoCard, Toggle } from "../ui/kit.js";
 import { ChannelSelect as EntityChannelSelect } from "../ui/entity-select.js";
 import { SaveBar, useDirty } from "../ui/savebar.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
@@ -185,10 +185,10 @@ export function WelcomePage() {
 
   return (
     // fieldset disabled (M15) : neutralise tous les champs pour les accès lecture seule.
-    <fieldset disabled={!canWrite} className="space-y-5">
+    <fieldset disabled={!canWrite} className="space-y-4">
       {/* M21 : masonry 2 colonnes (chaque colonne se remplit sans aligner les rangées → pas de vide entre cartes). */}
-      <div className="columns-1 gap-5 xl:columns-2 [&>*]:mb-5 [&>*]:break-inside-avoid">
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+      <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
+      <Card>
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">Message de bienvenue</h2>
           <div className="flex items-center gap-2 text-sm text-zinc-300">
@@ -209,9 +209,9 @@ export function WelcomePage() {
             error={fieldError(save.error, "welcomeMessage")}
           />
         </label>
-      </section>
+      </Card>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+      <Card>
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">Message de départ</h2>
           <div className="flex items-center gap-2 text-sm text-zinc-300">
@@ -227,9 +227,9 @@ export function WelcomePage() {
           Message
           <MessageEditor value={leaveMessage} onChange={setLeaveMessage} error={fieldError(save.error, "leaveMessage")} />
         </label>
-      </section>
+      </Card>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+      <Card>
         <h2 className="font-semibold">Logs serveur</h2>
         <p className="mt-1 text-sm text-zinc-400">
           Embeds postés par le Gateway pour chaque événement coché (distinct du salon de mod-log).
@@ -249,7 +249,7 @@ export function WelcomePage() {
             </div>
           ))}
         </div>
-      </section>
+      </Card>
 
       <InfoCard icon={<Icon.wave />} title="Bon à savoir">
         Variables disponibles : <code>{"{mention}"}</code> <code>{"{user}"}</code> <code>{"{server}"}</code>{" "}

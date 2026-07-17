@@ -111,9 +111,9 @@ export function PanelAccessPage() {
   const roleName = (id: string) => roles.data?.find((r) => r.id === id)?.name ?? id;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* M21 : masonry 2 colonnes. */}
-      <div className="columns-1 gap-5 xl:columns-2 [&>*]:mb-5 [&>*]:break-inside-avoid">
+      <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
       <Card
         title="Rôles autorisés"
         description="Les membres de ces rôles peuvent utiliser le panel même sans la permission « Gérer le serveur »."

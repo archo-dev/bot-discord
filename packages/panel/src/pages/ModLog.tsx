@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ModActionDto, Paginated, WarningDto } from "@bot/shared";
 import { api } from "../lib/api.js";
-import { Badge, Button, Card, EmptyState, ErrorCard, InfoCard, Pagination, Tabs, TableWrap } from "../ui/kit.js";
+import { Badge, Button, Card, EmptyState, ErrorCard, InfoCard, Pagination, Select, Tabs, TableWrap } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
 import { SkeletonList } from "../ui/skeleton.js";
 import { UserCell } from "../ui/cells.js";
@@ -44,20 +44,20 @@ function ModActions() {
     <Card
       title="Actions récentes"
       action={
-        <select
+        <Select
           value={actionFilter}
           onChange={(e) => {
             setActionFilter(e.target.value);
             setPage(1);
           }}
-          className="h-9 rounded-lg border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100"
+          className="min-w-44"
         >
           {ACTION_FILTERS.map((f) => (
             <option key={f.value} value={f.value}>
               {f.label}
             </option>
           ))}
-        </select>
+        </Select>
       }
     >
       {actions.isPending ? (
@@ -254,7 +254,7 @@ export function ModLogPage() {
   const [tab, setTab] = useState<"actions" | "warnings">("actions");
   return (
     // M21 : largeur bornée — une table 5 colonnes s'étale et paraît vide sur 1600 px.
-    <div className="max-w-7xl space-y-5">
+    <div className="max-w-7xl space-y-4">
       <Tabs
         active={tab}
         onChange={setTab}

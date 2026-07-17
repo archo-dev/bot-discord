@@ -11,7 +11,7 @@ import type {
   PresenceStatsDto,
 } from "@bot/shared";
 import { api } from "../lib/api.js";
-import { Badge, Card, EmptyState, ErrorCard, InfoTile, StatCard } from "../ui/kit.js";
+import { Card, EmptyState, ErrorCard } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
 import { SkeletonDashboard, SkeletonList } from "../ui/skeleton.js";
 import { UserCell } from "../ui/cells.js";
@@ -80,7 +80,7 @@ export function Dashboard() {
   const obPct = ob && ob.progress.total > 0 ? Math.round((ob.progress.done / ob.progress.total) * 100) : 0;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Encart prise en main (M06) — visible tant que la configuration n'est pas terminée. */}
       {ob && !ob.completedAt && (
         <Link
@@ -103,38 +103,29 @@ export function Dashboard() {
         </Link>
       )}
 
-      {/* Rangée KPI : StatCard = numérique, InfoTile = état/config (D.S. v2 §4.10) — c'est le
-          résumé du serveur, donc aucune carte « Résumé » redondante en dessous (M21). */}
-      <div className="grid-kpi">
-        <StatCard color="violet" icon={<Icon.users />} value={g.approximateMemberCount ?? "?"} label="Membres" />
-        <StatCard
-          color="amber"
-          icon={<Icon.shield />}
-          value={g.warnThreshold}
-          label="Seuil d'avertissements"
-          hint={`→ mute auto ${g.warnTimeoutMinutes} min`}
-        />
-        <InfoTile
-          color="blue"
-          icon={<Icon.hash />}
-          value={g.logChannelId ? `#${logChannel?.name ?? "logs"}` : "Aucun salon"}
-          label="Salon de logs"
-          badge={g.logChannelId ? undefined : <Badge tone="warning">À configurer</Badge>}
-          to={g.logChannelId ? undefined : `/guilds/${guildId}/config`}
-        />
-        <InfoTile
-          color={g.gatewayConnected ? "green" : "gray"}
-          icon={<Icon.bolt />}
-          value={g.gatewayConnected ? "En ligne" : "Mode HTTP"}
-          label="Statut du bot"
-          badge={
-            <span
-              className={`h-2 w-2 rounded-full ${g.gatewayConnected ? "bg-green-400" : "bg-zinc-600"}`}
-              aria-hidden
-            />
-          }
-        />
-      </div>
+      {/* Un seul résumé scannable remplace quatre cartes KPI concurrentes. */}
+      <Card pad="compact" className="overflow-hidden">
+        <dl className="grid grid-cols-2 divide-x-0 divide-y divide-zinc-800/80 sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+          <SummaryMetric icon="users" label="Membres" value={g.approximateMemberCount ?? "?"} />
+          <SummaryMetric
+            icon="bolt"
+            label="Gateway"
+            value={g.gatewayConnected ? "Connectée" : "Mode HTTP"}
+            tone={g.gatewayConnected ? "success" : "muted"}
+          />
+          <SummaryMetric
+            icon="hash"
+            label="Salon de logs"
+            value={g.logChannelId ? `#${logChannel?.name ?? "logs"}` : "À configurer"}
+            to={g.logChannelId ? undefined : `/guilds/${guildId}/config`}
+          />
+          <SummaryMetric
+            icon="shield"
+            label="Avertissements"
+            value={`${g.warnThreshold} warns · ${g.warnTimeoutMinutes} min`}
+          />
+        </dl>
+      </Card>
 
       {/* 3 colonnes équilibrées d'infos utiles : modération, tendance membres, salons actifs. */}
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
@@ -155,6 +146,7 @@ export function Dashboard() {
               icon={<Icon.scroll />}
               title="Aucune action"
               description="Les sanctions (/warn, /mute, /ban…) apparaîtront ici."
+              compact
             />
           ) : (
             <ul className="divide-y divide-white/5">
@@ -272,4 +264,31 @@ function MiniStat({ label, value, tone }: { label: string; value: string | numbe
       <div className="mt-1 text-xs text-zinc-500">{label}</div>
     </div>
   );
+}
+
+function SummaryMetric({
+  icon,
+  label,
+  value,
+  tone = "default",
+  to,
+}: {
+  icon: "users" | "bolt" | "hash" | "shield";
+  label: string;
+  value: string | number;
+  tone?: "default" | "success" | "muted";
+  to?: string;
+}) {
+  const content = (
+    <div className="flex min-h-14 items-center gap-2.5 px-3 py-2 first:pl-2 sm:min-h-0">
+      <span className={`shrink-0 [&_svg]:h-[17px] [&_svg]:w-[17px] ${tone === "success" ? "text-green-400" : "text-indigo-400"}`}>
+        {Icon[icon]()}
+      </span>
+      <div className="min-w-0">
+        <dt className="text-[11px] text-zinc-500">{label}</dt>
+        <dd className={`truncate text-[13px] font-semibold ${tone === "muted" ? "text-zinc-400" : "text-zinc-100"}`}>{value}</dd>
+      </div>
+    </div>
+  );
+  return to ? <Link to={to} className="rounded-lg transition hover:bg-(--state-hover)">{content}</Link> : content;
 }

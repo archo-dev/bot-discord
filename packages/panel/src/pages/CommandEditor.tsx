@@ -12,7 +12,7 @@ import {
   type ChannelOption,
 } from "@bot/shared";
 import { api, ApiError } from "../lib/api.js";
-import { Button, Toggle } from "../ui/kit.js";
+import { Button, Card, Toggle } from "../ui/kit.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { TimeAgo } from "../ui/mod-meta.js";
 import { useCanWrite } from "../lib/access.js";
@@ -105,7 +105,7 @@ export function CommandEditorPage() {
   if (isEditing && existing.isPending) return <SkeletonSettingsPage cards={2} />;
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="max-w-4xl space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">{isEditing ? `Modifier /${existing.data?.name ?? "…"}` : "Nouvelle commande"}</h2>
         <div className="flex rounded-lg border border-zinc-700 p-0.5">
@@ -124,8 +124,8 @@ export function CommandEditorPage() {
       </div>
 
       {/* fieldset disabled (M15) : tous les champs neutralisés en lecture seule ; l'en-tête (Simple/Avancé) et « Annuler » restent actifs. */}
-      <fieldset disabled={!canWrite} className="space-y-6">
-      <section className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+      <fieldset disabled={!canWrite} className="space-y-4">
+      <Card className="space-y-3">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="text-sm text-zinc-300">
             Nom de la commande
@@ -184,9 +184,9 @@ export function CommandEditorPage() {
             est enregistrée dès maintenant.
           </p>
         )}
-      </section>
+      </Card>
 
-      <section className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+      <Card className="space-y-3">
         <h3 className="font-medium">Réponse</h3>
         <textarea
           className={`${inputCls} min-h-24`}
@@ -228,11 +228,11 @@ export function CommandEditorPage() {
             <input type="color" className="h-9 w-14 cursor-pointer rounded border border-zinc-700 bg-zinc-950" value={form.embedColor} onChange={(e) => set("embedColor", e.target.value)} />
           </div>
         )}
-      </section>
+      </Card>
 
       {mode === "advanced" && (
         <>
-          <section className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+          <Card className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="font-medium">Conditions</h3>
               <div className="flex items-center gap-2">
@@ -270,9 +270,9 @@ export function CommandEditorPage() {
                 />
               </label>
             )}
-          </section>
+          </Card>
 
-          <section className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+          <Card className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="font-medium">Actions supplémentaires (exécutées dans l'ordre)</h3>
               <button
@@ -298,9 +298,9 @@ export function CommandEditorPage() {
             <p className="text-xs text-zinc-500">
               Actions autorisées uniquement (liste blanche) — aucune exécution de code arbitraire.
             </p>
-          </section>
+          </Card>
 
-          <section className="grid grid-cols-1 gap-4 rounded-xl border border-zinc-800 bg-zinc-900 p-6 sm:grid-cols-3">
+          <Card className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <label className="text-sm text-zinc-300">
               Cooldown (secondes, 0 = aucun)
               <input
@@ -329,7 +329,7 @@ export function CommandEditorPage() {
                 ))}
               </select>
             </label>
-          </section>
+          </Card>
         </>
       )}
       </fieldset>
@@ -358,7 +358,7 @@ export function CommandEditorPage() {
       </div>
 
       {isEditing && revisions.data && revisions.data.length > 0 && (
-        <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+        <Card>
           <h3 className="font-medium">Historique des modifications</h3>
           <ul className="mt-3 space-y-2 text-sm">
             {revisions.data.map((rev) => (
@@ -381,7 +381,7 @@ export function CommandEditorPage() {
               </li>
             ))}
           </ul>
-        </section>
+        </Card>
       )}
     </div>
   );

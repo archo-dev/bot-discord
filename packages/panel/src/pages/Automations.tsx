@@ -10,11 +10,12 @@ import type {
 } from "@bot/shared";
 import { api } from "../lib/api.js";
 import { useCanWrite } from "../lib/access.js";
-import { Badge, Button, Card, EmptyState, Input, Select, StatCard, Toggle, Toolbar } from "../ui/kit.js";
+import { Badge, Button, Card, EmptyState, Input, Select, Toggle, Toolbar } from "../ui/kit.js";
 import { ConfirmModal } from "../ui/overlay.js";
 import { SkeletonList } from "../ui/skeleton.js";
 import { Icon } from "../ui/icons.js";
 import { toast } from "../ui/toast.js";
+import { ContextMenu, MenuItem } from "../ui/menu.js";
 
 const statusTone = (status: AutomationExecutionDto["status"]) =>
   status === "succeeded" ? "success" : status === "failed" ? "danger" : status === "running" ? "primary" : "neutral";
@@ -28,6 +29,7 @@ export function AutomationsPage() {
   const [search, setSearch] = useState("");
   const [state, setState] = useState<"all" | "enabled" | "disabled">("all");
   const [trigger, setTrigger] = useState("all");
+  const [showExecutions, setShowExecutions] = useState(false);
   const [toDelete, setToDelete] = useState<AutomationWorkflowDto | null>(null);
 
   const workflows = useQuery({
@@ -41,6 +43,7 @@ export function AutomationsPage() {
   const executions = useQuery({
     queryKey: ["automation-executions", guildId],
     queryFn: () => api<AutomationExecutionDto[]>(`/api/guilds/${guildId}/automations/executions`),
+    enabled: showExecutions,
     refetchInterval: 30_000,
   });
   const modules = useQuery({
@@ -100,7 +103,7 @@ export function AutomationsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Toolbar actions={canWrite ? <div className="flex gap-2">
         <input ref={importRef} type="file" accept="application/json,.json" className="hidden" onChange={(event) => void readImport(event.target.files?.[0])} />
         <Button variant="secondary" onClick={() => importRef.current?.click()} loading={importWorkflow.isPending}>Importer</Button>
@@ -111,12 +114,25 @@ export function AutomationsPage() {
 
       {automationModule && !automationModule.enabled && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-800/70 bg-amber-950/30 p-4 text-sm text-amber-200"><span>Le module Studio d’automatisations est désactivé : les définitions sont conservées, mais aucune ne sera exécutée.</span><Link to="../modules" className="font-semibold text-amber-100 underline">Ouvrir Modules</Link></div>}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={<Icon.workflow />} value={stats.data?.executions ?? "—"} label="Exécutions sur 30 jours" />
-        <StatCard icon={<Icon.bolt />} color="green" value={stats.data?.successes ?? "—"} label="Succès" />
-        <StatCard icon={<Icon.shield />} color="red" value={stats.data?.failures ?? "—"} label="Échecs" />
-        <StatCard icon={<Icon.pulse />} color="blue" value={stats.data?.averageDurationMs == null ? "—" : `${stats.data.averageDurationMs} ms`} label="Durée moyenne" />
-      </div>
+      <Card
+        pad="compact"
+        title="Activité · 30 jours"
+        action={<Button size="sm" variant="ghost" onClick={() => setShowExecutions((value) => !value)}>{showExecutions ? "Masquer le journal" : "Voir le journal"}</Button>}
+      >
+        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-zinc-800 bg-zinc-800 sm:grid-cols-4">
+          {[
+            ["Exécutions", stats.data?.executions ?? "—"],
+            ["Succès", stats.data?.successes ?? "—"],
+            ["Échecs", stats.data?.failures ?? "—"],
+            ["Durée moyenne", stats.data?.averageDurationMs == null ? "—" : `${stats.data.averageDurationMs} ms`],
+          ].map(([label, value]) => (
+            <div key={label} className="bg-zinc-950/70 px-3 py-2">
+              <dt className="text-[11px] text-zinc-500">{label}</dt>
+              <dd className="mt-0.5 text-lg font-bold text-zinc-100">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </Card>
 
       <Card pad="compact">
         <div className="grid gap-3 md:grid-cols-[1fr_180px_220px]">
@@ -131,9 +147,9 @@ export function AutomationsPage() {
       </Card>
 
       {workflows.isPending && <Card><SkeletonList rows={5} /></Card>}
-      {!workflows.isPending && filtered.length === 0 && <Card><EmptyState icon={<Icon.workflow />} title="Aucune automatisation" description={workflows.data?.length ? "Aucun scénario ne correspond aux filtres." : "Créez votre premier scénario visuel."} /></Card>}
-      <div className="space-y-3">
-        {filtered.map((workflow) => <Card key={workflow.id} pad="compact">
+      {!workflows.isPending && filtered.length === 0 && <Card><EmptyState icon={<Icon.workflow />} title={workflows.data?.length ? "Aucun scénario trouvé" : "Aucune automatisation"} description={workflows.data?.length ? "Modifiez les filtres pour retrouver vos scénarios." : "Créez votre premier scénario visuel."} action={workflows.data?.length ? <Button size="sm" variant="secondary" onClick={() => { setSearch(""); setState("all"); setTrigger("all"); }}>Effacer les filtres</Button> : canWrite ? <Link to="new" className="inline-flex h-9 items-center rounded-lg bg-indigo-600 px-3 text-[13px] font-semibold text-white">Créer une automatisation</Link> : undefined} /></Card>}
+      {filtered.length > 0 && <Card pad="compact" className="divide-y divide-zinc-800/80">
+        {filtered.map((workflow) => <div key={workflow.id} className="px-1 py-3 first:pt-1 last:pb-1">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
@@ -148,19 +164,22 @@ export function AutomationsPage() {
             <div className="flex flex-wrap items-center gap-2">
               <span className={!canWrite ? "pointer-events-none opacity-50" : undefined}><Toggle checked={workflow.enabled} onChange={() => canWrite && toggle.mutate(workflow)} /></span>
               <Link to={workflow.id} className="inline-flex h-8 items-center rounded-lg border border-zinc-700 bg-zinc-800 px-3 text-[13px] font-medium text-zinc-100 hover:bg-zinc-700">{canWrite ? "Modifier" : "Voir"}</Link>
-              <Button size="sm" variant="ghost" onClick={() => void exportWorkflow(workflow)}>Exporter</Button>
-              {canWrite && <><Button size="sm" variant="secondary" onClick={() => duplicate.mutate(workflow)}>Dupliquer</Button><Button size="sm" variant="ghost" className="text-red-400" onClick={() => setToDelete(workflow)}>Supprimer</Button></>}
+              <ContextMenu label={`Actions pour ${workflow.name}`}>
+                <MenuItem onClick={() => void exportWorkflow(workflow)}>Exporter</MenuItem>
+                {canWrite && <MenuItem onClick={() => duplicate.mutate(workflow)}>Dupliquer</MenuItem>}
+                {canWrite && <MenuItem danger onClick={() => setToDelete(workflow)}>Supprimer</MenuItem>}
+              </ContextMenu>
             </div>
           </div>
-        </Card>)}
-      </div>
+        </div>)}
+      </Card>}
 
-      <Card title="Exécutions récentes" description="Journal corrélé des 100 dernières exécutions.">
+      {showExecutions && <Card title="Exécutions récentes" description="Journal corrélé des 100 dernières exécutions.">
         <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-left text-sm"><thead className="text-xs uppercase text-zinc-500"><tr><th className="pb-3">Workflow</th><th>État</th><th>Actions</th><th>Durée</th><th>Début</th><th>Corrélation</th></tr></thead><tbody className="divide-y divide-zinc-800">
           {(executions.data ?? []).slice(0, 12).map((execution) => <tr key={execution.id}><td className="py-3 text-zinc-200">{execution.workflowName}</td><td><Badge tone={statusTone(execution.status)}>{execution.status}</Badge></td><td className="text-zinc-400">{execution.actionsSucceeded}/{execution.actionsTotal}</td><td className="text-zinc-400">{execution.durationMs == null ? "—" : `${execution.durationMs} ms`}</td><td className="text-zinc-400">{new Date(execution.startedAt).toLocaleString("fr-FR")}</td><td><code className="text-xs text-zinc-500">{execution.correlationId.slice(0, 8)}</code></td></tr>)}
           {executions.data?.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-zinc-500">Aucune exécution enregistrée.</td></tr>}
         </tbody></table></div>
-      </Card>
+      </Card>}
 
       <ConfirmModal open={toDelete !== null} title="Supprimer l’automatisation" subject={<>Supprimer <b>{toDelete?.name}</b> ?</>} consequence="Les exécutions planifiées en attente seront annulées. L’historique de révisions reste disponible pour l’audit." loading={remove.isPending} onCancel={() => setToDelete(null)} onConfirm={() => toDelete && remove.mutate(toDelete)} />
     </div>

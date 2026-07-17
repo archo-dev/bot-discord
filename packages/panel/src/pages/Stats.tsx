@@ -9,7 +9,7 @@ import type {
   ScheduledEventDto,
 } from "@bot/shared";
 import { api } from "../lib/api.js";
-import { Card, EmptyState, ErrorCard, InfoCard } from "../ui/kit.js";
+import { Card, EmptyState, ErrorCard, InfoCard, Tabs } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
 import { Skeleton } from "../ui/skeleton.js";
 import { ChannelBarChart, JoinLeaveChart, MembersChart, PresenceDonut, type NamedStat } from "../ui/charts.js";
@@ -85,27 +85,33 @@ export function StatsPage() {
   const [memberDays, setMemberDays] = useState(7);
   const [channelDays, setChannelDays] = useState(7);
   const [channelMetric, setChannelMetric] = useState<"messages" | "voice">("messages");
+  const [view, setView] = useState<"audience" | "activity">("audience");
 
   const members = useQuery({
     queryKey: ["stats-members", guildId, memberDays],
     queryFn: () => api<MemberStatsDto>(`/api/guilds/${guildId}/stats/members?days=${memberDays}`),
+    enabled: view === "audience",
   });
   const channels = useQuery({
     queryKey: ["stats-channels", guildId, channelDays],
     queryFn: () => api<ChannelStatsDto>(`/api/guilds/${guildId}/stats/channels?days=${channelDays}`),
+    enabled: view === "activity",
   });
   const presence = useQuery({
     queryKey: ["stats-presence", guildId],
     queryFn: () => api<PresenceStatsDto | null>(`/api/guilds/${guildId}/stats/presence`),
+    enabled: view === "audience",
     refetchInterval: 30_000,
   });
   const events = useQuery({
     queryKey: ["stats-events", guildId],
     queryFn: () => api<ScheduledEventDto[]>(`/api/guilds/${guildId}/stats/events`),
+    enabled: view === "activity",
   });
   const channelList = useQuery({
     queryKey: ["channels", guildId],
     queryFn: () => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`),
+    enabled: view === "activity",
     staleTime: 60_000,
   });
 
@@ -119,7 +125,17 @@ export function StatsPage() {
   }));
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
+      <Tabs
+        active={view}
+        onChange={setView}
+        tabs={[
+          { id: "audience", label: "Audience" },
+          { id: "activity", label: "Salons et événements" },
+        ]}
+      />
+      {view === "audience" ? (
+        <>
       {/* Membres — grande courbe humains/bots */}
       <Card
         title="Membres"
@@ -135,7 +151,7 @@ export function StatsPage() {
         )}
       </Card>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-3 lg:grid-cols-2">
         <Card title="Arrivées & départs" description="Agrégées par jour depuis les événements du serveur.">
           {members.isPending ? <ChartSkeleton height={200} /> : members.isError ? <ErrorCard message="Impossible de charger les arrivées et départs." onRetry={() => void members.refetch()} /> : <JoinLeaveChart data={members.data?.deltas ?? []} />}
         </Card>
@@ -156,8 +172,9 @@ export function StatsPage() {
           )}
         </Card>
       </div>
-
-      <div className="grid gap-5 lg:grid-cols-2">
+        </>
+      ) : (
+      <div className="grid gap-3 lg:grid-cols-2">
         <Card
           title="Salons les plus actifs"
           action={
@@ -201,6 +218,7 @@ export function StatsPage() {
           )}
         </Card>
       </div>
+      )}
     </div>
   );
 }

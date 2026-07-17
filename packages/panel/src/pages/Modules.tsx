@@ -83,7 +83,7 @@ export function ModulesPage() {
   if (modules.isError) return <ErrorCard message="Impossible de charger les modules du serveur." onRetry={() => void modules.refetch()} />;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <Toolbar>
         <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Rechercher un module…" aria-label="Rechercher un module" className="sm:max-w-sm" />
         <Select value={category} onChange={(event) => setCategory(event.target.value as "all" | ModuleCategory)} aria-label="Filtrer par catégorie" className="sm:max-w-52">
@@ -99,7 +99,7 @@ export function ModulesPage() {
       )}
 
       {filtered.length === 0 ? (
-        <Card><EmptyState icon={<Icon.sliders />} title="Aucun module trouvé" description="Modifiez la recherche ou le filtre de catégorie." /></Card>
+        <Card><EmptyState icon={<Icon.sliders />} title="Aucun module trouvé" description="Modifiez la recherche ou le filtre de catégorie." action={<Button size="sm" variant="secondary" onClick={() => { setSearch(""); setCategory("all"); }}>Effacer les filtres</Button>} /></Card>
       ) : (
         <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((module) => {

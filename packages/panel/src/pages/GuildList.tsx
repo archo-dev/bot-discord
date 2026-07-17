@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { GuildSummary, MeResponse } from "@bot/shared";
 import { api, avatarUrl, guildIconUrl } from "../lib/api.js";
-import { EmptyState, ErrorCard, IconButton, PageHeader } from "../ui/kit.js";
+import { Card, EmptyState, ErrorCard, IconButton, PageHeader } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
 import { SkeletonGuildGrid } from "../ui/skeleton.js";
 
@@ -40,7 +40,7 @@ export function GuildList({ me }: { me: MeResponse }) {
       )}
 
       {guilds.data && guilds.data.length === 0 && (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+        <Card>
           <EmptyState
             icon={<Icon.users />}
             title="Aucun serveur géré avec le bot installé"
@@ -52,7 +52,7 @@ export function GuildList({ me }: { me: MeResponse }) {
               </>
             }
           />
-        </div>
+        </Card>
       )}
 
       <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

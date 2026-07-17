@@ -114,120 +114,77 @@ export function ConfigPage() {
 
   return (
     // fieldset disabled (M15) : neutralise tous les champs pour les accès lecture seule.
-    <fieldset disabled={!canWrite} className="space-y-5">
-      {/* M21 : masonry 2 colonnes (chaque colonne se remplit sans aligner les rangées → pas de vide entre cartes). */}
-      <div className="columns-1 gap-5 xl:columns-2 [&>*]:mb-5 [&>*]:break-inside-avoid">
-      <Card title="Logs de modération" description="Salon où le bot poste chaque action de modération.">
-        <ChannelSelect
-          guildId={guildId!}
-          value={logChannelId || null}
-          onChange={(id) => setLogChannelId(id ?? "")}
-          placeholder="— Désactivé —"
-        />
-      </Card>
-
-      <Card
-        title="Avertissements"
-        description={
-          <>
-            Au bout de <b>{warnThreshold}</b> warns actifs, le membre est automatiquement mute{" "}
-            <b>{warnTimeoutMinutes} min</b> (appliqué au moment du /warn).
-          </>
-        }
-      >
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Seuil de warns" error={fieldError(save.error, "warnThreshold")}>
-            <Input
-              type="number"
-              min={1}
-              max={20}
-              value={warnThreshold}
-              onChange={(e) => setWarnThreshold(Number(e.target.value))}
+    <fieldset disabled={!canWrite} className="max-w-5xl space-y-3">
+      <Card title="Configuration générale" description="Les réglages essentiels restent visibles ; les options occasionnelles sont repliées.">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <section>
+            <h3 className="text-sm font-semibold text-zinc-100">Logs de modération</h3>
+            <p className="mb-2 mt-0.5 text-xs text-zinc-500">Salon où le bot poste chaque action.</p>
+            <ChannelSelect
+              guildId={guildId!}
+              value={logChannelId || null}
+              onChange={(id) => setLogChannelId(id ?? "")}
+              placeholder="— Désactivé —"
             />
-          </Field>
-          <Field label="Durée du mute auto (minutes)" error={fieldError(save.error, "warnTimeoutMinutes")}>
-            <Input
-              type="number"
-              min={1}
-              max={40320}
-              value={warnTimeoutMinutes}
-              onChange={(e) => setWarnTimeoutMinutes(Number(e.target.value))}
-            />
-          </Field>
-        </div>
-      </Card>
+          </section>
 
-      <Card
-        title="Surnom du bot"
-        description="Nom affiché du bot sur ce serveur. Nécessite la permission Discord « Changer de pseudo » pour être appliqué."
-      >
-        <div className="flex gap-2">
-          <Input
-            value={botNickname}
-            onChange={(e) => setBotNickname(e.target.value)}
-            maxLength={32}
-            placeholder="Nom par défaut du bot"
-            className="flex-1"
-          />
-          <Button variant="secondary" onClick={() => saveNickname.mutate()} loading={saveNickname.isPending}>
-            Appliquer
-          </Button>
+          <section>
+            <h3 className="text-sm font-semibold text-zinc-100">Avertissements</h3>
+            <p className="mb-2 mt-0.5 text-xs text-zinc-500">Mute automatique après {warnThreshold} warns actifs.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Seuil" error={fieldError(save.error, "warnThreshold")}>
+                <Input type="number" min={1} max={20} value={warnThreshold} onChange={(e) => setWarnThreshold(Number(e.target.value))} />
+              </Field>
+              <Field label="Mute (minutes)" error={fieldError(save.error, "warnTimeoutMinutes")}>
+                <Input type="number" min={1} max={40320} value={warnTimeoutMinutes} onChange={(e) => setWarnTimeoutMinutes(Number(e.target.value))} />
+              </Field>
+            </div>
+          </section>
         </div>
-        {saveNickname.isSuccess && (
-          <p className="mt-2 text-sm text-green-400">✓ Surnom appliqué sur ce serveur.</p>
-        )}
-        {nickMissingPerm && (
-          <p className="mt-2 text-sm text-amber-400">
-            Surnom enregistré, mais <b>non appliqué</b> : le bot n'a pas la permission « Changer de pseudo » sur ce
-            serveur. Donne-lui cette permission puis clique à nouveau sur « Appliquer ».
-          </p>
-        )}
-        {saveNickname.isError && !nickMissingPerm && (
-          <p className="mt-2 text-sm text-red-400">Échec de l'application du surnom — réessaie.</p>
-        )}
-        <p className="mt-2 text-xs text-zinc-500">Laisse le champ vide et clique sur « Appliquer » pour réinitialiser au nom par défaut.</p>
-      </Card>
 
-      <Card
-        title="Rôles automatiques à l'arrivée"
-        description="Attribués par le service Gateway à chaque membre qui rejoint le serveur."
-      >
-        <div className="flex flex-wrap gap-2">
-          {roles.data
-            ?.filter((r) => !r.managed)
-            .map((r) => (
-              <Chip
-                key={r.id}
-                selected={selectedAutoRoles.includes(r.id)}
-                onClick={() =>
-                  setSelectedAutoRoles((prev) =>
-                    prev.includes(r.id) ? prev.filter((id) => id !== r.id) : [...prev, r.id],
-                  )
-                }
-              >
-                {r.name}
-              </Chip>
-            ))}
+        <div className="mt-4 divide-y divide-zinc-800/80 border-t border-zinc-800/80">
+          <details className="group py-1">
+            <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between py-2 text-sm font-medium text-zinc-200 [&::-webkit-details-marker]:hidden">
+              Identité du bot <span className="text-zinc-500 transition-transform group-open:rotate-180">⌄</span>
+            </summary>
+            <div className="pb-3">
+              <div className="flex gap-2">
+                <Input value={botNickname} onChange={(e) => setBotNickname(e.target.value)} maxLength={32} placeholder="Nom par défaut du bot" className="flex-1" />
+                <Button variant="secondary" onClick={() => saveNickname.mutate()} loading={saveNickname.isPending}>Appliquer</Button>
+              </div>
+              {saveNickname.isSuccess && <p className="mt-2 text-sm text-green-400">✓ Surnom appliqué sur ce serveur.</p>}
+              {nickMissingPerm && <p className="mt-2 text-sm text-amber-400">Surnom enregistré, mais non appliqué : la permission « Changer de pseudo » manque.</p>}
+              {saveNickname.isError && !nickMissingPerm && <p className="mt-2 text-sm text-red-400">Échec de l'application du surnom — réessayez.</p>}
+            </div>
+          </details>
+
+          <details className="group py-1">
+            <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between py-2 text-sm font-medium text-zinc-200 [&::-webkit-details-marker]:hidden">
+              Rôles automatiques <span className="text-xs font-normal text-zinc-500">{selectedAutoRoles.length} sélectionné(s) · <span className="inline-block transition-transform group-open:rotate-180">⌄</span></span>
+            </summary>
+            <div className="flex flex-wrap gap-2 pb-3">
+              {roles.data?.filter((r) => !r.managed).map((r) => (
+                <Chip key={r.id} selected={selectedAutoRoles.includes(r.id)} onClick={() => setSelectedAutoRoles((prev) => prev.includes(r.id) ? prev.filter((id) => id !== r.id) : [...prev, r.id])}>
+                  {r.name}
+                </Chip>
+              ))}
+            </div>
+          </details>
+
+          <details className="group py-1">
+            <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between py-2 text-sm font-medium text-zinc-200 [&::-webkit-details-marker]:hidden">
+              Cartes de membre sur mention <span className="text-xs font-normal text-zinc-500">{mentionCards ? "Activées" : "Désactivées"} · <span className="inline-block transition-transform group-open:rotate-180">⌄</span></span>
+            </summary>
+            <div className="pb-3">
+              <Toggle checked={mentionCards} onChange={setMentionCards} label="Activer les cartes de membre" description="Une carte par membre unique mentionné, maximum 3 par message." />
+            </div>
+          </details>
         </div>
-      </Card>
-
-      <Card
-        title="Carte de membre sur mention"
-        description="Quand le bot poste un message qui mentionne des membres (réponses de commandes, annonce de niveau, accueil/départ), il ajoute une petite fiche par membre mentionné (compte créé, arrivée, rôles, statut)."
-      >
-        <Toggle
-          checked={mentionCards}
-          onChange={setMentionCards}
-          label="Activer les cartes de membre"
-          description="Une carte par membre unique mentionné, maximum 3 cartes par message."
-        />
       </Card>
 
       <InfoCard icon={<Icon.sliders />} title="Bon à savoir">
-        Ces réglages s'appliquent immédiatement. Le mute automatique se déclenche au moment du <code>/warn</code> qui
-        atteint le seuil, pas rétroactivement.
+        Le mute automatique se déclenche au moment du <code>/warn</code> qui atteint le seuil, pas rétroactivement.
       </InfoCard>
-      </div>
 
       <SaveBar
         dirty={dirty}

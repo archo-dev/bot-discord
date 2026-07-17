@@ -39,6 +39,7 @@ export const Icon = {
   bolt: () => svg(<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />),
   star: () => svg(<polygon points="12 3 14.6 8.8 21 9.4 16.2 13.7 17.6 20 12 16.6 6.4 20 7.8 13.7 3 9.4 9.4 8.8" />),
   menu: () => svg(<><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></>),
+  more: () => svg(<><circle cx="5" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="19" cy="12" r="1" fill="currentColor" /></>),
   close: () => svg(<><line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" /></>),
   chevron: () => svg(<polyline points="6 9 12 15 18 9" />),
   gavel: () => svg(<><path d="m14 13-7 7" /><path d="M3 21h8" /><path d="m9 8 7 7" /><path d="m5 12 5-5" /><path d="m12 5 5 5" /><path d="m16 3 5 5-2 2-5-5z" /></>),

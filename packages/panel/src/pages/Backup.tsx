@@ -81,7 +81,7 @@ export function BackupPage() {
   if (snapshots.isError) return <ErrorCard message="Impossible de charger les sauvegardes." onRetry={() => void snapshots.refetch()} />;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="max-w-2xl">
@@ -99,7 +99,7 @@ export function BackupPage() {
       </Card>
 
       {snapshots.data.snapshots.length === 0 ? (
-        <Card><EmptyState icon={<Icon.scroll />} title="Aucune sauvegarde" description="Créez une première sauvegarde pour pouvoir restaurer votre configuration plus tard." /></Card>
+        <Card><EmptyState icon={<Icon.scroll />} title="Aucune sauvegarde" description="Créez une première sauvegarde pour pouvoir restaurer votre configuration plus tard." action={canWrite ? <Button size="sm" loading={create.isPending} onClick={() => create.mutate()}>Créer une sauvegarde</Button> : undefined} /></Card>
       ) : (
         <div className="overflow-hidden rounded-xl border border-zinc-800/90 bg-zinc-900/50 shadow-(--shadow-sm)">
           <ul className="divide-y divide-zinc-800/70">

@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CustomCommandDto } from "@bot/shared";
 import { api } from "../lib/api.js";
-import { Badge, EmptyState, InfoCard, Toggle, Toolbar } from "../ui/kit.js";
+import { Badge, Card, EmptyState, IconButton, InfoCard, Toggle, Toolbar } from "../ui/kit.js";
 import { ConfirmModal } from "../ui/overlay.js";
 import { SkeletonList } from "../ui/skeleton.js";
 import { toast } from "../ui/toast.js";
@@ -45,7 +45,7 @@ export function CommandsPage() {
   });
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <Toolbar actions={
         canWrite ? (
           <Link
@@ -62,12 +62,12 @@ export function CommandsPage() {
       </Toolbar>
 
       {commands.isPending && (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 px-4">
+        <Card pad="compact">
           <SkeletonList rows={4} />
-        </div>
+        </Card>
       )}
       {commands.data?.length === 0 && (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+        <Card>
           <EmptyState
             icon={<Icon.command />}
             title="Aucune commande personnalisée"
@@ -81,14 +81,14 @@ export function CommandsPage() {
               </Link>
             }
           />
-        </div>
+        </Card>
       )}
 
-      <ul className="space-y-2">
+      <ul className="divide-y divide-zinc-800/80 overflow-hidden rounded-xl border border-zinc-800/90 bg-(--surface-1) shadow-(--shadow-sm)">
         {commands.data?.map((cmd) => (
           <li
             key={cmd.id}
-            className="flex items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3"
+            className="flex items-center gap-3 px-4 py-3 transition hover:bg-(--state-hover)"
           >
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
@@ -119,12 +119,13 @@ export function CommandsPage() {
               {canWrite ? "Modifier" : "Voir"}
             </Link>
             {canWrite && (
-              <button
+              <IconButton
+                label={`Supprimer /${cmd.name}`}
+                danger
                 onClick={() => setToDelete(cmd)}
-                className="inline-flex h-8 items-center rounded-lg px-3 text-[13px] font-medium text-red-400 transition hover:bg-red-950/50"
               >
-                Supprimer
-              </button>
+                <Icon.close />
+              </IconButton>
             )}
           </li>
         ))}

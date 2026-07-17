@@ -31,7 +31,7 @@ import {
   Toggle,
 } from "../ui/kit.js";
 import { ChannelSelect } from "../ui/entity-select.js";
-import { Modal } from "../ui/overlay.js";
+import { Drawer, Modal } from "../ui/overlay.js";
 import { UserCell } from "../ui/cells.js";
 import { TimeAgo } from "../ui/mod-meta.js";
 import { SaveBar, useDirty } from "../ui/savebar.js";
@@ -157,9 +157,9 @@ export function TicketsPage() {
   if (settings.isPending) return <SkeletonSettingsPage cards={4} />;
 
   return (
-    <div className="space-y-6">
-      <fieldset disabled={!canWrite} className="space-y-5">
-        <div className="columns-1 gap-5 xl:columns-2 [&>*]:mb-5 [&>*]:break-inside-avoid">
+    <div className="space-y-4">
+      <fieldset disabled={!canWrite} className="space-y-4">
+        <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
           <Card
             title="Système de tickets"
             description="Un salon privé par demande, visible par le membre et l'équipe support."
@@ -205,7 +205,7 @@ export function TicketsPage() {
           description="Jusqu'à 5 catégories et 3 questions. Les réponses restent privées et ne sont jamais utilisées dans les statistiques."
           action={<Toggle checked={formEnabled} onChange={setFormEnabled} />}
         >
-          <div className="grid gap-6 xl:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-2">
             <div>
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-zinc-200">Catégories ({form.categories.length}/5)</h3>
@@ -378,7 +378,7 @@ function TicketList({ guildId, form, canWrite }: { guildId: string; form: Ticket
       )}
       <Pagination page={page} totalPages={totalPages} total={tickets.data?.total} onPage={setPage} />
 
-      <Modal open={detail !== null} onClose={() => setDetail(null)} title={detail ? `Ticket #${String(detail.number).padStart(4, "0")}` : ""} size="2xl">
+      <Drawer open={detail !== null} onClose={() => setDetail(null)} title={detail ? `Ticket #${String(detail.number).padStart(4, "0")}` : ""}>
         {detail && <div className="space-y-5">
           <div className="flex flex-wrap gap-2"><Badge tone={detail.state === "open" ? "success" : detail.state === "pending" ? "warning" : "neutral"}>{STATE_LABELS[detail.state]}</Badge><Badge tone={detail.priority === "high" ? "danger" : "neutral"}>Priorité {detail.priority === "high" ? "haute" : "normale"}</Badge><Badge>{categoryLabel(detail.categoryKey)}</Badge></div>
           {detail.formResponse && Object.keys(detail.formResponse).length > 0 && <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-4"><h3 className="mb-3 text-sm font-semibold text-zinc-200">Réponses privées</h3><dl className="space-y-3">{Object.entries(detail.formResponse).map(([id, value]) => <div key={id}><dt className="text-xs text-zinc-500">{form.fields.find((field) => field.id === id)?.label ?? id}</dt><dd className="mt-1 whitespace-pre-wrap text-sm text-zinc-200">{value}</dd></div>)}</dl></div>}
@@ -393,7 +393,7 @@ function TicketList({ guildId, form, canWrite }: { guildId: string; form: Ticket
           <div><h3 className="mb-3 text-sm font-semibold text-zinc-200">Timeline</h3>{events.isPending ? <SkeletonList rows={3} /> : events.data?.length ? <div className="space-y-2">{events.data.map((event) => <div key={event.id} className="flex flex-wrap items-center gap-2 text-sm"><span className="text-zinc-200">{EVENT_LABELS[event.type]}</span>{event.toValue && <Badge>{event.toValue}</Badge>}<span className="inline-flex items-center gap-1 text-zinc-500">par <UserCell userId={event.actorId} /> · <TimeAgo iso={event.createdAt} /></span></div>)}</div> : <p className="text-sm text-zinc-500">Aucun événement M09 pour ce ticket historique.</p>}</div>
           {detail.hasTranscript && <Button variant="secondary" onClick={() => { setTranscriptOf(detail); setDetail(null); }}>Charger le transcript</Button>}
         </div>}
-      </Modal>
+      </Drawer>
 
       <Modal open={transcriptOf !== null} onClose={() => setTranscriptOf(null)} title={transcriptOf ? `Transcript du ticket #${String(transcriptOf.number).padStart(4, "0")}` : ""} size="2xl">
         {transcript.isPending && <SkeletonList rows={6} />}

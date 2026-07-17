@@ -16,6 +16,7 @@ export function Modal({
   title,
   children,
   size = "md",
+  placement = "center",
   /** Bloque Échap/backdrop pendant une mutation en cours. */
   locked = false,
 }: {
@@ -24,6 +25,7 @@ export function Modal({
   title: ReactNode;
   children: ReactNode;
   size?: "md" | "2xl";
+  placement?: "center" | "right";
   locked?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -73,7 +75,7 @@ export function Modal({
 
   return (
     <div
-      className="animate-overlay-in fixed inset-0 z-(--z-modal) flex items-center justify-center bg-[rgba(6,7,14,0.72)] p-4 sm:p-6"
+      className={`animate-overlay-in fixed inset-0 z-(--z-modal) flex bg-[rgba(6,7,14,0.72)] ${placement === "right" ? "justify-end" : "items-center justify-center p-4 sm:p-6"}`}
       onClick={() => !locked && onClose()}
       aria-hidden={false}
     >
@@ -84,8 +86,10 @@ export function Modal({
         aria-label={typeof title === "string" ? title : undefined}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className={`animate-panel-in max-h-[85vh] w-full overflow-auto rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-(--shadow-lg) outline-none sm:p-6 ${
-          size === "2xl" ? "max-w-2xl" : "max-w-md"
+        className={`animate-panel-in w-full overflow-auto border border-zinc-800 bg-zinc-900 shadow-(--shadow-lg) outline-none ${
+          placement === "right"
+            ? "h-full max-w-lg border-y-0 border-r-0 p-4 sm:p-5"
+            : `max-h-[85vh] rounded-2xl p-5 sm:p-6 ${size === "2xl" ? "max-w-2xl" : "max-w-md"}`
         }`}
       >
         <div className="mb-3 flex items-start justify-between gap-3">
@@ -106,6 +110,11 @@ export function Modal({
       </div>
     </div>
   );
+}
+
+/** Détail secondaire ancré à droite, avec le même contrat clavier que Modal. */
+export function Drawer({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode }) {
+  return <Modal open={open} onClose={onClose} title={title} placement="right">{children}</Modal>;
 }
 
 /**

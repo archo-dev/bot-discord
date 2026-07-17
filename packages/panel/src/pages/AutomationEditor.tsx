@@ -14,8 +14,9 @@ import type {
 } from "@bot/shared";
 import { api, ApiError } from "../lib/api.js";
 import { useCanWrite } from "../lib/access.js";
+import { DisclosureCard } from "../ui/disclosure.js";
 import { Badge, Button, Card, Field, Input, Select, Textarea, Toggle } from "../ui/kit.js";
-import { SkeletonSettingsPage } from "../ui/skeleton.js";
+import { SkeletonList, SkeletonSettingsPage } from "../ui/skeleton.js";
 import { Icon } from "../ui/icons.js";
 import { toast } from "../ui/toast.js";
 
@@ -121,12 +122,14 @@ export function AutomationEditorPage() {
   const [error, setError] = useState<string | null>(null);
   const [simulationJson, setSimulationJson] = useState("");
   const [simulation, setSimulation] = useState<AutomationSimulationResult | null>(null);
+  const [showSimulation, setShowSimulation] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   const catalog = useQuery({ queryKey: ["automation-catalog", guildId], queryFn: () => api<AutomationCatalogDto>(`/api/guilds/${guildId}/automations/catalog`) });
   const existing = useQuery({ queryKey: ["automation", guildId, automationId], queryFn: () => api<AutomationWorkflowDto>(`/api/guilds/${guildId}/automations/${automationId}`), enabled: isEditing });
   const roles = useQuery({ queryKey: ["roles", guildId], queryFn: () => api<RoleOption[]>(`/api/guilds/${guildId}/roles`) });
   const channels = useQuery({ queryKey: ["channels", guildId], queryFn: () => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`) });
-  const revisions = useQuery({ queryKey: ["automation-revisions", guildId, automationId], queryFn: () => api<AutomationRevisionDto[]>(`/api/guilds/${guildId}/automations/${automationId}/revisions`), enabled: isEditing });
+  const revisions = useQuery({ queryKey: ["automation-revisions", guildId, automationId], queryFn: () => api<AutomationRevisionDto[]>(`/api/guilds/${guildId}/automations/${automationId}/revisions`), enabled: isEditing && showHistory });
 
   useEffect(() => { if (existing.data) setWorkflow(existing.data); }, [existing.data]);
   useEffect(() => {
@@ -150,16 +153,19 @@ export function AutomationEditorPage() {
 
   if (!definitions || (isEditing && existing.isPending)) return <SkeletonSettingsPage cards={4} />;
 
-  return <div className="mx-auto max-w-5xl space-y-6">
+  return <div className="mx-auto max-w-5xl space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div><Link to=".." className="text-sm text-indigo-300 hover:text-indigo-200">← Studio</Link><h2 className="mt-1 text-xl font-semibold text-zinc-100">{isEditing ? workflow.name || "Automatisation" : "Nouvelle automatisation"}</h2></div>
-      <div className="flex gap-2">{isEditing && <Button variant="secondary" onClick={() => simulate.mutate()} loading={simulate.isPending}>Mode test</Button>}<Button onClick={() => { setError(null); save.mutate(); }} loading={save.isPending} disabled={!canWrite || workflow.name.trim() === "" || workflow.actions.length === 0}>{isEditing ? "Enregistrer" : "Créer"}</Button></div>
+      <div className="flex gap-2">{isEditing && <Button variant="secondary" onClick={() => setShowSimulation(true)}>Mode test</Button>}<Button onClick={() => { setError(null); save.mutate(); }} loading={save.isPending} disabled={!canWrite || workflow.name.trim() === "" || workflow.actions.length === 0}>{isEditing ? "Enregistrer" : "Créer"}</Button></div>
     </div>
 
     {error && <div role="alert" className="rounded-xl border border-red-800 bg-red-950/35 p-4 text-sm text-red-300">{error}</div>}
-    <Card title="Aperçu du scénario"><p className="font-mono text-sm text-indigo-200">SI {preview}</p></Card>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-indigo-500/25 bg-indigo-500/8 px-3 py-2.5">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-indigo-400">Aperçu</span>
+      <p className="min-w-0 truncate font-mono text-[13px] text-indigo-200">SI {preview}</p>
+    </div>
 
-    <fieldset disabled={!canWrite} className="space-y-6">
+    <fieldset disabled={!canWrite} className="space-y-4">
       <Card title="Identité et garde-fous" description="Les limites s’appliquent atomiquement avant toute action.">
         <div className="grid gap-4 md:grid-cols-2"><Field label="Nom"><Input value={workflow.name} maxLength={80} onChange={(event) => setWorkflow({ ...workflow, name: event.target.value })} /></Field><Field label="Description"><Input value={workflow.description} maxLength={500} onChange={(event) => setWorkflow({ ...workflow, description: event.target.value })} /></Field></div>
         <div className="mt-4 grid gap-4 md:grid-cols-4"><Toggle checked={workflow.enabled} onChange={(enabled) => setWorkflow({ ...workflow, enabled })} label="Active" /><Field label="Cooldown (secondes)"><Input type="number" min={0} max={86400} value={workflow.cooldownSeconds} onChange={(event) => setWorkflow({ ...workflow, cooldownSeconds: Number(event.target.value) })} /></Field><Field label="Portée"><Select value={workflow.cooldownScope} onChange={(event) => setWorkflow({ ...workflow, cooldownScope: event.target.value as AutomationWorkflowInput["cooldownScope"] })}><option value="user">Utilisateur</option><option value="channel">Salon</option><option value="guild">Serveur</option></Select></Field><Field label="Maximum / minute"><Input type="number" min={1} max={60} value={workflow.maxRunsPerMinute} onChange={(event) => setWorkflow({ ...workflow, maxRunsPerMinute: Number(event.target.value) })} /></Field></div>
@@ -178,10 +184,10 @@ export function AutomationEditorPage() {
       </Card>
     </fieldset>
 
-    <Card title="Variables de template" description="Utilisables dans tous les champs texte sous la forme {{variable}}."><div className="flex flex-wrap gap-2">{definitions.variables.map((variable) => <code key={variable} className="rounded-full border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-xs text-indigo-300">{"{{"}{variable}{"}}"}</code>)}</div></Card>
+    <DisclosureCard title="Variables de template" description="Référence disponible pour les champs texte."><div className="flex flex-wrap gap-2">{definitions.variables.map((variable) => <code key={variable} className="rounded-full border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-xs text-indigo-300">{"{{"}{variable}{"}}"}</code>)}</div></DisclosureCard>
 
-    {isEditing && <Card title="Simulation" description="Le mode test évalue les conditions et prévisualise les actions sans aucune mutation Discord ou D1 métier."><Textarea className="font-mono text-xs" value={simulationJson} onChange={(event) => setSimulationJson(event.target.value)} />{simulation && <div className="mt-4 rounded-lg bg-zinc-950 p-4 text-sm"><Badge tone={simulation.matched ? "success" : "warning"}>{simulation.matched ? "conditions validées" : "conditions non validées"}</Badge><ul className="mt-3 space-y-1 text-zinc-400">{simulation.actions.map((action, index) => <li key={`${action.type}-${index}`}>{index + 1}. {action.preview}</li>)}</ul>{simulation.warnings.map((warning) => <p key={warning} className="mt-2 text-amber-300">{warning}</p>)}</div>}</Card>}
+    {isEditing && <DisclosureCard open={showSimulation} onOpenChange={setShowSimulation} title="Simulation" description="Tester le scénario sans mutation Discord ni D1."><Textarea className="font-mono text-xs" value={simulationJson} onChange={(event) => setSimulationJson(event.target.value)} /><div className="mt-3 flex justify-end"><Button variant="secondary" onClick={() => simulate.mutate()} loading={simulate.isPending}>Lancer la simulation</Button></div>{simulation && <div className="mt-4 rounded-lg bg-zinc-950 p-4 text-sm"><Badge tone={simulation.matched ? "success" : "warning"}>{simulation.matched ? "conditions validées" : "conditions non validées"}</Badge><ul className="mt-3 space-y-1 text-zinc-400">{simulation.actions.map((action, index) => <li key={`${action.type}-${index}`}>{index + 1}. {action.preview}</li>)}</ul>{simulation.warnings.map((warning) => <p key={warning} className="mt-2 text-amber-300">{warning}</p>)}</div>}</DisclosureCard>}
 
-    {isEditing && <Card title="Historique" description="Chaque modification, activation, désactivation ou import produit une révision immuable."><div className="space-y-2">{(revisions.data ?? []).map((revision) => <div key={revision.id} className="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2 text-sm"><span>Révision {revision.revision} · {revision.changeType}</span><span className="text-zinc-500">{new Date(revision.createdAt).toLocaleString("fr-FR")}</span></div>)}</div></Card>}
+    {isEditing && <DisclosureCard open={showHistory} onOpenChange={setShowHistory} title="Historique" description="Révisions immuables de cette automatisation."><div className="space-y-2">{revisions.isPending ? <SkeletonList rows={3} /> : (revisions.data ?? []).map((revision) => <div key={revision.id} className="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2 text-sm"><span>Révision {revision.revision} · {revision.changeType}</span><span className="text-zinc-500">{new Date(revision.createdAt).toLocaleString("fr-FR")}</span></div>)}</div></DisclosureCard>}
   </div>;
 }

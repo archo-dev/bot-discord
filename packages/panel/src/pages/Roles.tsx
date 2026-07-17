@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ButtonRoleMessageDto, ChannelOption, RoleOption } from "@bot/shared";
 import { api } from "../lib/api.js";
-import { Button, EmptyState, IconButton, InfoCard } from "../ui/kit.js";
+import { Button, Card, EmptyState, IconButton, InfoCard } from "../ui/kit.js";
 import { ConfirmModal } from "../ui/overlay.js";
 import { SkeletonList } from "../ui/skeleton.js";
 import { toast } from "../ui/toast.js";
@@ -93,10 +93,10 @@ export function RolesPage() {
   return (
     <div className="space-y-4">
       {/* M21 : builder à gauche, messages publiés + astuce à droite. */}
-      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
       {/* fieldset disabled (M15) : composition + publication neutralisées en lecture seule. */}
       <fieldset disabled={!canWrite} className="contents">
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+      <Card>
         <h2 className="font-semibold">Nouveau message de rôles</h2>
         <p className="mt-1 text-sm text-zinc-400">
           Publie un message avec des boutons : un clic ajoute le rôle, un second le retire. Fonctionne sans le Gateway.
@@ -208,11 +208,11 @@ export function RolesPage() {
             Publier le message
           </Button>
         </div>
-      </section>
+      </Card>
       </fieldset>
 
       <div className="space-y-4">
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+      <Card>
         <h2 className="font-semibold">Messages publiés</h2>
         <div className="mt-3 divide-y divide-zinc-800">
           {messages.isPending && <SkeletonList rows={2} />}
@@ -231,12 +231,14 @@ export function RolesPage() {
                   #{textChannels.find((c) => c.id === m.channelId)?.name ?? m.channelId}
                 </span>
                 {canWrite && (
-                  <button
+                  <IconButton
+                    label={`Supprimer ${m.title}`}
+                    danger
                     onClick={() => setToDelete(m)}
-                    className="ml-auto text-sm text-red-400 hover:underline"
+                    className="ml-auto"
                   >
-                    Supprimer
-                  </button>
+                    <Icon.close />
+                  </IconButton>
                 )}
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
@@ -250,7 +252,7 @@ export function RolesPage() {
             </div>
           ))}
         </div>
-      </section>
+      </Card>
       </div>
       </div>
 

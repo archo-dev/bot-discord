@@ -38,7 +38,7 @@ export function PrivacyPage() {
   if (privacy.isError) return <ErrorCard onRetry={() => void privacy.refetch()} />;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <Card
         title="Analytics produit minimales"
         description="Aidez-nous à comprendre l’installation, la prise en main et l’adoption des modules. Aucun contenu Discord ni membre n’est suivi."

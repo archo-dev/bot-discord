@@ -16,17 +16,17 @@ export function Card({
   action?: ReactNode;
   children?: ReactNode;
   className?: string;
-  /** `compact` = padding 16 px constant (densité M21) ; `default` = 20/24 px. */
+  /** `compact` = padding 12 px ; `default` = 16/20 px. */
   pad?: "default" | "compact";
 }) {
-  const padCls = pad === "compact" ? "p-4" : "p-5 sm:p-6";
+  const padCls = pad === "compact" ? "p-3" : "p-4 sm:p-5";
   return (
     <section className={`rounded-xl border border-zinc-800/90 bg-[linear-gradient(145deg,rgba(24,29,44,0.96),rgba(17,21,33,0.96))] ${padCls} shadow-(--shadow-sm) ${className}`}>
       {(title || action) && (
-        <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="mb-3 flex items-start justify-between gap-3">
           <div className="min-w-0">
             {title && <h2 className="text-[15px] font-semibold text-zinc-100">{title}</h2>}
-            {description && <p className="mt-1 text-[13px] leading-relaxed text-zinc-400">{description}</p>}
+            {description && <p className="mt-0.5 text-xs leading-relaxed text-zinc-400">{description}</p>}
           </div>
           {action && <div className="shrink-0">{action}</div>}
         </div>
@@ -62,17 +62,17 @@ export function StatCard({
   hint?: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-zinc-800/90 bg-[linear-gradient(145deg,rgba(24,29,44,0.98),rgba(17,21,33,0.98))] p-5 shadow-(--shadow-sm)">
+    <div className="rounded-xl border border-zinc-800/90 bg-[linear-gradient(145deg,rgba(24,29,44,0.98),rgba(17,21,33,0.98))] p-4 shadow-(--shadow-sm)">
       <div className="flex items-center gap-3">
-        <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-white shadow-lg ring-4 ring-white/5 ${vizBg[color]}`}>
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white shadow-lg ring-4 ring-white/5 [&_svg]:h-[18px] [&_svg]:w-[18px] ${vizBg[color]}`}>
           {icon}
         </span>
         <div className="min-w-0">
-          <div className="text-[26px] font-bold leading-none tracking-tight text-zinc-100">{value}</div>
+          <div className="text-[22px] font-bold leading-none tracking-tight text-zinc-100">{value}</div>
           <div className="mt-1 truncate text-[13px] text-zinc-400">{label}</div>
         </div>
       </div>
-      {hint && <p className="mt-3 text-xs text-zinc-500">{hint}</p>}
+      {hint && <p className="mt-2 text-xs text-zinc-500">{hint}</p>}
     </div>
   );
 }
@@ -95,7 +95,7 @@ export function InfoTile({
 }) {
   const body = (
     <div className="flex items-center gap-3">
-      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white ${vizBg[color]}`}>
+      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white [&_svg]:h-[17px] [&_svg]:w-[17px] ${vizBg[color]}`}>
         {icon}
       </span>
       <div className="min-w-0 flex-1">
@@ -105,7 +105,7 @@ export function InfoTile({
       {badge && <div className="shrink-0">{badge}</div>}
     </div>
   );
-  const cls = "block rounded-xl border border-zinc-800/90 bg-[linear-gradient(145deg,rgba(24,29,44,0.98),rgba(17,21,33,0.98))] p-5 shadow-(--shadow-sm)";
+  const cls = "block rounded-xl border border-zinc-800/90 bg-[linear-gradient(145deg,rgba(24,29,44,0.98),rgba(17,21,33,0.98))] p-4 shadow-(--shadow-sm)";
   if (to) {
     return (
       <Link to={to} className={`${cls} transition hover:bg-(--state-hover)`}>
@@ -119,14 +119,15 @@ export function InfoTile({
 /* --- Carte d'info « Bon à savoir » / « Astuce » (design2) --- */
 export function InfoCard({ icon, title, children }: { icon: ReactNode; title: ReactNode; children: ReactNode }) {
   return (
-    <div className="flex gap-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4 sm:p-5">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 text-indigo-400">
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <div className="text-sm font-semibold text-zinc-100">{title}</div>
-        <div className="mt-0.5 text-[13px] leading-relaxed text-zinc-400">{children}</div>
-      </div>
-    </div>
+    <details className="group rounded-xl border border-zinc-800 bg-zinc-900/80">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2.5 px-3.5 py-2 text-sm font-semibold text-zinc-200 transition hover:bg-(--state-hover) [&::-webkit-details-marker]:hidden">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 text-indigo-400 [&_svg]:h-4 [&_svg]:w-4">
+          {icon}
+        </span>
+        <span className="min-w-0 flex-1">{title}</span>
+        <span className="text-zinc-500 transition-transform group-open:rotate-180" aria-hidden>⌄</span>
+      </summary>
+      <div className="border-t border-zinc-800/80 px-4 py-3 text-[13px] leading-relaxed text-zinc-400">{children}</div>
+    </details>
   );
 }

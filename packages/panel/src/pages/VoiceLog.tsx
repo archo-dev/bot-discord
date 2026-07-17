@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { ChannelOption, VoiceLogAction, VoiceLogDto, VoiceLogPage } from "@bot/shared";
 import { api } from "../lib/api.js";
-import { Button, Card, EmptyState, ErrorCard, InfoCard, TableWrap, Toolbar } from "../ui/kit.js";
+import { Button, Card, EmptyState, ErrorCard, InfoCard, Input, Select, TableWrap, Toolbar } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
 import { SkeletonList } from "../ui/skeleton.js";
 import { UserCell } from "../ui/cells.js";
@@ -73,9 +73,6 @@ export function VoiceLogPage() {
     setTo("");
   };
 
-  const dateCls =
-    "h-9 rounded-lg border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100 [color-scheme:dark]";
-
   const channelCell = (log: VoiceLogDto) => {
     const to = channelName(log.channelId);
     if (log.action === "move") {
@@ -91,7 +88,7 @@ export function VoiceLogPage() {
 
   return (
     // M21 : largeur bornée — une table 4 colonnes s'étale et paraît vide sur 1600 px.
-    <div className="max-w-5xl space-y-5">
+    <div className="max-w-5xl space-y-4">
       <Card
         title="Historique vocal"
         description="Arrivées, départs et déplacements en vocal — indépendants du salon de logs. Nécessite le service Gateway."
@@ -103,15 +100,15 @@ export function VoiceLogPage() {
           <div className="w-52">
             <ChannelSelect guildId={guildId!} value={channelId || null} onChange={(id) => setChannelId(id ?? "")} types={[2, 13]} placeholder="Filtrer par salon…" />
           </div>
-          <select value={action} onChange={(e) => setAction(e.target.value)} className="h-9 rounded-lg border border-zinc-700 bg-zinc-950 px-2 text-sm text-zinc-100">
+          <Select value={action} onChange={(e) => setAction(e.target.value)} className="sm:max-w-52">
             {ACTION_FILTERS.map((f) => (
               <option key={f.value} value={f.value}>
                 {f.label}
               </option>
             ))}
-          </select>
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={dateCls} aria-label="Depuis" />
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={dateCls} aria-label="Jusqu'à" />
+          </Select>
+          <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="[color-scheme:dark] sm:max-w-40" aria-label="Depuis" />
+          <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="[color-scheme:dark] sm:max-w-40" aria-label="Jusqu'à" />
           {hasFilters && (
             <Button variant="ghost" size="sm" onClick={resetFilters}>
               Réinitialiser

@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LeaderboardEntry, RoleOption, XpSettingsDto } from "@bot/shared";
 import { api, fieldError } from "../lib/api.js";
-import { EmptyState, IconButton, InfoCard, Toggle } from "../ui/kit.js";
+import { Button, Card, EmptyState, Field, IconButton, InfoCard, Input, Toggle } from "../ui/kit.js";
 import { ChannelSelect, RoleSelect } from "../ui/entity-select.js";
 import { SaveBar, useDirty } from "../ui/savebar.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
@@ -53,10 +53,10 @@ export function LevelsPage() {
 
   return (
     // fieldset disabled (M15) : neutralise tous les champs pour les accès lecture seule.
-    <fieldset disabled={!canWrite} className="space-y-5">
+    <fieldset disabled={!canWrite} className="space-y-4">
       {/* M21 : réglages en masonry 2 colonnes ; le classement (table) reste pleine largeur en dessous. */}
-      <div className="columns-1 gap-5 xl:columns-2 [&>*]:mb-5 [&>*]:break-inside-avoid">
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 space-y-3">
+      <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
+      <Card className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">XP par message</h2>
           <div className="flex items-center gap-2 text-sm text-zinc-300">
@@ -65,48 +65,33 @@ export function LevelsPage() {
           </div>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <label className="text-sm text-zinc-300">
-            XP min
-            <input
+          <Field label="XP min" error={fieldError(save.error, "xpMin")}>
+            <Input
               type="number"
               min={1}
               max={100}
               value={s.xpMin}
               onChange={(e) => set({ xpMin: Number(e.target.value) })}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
             />
-            {fieldError(save.error, "xpMin") && (
-              <span className="mt-1 block text-xs text-red-400">{fieldError(save.error, "xpMin")}</span>
-            )}
-          </label>
-          <label className="text-sm text-zinc-300">
-            XP max
-            <input
+          </Field>
+          <Field label="XP max" error={fieldError(save.error, "xpMax")}>
+            <Input
               type="number"
               min={1}
               max={200}
               value={s.xpMax}
               onChange={(e) => set({ xpMax: Number(e.target.value) })}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
             />
-            {fieldError(save.error, "xpMax") && (
-              <span className="mt-1 block text-xs text-red-400">{fieldError(save.error, "xpMax")}</span>
-            )}
-          </label>
-          <label className="text-sm text-zinc-300">
-            Cooldown (s)
-            <input
+          </Field>
+          <Field label="Cooldown (s)" error={fieldError(save.error, "cooldownSeconds")}>
+            <Input
               type="number"
               min={5}
               max={3600}
               value={s.cooldownSeconds}
               onChange={(e) => set({ cooldownSeconds: Number(e.target.value) })}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
             />
-            {fieldError(save.error, "cooldownSeconds") && (
-              <span className="mt-1 block text-xs text-red-400">{fieldError(save.error, "cooldownSeconds")}</span>
-            )}
-          </label>
+          </Field>
         </div>
         <div className="flex items-center gap-3 text-sm text-zinc-300">
           <Toggle checked={s.announceLevelUp} onChange={(v) => set({ announceLevelUp: v })} />
@@ -125,9 +110,9 @@ export function LevelsPage() {
             </div>
           </label>
         )}
-      </section>
+      </Card>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 space-y-3">
+      <Card className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">XP vocal</h2>
           <div className="flex items-center gap-2 text-sm text-zinc-300">
@@ -139,30 +124,27 @@ export function LevelsPage() {
           Gagne de l'XP par minute passée en vocal. Exclus : bots, membres seuls dans le salon, en sourdine ou muet, et le
           salon AFK. Utilise la même courbe et les mêmes rôles récompense que l'XP par message.
         </p>
-        <label className="block text-sm text-zinc-300 sm:max-w-xs">
-          XP par minute
-          <input
+        <div className="sm:max-w-xs">
+          <Field label="XP par minute" error={fieldError(save.error, "voiceXpPerMin")}>
+          <Input
             type="number"
             min={1}
             max={100}
             value={s.voiceXpPerMin}
             onChange={(e) => set({ voiceXpPerMin: Number(e.target.value) })}
-            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
           />
-          {fieldError(save.error, "voiceXpPerMin") && (
-            <span className="mt-1 block text-xs text-red-400">{fieldError(save.error, "voiceXpPerMin")}</span>
-          )}
-        </label>
-      </section>
+          </Field>
+        </div>
+      </Card>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+      <Card>
         <h2 className="font-semibold">Rôles récompense</h2>
         <p className="mt-1 text-sm text-zinc-400">Attribués automatiquement quand le niveau est atteint.</p>
         <div className="mt-3 space-y-2">
           {s.rewards.map((reward, i) => (
             <div key={i} className="flex items-center gap-2">
               <span className="text-sm text-zinc-400">Niveau</span>
-              <input
+              <Input
                 type="number"
                 min={1}
                 max={200}
@@ -170,7 +152,7 @@ export function LevelsPage() {
                 onChange={(e) =>
                   set({ rewards: s.rewards.map((r, j) => (j === i ? { ...r, level: Number(e.target.value) } : r)) })
                 }
-                className="w-20 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
+                className="w-20"
               />
               <span className="text-sm text-zinc-400">→</span>
               <div className="flex-1">
@@ -189,24 +171,26 @@ export function LevelsPage() {
               </IconButton>
             </div>
           ))}
-          <button
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
             onClick={() => {
               const first = assignableRoles[0];
               if (first) set({ rewards: [...s.rewards, { level: 5, roleId: first.id }] });
             }}
             disabled={s.rewards.length >= 25 || assignableRoles.length === 0}
-            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 transition hover:border-indigo-500 disabled:opacity-50"
           >
             + Ajouter une récompense
-          </button>
+          </Button>
         </div>
-      </section>
+      </Card>
       </div>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+      <Card>
         <h2 className="font-semibold">Classement</h2>
         {leaderboard.data && leaderboard.data.length > 0 ? (
-          <div className="-mx-6 mt-3 overflow-x-auto px-6">
+          <div className="-mx-5 mt-3 overflow-x-auto px-5">
             <table className="w-full min-w-[30rem] text-sm">
               <thead>
                 <tr className="border-b border-zinc-800 text-left text-xs uppercase tracking-wide text-zinc-500">
@@ -243,7 +227,7 @@ export function LevelsPage() {
             description="Le classement se remplit dès que les membres écrivent des messages (le gain d'XP nécessite le service Gateway)."
           />
         )}
-      </section>
+      </Card>
 
       <InfoCard icon={<Icon.trophy />} title="Bon à savoir">
         Les rôles récompense sont rattrapés : un membre reçoit tous les rôles jusqu'à son niveau actuel, pas seulement

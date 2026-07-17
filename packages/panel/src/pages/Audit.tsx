@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { PANEL_CAPABILITIES, type AdminAuditEntryDto, type AdminAuditPage, type PanelCapability } from "@bot/shared";
 import { api, ApiError } from "../lib/api.js";
-import { Badge, Button, Card, EmptyState, ErrorCard, ResponsiveData, TableWrap, Toolbar } from "../ui/kit.js";
+import { Badge, Button, Card, EmptyState, ErrorCard, ResponsiveData, Select, TableWrap, Toolbar } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
 import { SkeletonList } from "../ui/skeleton.js";
 import { TimeAgo } from "../ui/mod-meta.js";
@@ -56,18 +56,18 @@ export function AuditPage() {
   }
 
   return (
-    <div className="max-w-6xl space-y-5">
+    <div className="max-w-6xl space-y-4">
       <Card title="Historique administratif" description="Actions de configuration et de gestion effectuées depuis le panel. Conservation limitée à 90 jours.">
         <Toolbar className="mb-4">
-          <select value={capability} onChange={(event) => setCapability(event.target.value)} className="h-9 rounded-lg border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100" aria-label="Filtrer par domaine">
+          <Select value={capability} onChange={(event) => setCapability(event.target.value)} aria-label="Filtrer par domaine">
             <option value="">Tous les domaines</option>
             {PANEL_CAPABILITIES.map((value) => <option key={value} value={value}>{CAPABILITY_LABELS[value]}</option>)}
-          </select>
-          <select value={outcome} onChange={(event) => setOutcome(event.target.value)} className="h-9 rounded-lg border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100" aria-label="Filtrer par résultat">
+          </Select>
+          <Select value={outcome} onChange={(event) => setOutcome(event.target.value)} aria-label="Filtrer par résultat">
             <option value="">Tous les résultats</option>
             <option value="success">Succès</option>
             <option value="error">Échec</option>
-          </select>
+          </Select>
           {hasFilters && <Button variant="ghost" size="sm" onClick={reset}>Réinitialiser</Button>}
         </Toolbar>
 

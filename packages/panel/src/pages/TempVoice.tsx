@@ -42,7 +42,7 @@ export function TempVoicePage() {
   const set = (patch: Partial<TempVoiceSettingsDto>) => setS((prev) => (prev ? { ...prev, ...patch } : prev));
 
   return (
-    <fieldset disabled={!canWrite} className="max-w-3xl space-y-5">
+    <fieldset disabled={!canWrite} className="max-w-3xl space-y-4">
       <Card
         title="Salons vocaux temporaires"
         description="Quand un membre rejoint le salon déclencheur, le bot lui crée un salon vocal personnel et l'y déplace. Le salon disparaît une fois vide."

@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AutomodSettingsDto, ChannelOption, RoleOption } from "@bot/shared";
 import { api, fieldError } from "../lib/api.js";
-import { Chip, InfoCard, Toggle } from "../ui/kit.js";
+import { Card, Chip, Field, InfoCard, Input, Select, Textarea, Toggle } from "../ui/kit.js";
 import { SaveBar, useDirty } from "../ui/savebar.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { Icon } from "../ui/icons.js";
@@ -88,112 +88,98 @@ export function AutomodPage() {
 
   return (
     // fieldset disabled (M15) : neutralise tous les champs pour les accès lecture seule.
-    <fieldset disabled={!canWrite} className="space-y-5">
+    <fieldset disabled={!canWrite} className="space-y-4">
       {/* M21 : masonry 2 colonnes (chaque colonne se remplit sans aligner les rangées → pas de vide entre cartes). */}
-      <div className="columns-1 gap-5 xl:columns-2 [&>*]:mb-5 [&>*]:break-inside-avoid">
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+      <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
+      <Card>
         <h2 className="font-semibold">Sanction</h2>
         <p className="mt-1 text-sm text-zinc-400">
           Appliquée à chaque infraction. Les avertissements alimentent le seuil warns → mute auto de la Configuration.
           Les membres avec « Gérer les messages » sont toujours exemptés.
         </p>
-        <select
+        <Select
           value={s.action}
           onChange={(e) => set({ action: e.target.value as AutomodSettingsDto["action"] })}
-          className="mt-3 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
+          className="mt-3"
         >
           {ACTIONS.map((a) => (
             <option key={a.value} value={a.value}>
               {a.label}
             </option>
           ))}
-        </select>
+        </Select>
         {s.action === "timeout" && (
-          <label className="mt-3 block text-sm text-zinc-300">
-            Durée du mute (minutes)
-            <input
+          <div className="mt-3">
+          <Field label="Durée du mute (minutes)" error={fieldError(save.error, "timeoutMinutes")}>
+            <Input
               type="number"
               min={1}
               max={40320}
               value={s.timeoutMinutes}
               onChange={(e) => set({ timeoutMinutes: Number(e.target.value) })}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
             />
-            {fieldError(save.error, "timeoutMinutes") && (
-              <span className="mt-1 block text-xs text-red-400">{fieldError(save.error, "timeoutMinutes")}</span>
-            )}
-          </label>
+          </Field>
+          </div>
         )}
-      </section>
+      </Card>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 space-y-3">
+      <Card className="space-y-3">
         <h2 className="font-semibold">Anti-spam</h2>
         <Toggle checked={s.antiSpamEnabled} onChange={(v) => set({ antiSpamEnabled: v })} label="Activé" />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <label className="text-sm text-zinc-300">
-            Messages max
-            <input
+          <Field label="Messages max" error={fieldError(save.error, "antiSpamMaxMessages")}>
+            <Input
               type="number"
               min={2}
               max={20}
               value={s.antiSpamMaxMessages}
               onChange={(e) => set({ antiSpamMaxMessages: Number(e.target.value) })}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
             />
-            {fieldError(save.error, "antiSpamMaxMessages") && (
-              <span className="mt-1 block text-xs text-red-400">{fieldError(save.error, "antiSpamMaxMessages")}</span>
-            )}
-          </label>
-          <label className="text-sm text-zinc-300">
-            Fenêtre (secondes)
-            <input
+          </Field>
+          <Field label="Fenêtre (secondes)" error={fieldError(save.error, "antiSpamWindowSeconds")}>
+            <Input
               type="number"
               min={2}
               max={60}
               value={s.antiSpamWindowSeconds}
               onChange={(e) => set({ antiSpamWindowSeconds: Number(e.target.value) })}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
             />
-            {fieldError(save.error, "antiSpamWindowSeconds") && (
-              <span className="mt-1 block text-xs text-red-400">{fieldError(save.error, "antiSpamWindowSeconds")}</span>
-            )}
-          </label>
+          </Field>
         </div>
         <p className="text-xs text-zinc-500">
           Ex. : plus de {s.antiSpamMaxMessages} messages en {s.antiSpamWindowSeconds} s → sanction.
         </p>
-      </section>
+      </Card>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 space-y-3">
+      <Card className="space-y-3">
         <h2 className="font-semibold">Invitations & liens</h2>
         <Toggle checked={s.antiInviteEnabled} onChange={(v) => set({ antiInviteEnabled: v })} label="Bloquer les invitations Discord" />
         <Toggle checked={s.antiLinkEnabled} onChange={(v) => set({ antiLinkEnabled: v })} label="Bloquer les liens" />
         {s.antiLinkEnabled && (
-          <label className="block text-sm text-zinc-300">
-            Domaines autorisés (un par ligne, sous-domaines inclus)
-            <textarea
+          <Field label="Domaines autorisés" hint="Un domaine par ligne, sous-domaines inclus.">
+            <Textarea
               value={whitelistText}
               onChange={(e) => setWhitelistText(e.target.value)}
               rows={3}
               placeholder={"youtube.com\ntwitch.tv"}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm font-mono"
+              className="min-h-24 font-mono"
             />
-          </label>
+          </Field>
         )}
-      </section>
+      </Card>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+      <Card>
         <h2 className="font-semibold">Mots interdits</h2>
         <p className="mt-1 text-sm text-zinc-400">Un mot ou une expression par ligne (insensible à la casse).</p>
-        <textarea
+        <Textarea
           value={wordsText}
           onChange={(e) => setWordsText(e.target.value)}
           rows={4}
-          className="mt-3 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm font-mono"
+          className="mt-3 min-h-28 font-mono"
         />
-      </section>
+      </Card>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6 space-y-4">
+      <Card className="space-y-3">
         <h2 className="font-semibold">Exemptions</h2>
         <div>
           <p className="text-sm text-zinc-400">Rôles exemptés</p>
@@ -243,7 +229,7 @@ export function AutomodPage() {
               })}
           </div>
         </div>
-      </section>
+      </Card>
 
       <InfoCard icon={<Icon.shield />} title="Bon à savoir">
         Les membres avec la permission « Gérer les messages » sont <b>toujours</b> exemptés de l'auto-modération, même

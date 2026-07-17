@@ -25,7 +25,7 @@ export function Tabs<T extends string>({
     <div
       role="tablist"
       onKeyDown={onKeyDown}
-      className="no-scrollbar -mx-5 mb-5 flex gap-1 overflow-x-auto border-b border-zinc-800 px-5 sm:mx-0 sm:px-0"
+      className="no-scrollbar -mx-4 mb-4 flex gap-1 overflow-x-auto border-b border-zinc-800 px-4 sm:mx-0 sm:px-0"
     >
       {tabs.map((t) => (
         <button
@@ -36,7 +36,7 @@ export function Tabs<T extends string>({
           aria-selected={active === t.id}
           tabIndex={active === t.id ? 0 : -1}
           onClick={() => onChange(t.id)}
-          className={`shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm transition ${
+          className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 text-[13px] transition lg:py-2 ${
             active === t.id
               ? "border-indigo-500 font-semibold text-white"
               : "border-transparent text-zinc-400 hover:text-zinc-200"
