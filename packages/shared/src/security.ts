@@ -50,6 +50,8 @@ export const PANEL_MUTATION_POLICIES: readonly PanelMutationPolicy[] = [
   { method: "PUT", path: "/api/guilds/:guildId/welcome", capability: "guild_config_write", allowed: ADMIN },
   { method: "PUT", path: "/api/guilds/:guildId/log-settings", capability: "guild_config_write", allowed: ADMIN },
   { method: "PATCH", path: "/api/guilds/:guildId/modules/:moduleId", capability: "guild_config_write", allowed: ADMIN },
+  { method: "POST", path: "/api/guilds/:guildId/onboarding/preset", capability: "guild_config_write", allowed: ADMIN },
+  { method: "POST", path: "/api/guilds/:guildId/onboarding/dismiss", capability: "guild_config_write", allowed: ADMIN },
 ] as const;
 
 function matchesPath(pattern: string, pathname: string): boolean {
