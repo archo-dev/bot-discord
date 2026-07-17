@@ -52,6 +52,28 @@ export const DISCORD_PERMISSION_IDS = [
 ] as const;
 export type DiscordPermissionId = (typeof DISCORD_PERMISSION_IDS)[number];
 
+/**
+ * Discord permission bit positions (see the developer docs "Permissions" table).
+ * Used to build the minimal `permissions=` bitfield of the bot invite URL from the
+ * modules a fresh server gets by default — never a hardcoded "Administrator" grant.
+ */
+export const DISCORD_PERMISSION_BITS: Readonly<Record<DiscordPermissionId, bigint>> = {
+  view_channel: 1n << 10n,
+  send_messages: 1n << 11n,
+  embed_links: 1n << 14n,
+  attach_files: 1n << 15n,
+  manage_messages: 1n << 13n,
+  manage_roles: 1n << 28n,
+  manage_channels: 1n << 4n,
+  move_members: 1n << 24n,
+  connect: 1n << 20n,
+  speak: 1n << 21n,
+  kick_members: 1n << 1n,
+  ban_members: 1n << 2n,
+  moderate_members: 1n << 40n,
+  change_nickname: 1n << 26n,
+};
+
 export type ModuleCapabilityKind = "read" | "configure" | "execute" | "toggle";
 export type ModuleTechnicalCapability = `${ModuleId}.${ModuleCapabilityKind}`;
 export type CapabilityGrantSource = "platform" | "guild_configuration" | "runtime";
@@ -346,4 +368,28 @@ export function missingModuleDependencies(definitions: readonly ModuleDefinition
 
 export function moduleForCommand(command: string): ModuleId | null {
   return MODULE_DEFINITIONS.find((definition) => definition.commands.includes(command))?.id ?? null;
+}
+
+/**
+ * Minimal-yet-complete invite permission bitfield: the union of `requiredPermissions`
+ * across the given modules. Defaults to *every* module so an admin invites once and
+ * never has to re-invite when enabling another module later — each permission is still
+ * explained one by one on the onboarding page (see `invitePermissionUsage`).
+ */
+export function invitePermissionBitfield(definitions: readonly ModuleDefinition[] = MODULE_DEFINITIONS): bigint {
+  let bits = 0n;
+  for (const definition of definitions) {
+    for (const permission of definition.requiredPermissions) bits |= DISCORD_PERMISSION_BITS[permission];
+  }
+  return bits;
+}
+
+/** Maps each invited permission to the modules that need it, so the panel can justify the ask. */
+export function invitePermissionUsage(
+  definitions: readonly ModuleDefinition[] = MODULE_DEFINITIONS,
+): { permission: DiscordPermissionId; modules: ModuleId[] }[] {
+  return DISCORD_PERMISSION_IDS.map((permission) => ({
+    permission,
+    modules: definitions.filter((definition) => definition.requiredPermissions.includes(permission)).map((definition) => definition.id),
+  })).filter((entry) => entry.modules.length > 0);
 }
