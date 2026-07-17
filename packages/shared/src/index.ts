@@ -5,6 +5,7 @@ export * from "./api-types/index.js";
 export * from "./xp.js";
 export * from "./member-card.js";
 export * from "./telemetry.js";
+export * from "./analytics.js";
 export * from "./security.js";
 export * from "./internal-auth.js";
 export * from "./modules.js";
