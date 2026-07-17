@@ -39,6 +39,7 @@ const HealthPage = lazy(() => import("./pages/Health.js").then((m) => ({ default
 const AuditPage = lazy(() => import("./pages/Audit.js").then((m) => ({ default: m.AuditPage })));
 const ModulesPage = lazy(() => import("./pages/Modules.js").then((m) => ({ default: m.ModulesPage })));
 const OnboardingPage = lazy(() => import("./pages/Onboarding.js").then((m) => ({ default: m.OnboardingPage })));
+const BackupPage = lazy(() => import("./pages/Backup.js").then((m) => ({ default: m.BackupPage })));
 
 export function App() {
   const queryClient = useQueryClient();
@@ -92,6 +93,7 @@ export function App() {
         <Route path="audit" element={<AuditPage />} />
         <Route path="modules" element={<ModulesPage />} />
         <Route path="config" element={<ConfigPage />} />
+        <Route path="backup" element={<BackupPage />} />
         <Route path="commands" element={<CommandsPage />} />
         <Route path="commands/new" element={<CommandEditorPage />} />
         <Route path="commands/:commandId" element={<CommandEditorPage />} />
