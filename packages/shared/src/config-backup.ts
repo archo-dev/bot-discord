@@ -1,20 +1,22 @@
 import { z } from "zod";
+import { ticketFormConfigSchema } from "./api-types/tickets.js";
 
 /**
  * M07 config backup — canonical, versioned snapshots of allowlisted module config.
- * Starts with two modules: "general" (Config) and "automod". Serializers are pure
+ * Covers "general", "automod" and the M09 ticket configuration. Serializers are pure
  * (shape + Discord-reference handling); DB reads/writes live in the Worker. No secret,
  * webhook or token is ever part of a payload.
  */
 export const CONFIG_BACKUP_SCHEMA_VERSION = 1;
 export const CONFIG_BACKUP_FORMAT = "archodev.config-backup" as const;
 
-export const BACKUP_MODULE_IDS = ["general", "automod"] as const;
+export const BACKUP_MODULE_IDS = ["general", "automod", "tickets"] as const;
 export type BackupModuleId = (typeof BACKUP_MODULE_IDS)[number];
 
 export const BACKUP_MODULE_LABELS: Record<BackupModuleId, string> = {
   general: "Configuration générale",
   automod: "Auto-modération",
+  tickets: "Tickets",
 };
 
 export type DiscordRefType = "channel" | "role";
@@ -62,6 +64,16 @@ export const automodSnapshotSchema = z.object({
 });
 export type AutomodSnapshot = z.infer<typeof automodSnapshotSchema>;
 
+export const ticketSnapshotSchema = z.object({
+  enabled: z.boolean(),
+  categoryId: z.string().regex(SNOWFLAKE).nullable(),
+  staffRoleIds: z.array(z.string().regex(SNOWFLAKE)).max(10),
+  transcriptChannelId: z.string().regex(SNOWFLAKE).nullable(),
+  formEnabled: z.boolean(),
+  form: ticketFormConfigSchema,
+});
+export type TicketSnapshot = z.infer<typeof ticketSnapshotSchema>;
+
 const moduleSection = <T extends z.ZodTypeAny>(values: T) => z.object({ version: z.number().int().min(1), values });
 
 export const configBackupPayloadSchema = z.object({
@@ -69,6 +81,7 @@ export const configBackupPayloadSchema = z.object({
   modules: z.object({
     general: moduleSection(generalSnapshotSchema).optional(),
     automod: moduleSection(automodSnapshotSchema).optional(),
+    tickets: moduleSection(ticketSnapshotSchema).optional(),
   }),
 });
 export type ConfigBackupPayload = z.infer<typeof configBackupPayloadSchema>;
@@ -106,6 +119,12 @@ export function collectRefs(payload: ConfigBackupPayload): DiscordRef[] {
     for (const id of automod.exemptRoleIds) refs.push({ module: "automod", path: "exemptRoleIds", type: "role", id });
     for (const id of automod.exemptChannelIds) refs.push({ module: "automod", path: "exemptChannelIds", type: "channel", id });
   }
+  const tickets = payload.modules.tickets?.values;
+  if (tickets) {
+    if (tickets.categoryId) refs.push({ module: "tickets", path: "categoryId", type: "channel", id: tickets.categoryId });
+    if (tickets.transcriptChannelId) refs.push({ module: "tickets", path: "transcriptChannelId", type: "channel", id: tickets.transcriptChannelId });
+    for (const id of tickets.staffRoleIds) refs.push({ module: "tickets", path: "staffRoleIds", type: "role", id });
+  }
   return refs;
 }
 
@@ -126,6 +145,12 @@ export function remapRefs(payload: ConfigBackupPayload, mapping: Record<string, 
   if (automod) {
     automod.exemptRoleIds = automod.exemptRoleIds.map(map).filter((id): id is string => id !== null);
     automod.exemptChannelIds = automod.exemptChannelIds.map(map).filter((id): id is string => id !== null);
+  }
+  const tickets = next.modules.tickets?.values;
+  if (tickets) {
+    if (tickets.categoryId) tickets.categoryId = map(tickets.categoryId);
+    if (tickets.transcriptChannelId) tickets.transcriptChannelId = map(tickets.transcriptChannelId);
+    tickets.staffRoleIds = tickets.staffRoleIds.map(map).filter((id): id is string => id !== null);
   }
   return next;
 }

@@ -1,13 +1,16 @@
 import {
   CONFIG_BACKUP_SCHEMA_VERSION,
+  DEFAULT_TICKET_FORM,
   MODULE_REGISTRY,
+  ticketFormConfigSchema,
   type AutomodSnapshot,
   type BackupModuleId,
   type ConfigBackupPayload,
   type GeneralSnapshot,
+  type TicketSnapshot,
 } from "@bot/shared";
 import { automodRowToDto } from "../api/automod.js";
-import { getAutomodSettings, getGuild, getLogSettings } from "../db/queries.js";
+import { getAutomodSettings, getGuild, getLogSettings, getTicketSettings } from "../db/queries.js";
 import { syncGuildModuleStatement } from "../db/queries/modules.js";
 
 /**
@@ -44,6 +47,28 @@ async function serializeAutomod(db: D1Database, guildId: string): Promise<Automo
   return automodRowToDto(await getAutomodSettings(db, guildId));
 }
 
+async function serializeTickets(db: D1Database, guildId: string): Promise<TicketSnapshot> {
+  const row = await getTicketSettings(db, guildId);
+  let staffRoleIds: string[] = [];
+  let form = DEFAULT_TICKET_FORM;
+  try {
+    const parsed = JSON.parse(row?.staff_role_ids ?? "[]") as unknown;
+    if (Array.isArray(parsed)) staffRoleIds = parsed.filter((value): value is string => typeof value === "string");
+  } catch { /* invalid historic values become an empty allowlist */ }
+  try {
+    const parsed = ticketFormConfigSchema.safeParse(JSON.parse(row?.form_config ?? "null"));
+    if (parsed.success) form = parsed.data;
+  } catch { /* invalid historic values become the safe default */ }
+  return {
+    enabled: row?.enabled === 1,
+    categoryId: row?.category_id ?? null,
+    staffRoleIds,
+    transcriptChannelId: row?.transcript_channel_id ?? null,
+    formEnabled: row?.form_enabled === 1,
+    form,
+  };
+}
+
 export async function serializeModules(db: D1Database, guildId: string, modules: readonly BackupModuleId[]): Promise<ConfigBackupPayload> {
   const payload: ConfigBackupPayload = { schemaVersion: CONFIG_BACKUP_SCHEMA_VERSION, modules: {} };
   if (modules.includes("general")) {
@@ -51,6 +76,9 @@ export async function serializeModules(db: D1Database, guildId: string, modules:
   }
   if (modules.includes("automod")) {
     payload.modules.automod = { version: MODULE_REGISTRY.automod.configVersion, values: await serializeAutomod(db, guildId) };
+  }
+  if (modules.includes("tickets")) {
+    payload.modules.tickets = { version: MODULE_REGISTRY.tickets.configVersion, values: await serializeTickets(db, guildId) };
   }
   return payload;
 }
@@ -109,6 +137,30 @@ export function restoreStatements(db: D1Database, guildId: string, payload: Conf
       ),
       // Keep the automod governance flag consistent with the restored settings.
       syncGuildModuleStatement(db, guildId, "automod", a.antiSpamEnabled || a.antiInviteEnabled || a.antiLinkEnabled || a.bannedWords.length > 0),
+    );
+  }
+
+  const tickets = payload.modules.tickets;
+  if (tickets && modules.includes("tickets")) {
+    const value = tickets.values;
+    statements.push(
+      db.prepare(
+        `INSERT INTO ticket_settings
+           (guild_id, enabled, category_id, staff_role_ids, transcript_channel_id, form_enabled, form_config, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, datetime('now'))
+         ON CONFLICT(guild_id) DO UPDATE SET
+           enabled = ?2, category_id = ?3, staff_role_ids = ?4, transcript_channel_id = ?5,
+           form_enabled = ?6, form_config = ?7, updated_at = datetime('now')`,
+      ).bind(
+        guildId,
+        value.enabled ? 1 : 0,
+        value.categoryId,
+        JSON.stringify(value.staffRoleIds),
+        value.transcriptChannelId,
+        value.formEnabled ? 1 : 0,
+        JSON.stringify(value.form),
+      ),
+      syncGuildModuleStatement(db, guildId, "tickets", value.enabled),
     );
   }
 

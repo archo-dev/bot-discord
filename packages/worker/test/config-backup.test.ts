@@ -9,7 +9,9 @@ import type {
   ImportApplyResult,
   ImportValidateResult,
   RestoreResult,
+  TicketSettingsDto,
 } from "@bot/shared";
+import { DEFAULT_TICKET_FORM } from "@bot/shared";
 import app from "../src/index.js";
 import { createSession } from "../src/auth/session.js";
 import { replacePanelAccess, upsertGuild } from "../src/db/queries.js";
@@ -103,7 +105,29 @@ describe("M07 config backup", () => {
     for (const forbidden of ["token", "secret", "webhook", "authorization", "password"]) {
       expect(serialized).not.toContain(forbidden);
     }
-    expect(Object.keys(created.json.payload.modules).sort()).toEqual(["automod", "general"]);
+    expect(Object.keys(created.json.payload.modules).sort()).toEqual(["automod", "general", "tickets"]);
+  });
+
+  it("round-trips M09 ticket forms without ticket content", async () => {
+    const sid = await session(MANAGER);
+    const settings = {
+      enabled: true,
+      categoryId: CHAN_1,
+      staffRoleIds: [ROLE_1],
+      transcriptChannelId: CHAN_2,
+      formEnabled: true,
+      form: DEFAULT_TICKET_FORM,
+    };
+    expect((await call(`/api/guilds/${GUILD}/tickets/settings`, sid, "PUT", settings)).status).toBe(200);
+    const snap = await call<ConfigSnapshotDetail>(`/api/guilds/${GUILD}/config-snapshots`, sid, "POST", { modules: ["tickets"] });
+    expect(snap.status).toBe(201);
+    expect(snap.json.payload.modules.tickets?.values).toEqual(settings);
+
+    expect((await call(`/api/guilds/${GUILD}/tickets/settings`, sid, "PUT", { ...settings, enabled: false, formEnabled: false })).status).toBe(200);
+    const restored = await call<RestoreResult>(`/api/guilds/${GUILD}/config-snapshots/${snap.json.id}/restore`, sid, "POST", { modules: ["tickets"] });
+    expect(restored.status).toBe(200);
+    const after = await call<TicketSettingsDto>(`/api/guilds/${GUILD}/tickets/settings`, sid);
+    expect(after.json).toMatchObject(settings);
   });
 
   it("computes a semantic diff against current config", async () => {

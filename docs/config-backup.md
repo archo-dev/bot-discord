@@ -3,7 +3,7 @@
 Snapshots canoniques versionnés de la configuration des modules, avec diff, restauration
 transactionnelle et export/import inter-serveurs. Panel : page **Sauvegarde** (`/guilds/:id/backup`).
 
-> **Ce n'est PAS une sauvegarde complète.** Seule la **configuration** de deux modules est
+> **Ce n'est PAS une sauvegarde complète.** Seule la **configuration** de trois modules est
 > couverte pour l'instant : **Configuration générale** (`general`) et **Auto-modération**
 > (`automod`). Les données métier — tickets, logs, XP, messages — ne sont **pas** sauvegardées.
 
@@ -30,7 +30,7 @@ Fichier JSON (`format: "archodev.config-backup"`) :
   "exportedAt": "<ISO>",
   "sourceGuildId": "<snowflake>",
   "reason": "manual",
-  "payload": { "schemaVersion": 1, "modules": { "general": { "version": 1, "values": … }, "automod": { … } } }
+  "payload": { "schemaVersion": 1, "modules": { "general": { "version": 1, "values": … }, "automod": { … }, "tickets": { … } } }
 }
 ```
 
@@ -64,7 +64,7 @@ Deux temps :
 ## 6. Rétention et limites
 
 - 25 snapshots max par serveur (les plus anciens sont purgés à la création).
-- Payload plafonné (64 Ko ; deux modules pèsent < 2 Ko).
+- Payload plafonné à 64 Ko.
 - Admin uniquement (matrice M02 `guild_config_write`), audité, rate-limité. JSON non exécutable.
 
 ## 7. Restauration d'urgence

@@ -10,7 +10,7 @@ Deux moitiés complémentaires, **toutes deux en production** :
 |---|---|
 | Slash commands : modération (`/ban` `/kick` `/mute` `/warn` `/warnings` `/clear` `/unban` `/history`), `/ping`, `/rank`, `/leaderboard`, musique, commandes sociales (`/kiss` `/hug` `/pat` `/slap` `/poke` `/cuddle`) | Auto-modération temps réel (spam/invites/liens/mots) |
 | Commandes personnalisées (builder simple + avancé), déclencheurs mot-clé | Bienvenue/départ, auto-rôles à l'arrivée |
-| Tickets (panneau, transcripts), rôles par bouton | Logs serveur + logs vocaux, starboard, cartes membre |
+| Tickets d'équipe (formulaires, catégories, assignation, états, priorité, transcripts), rôles par bouton | Logs serveur + logs vocaux, starboard, cartes membre |
 | Seuil de warns → timeout automatique, mod-logs | XP messages + XP vocal, stats (snapshots, activité) |
 | Panel web complet (OAuth2 Discord) | Lecture audio (DisTube + yt-dlp) |
 

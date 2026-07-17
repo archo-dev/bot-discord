@@ -3,7 +3,7 @@ import type { SnapshotReason } from "@bot/shared";
 
 /** Max snapshots kept per guild; older ones are pruned on each create. */
 export const SNAPSHOT_RETENTION_LIMIT = 25;
-/** Hard cap on a canonical payload (defensive; two modules are well under 2 KB). */
+/** Hard cap on a canonical payload (defensive; allowlisted config stays small). */
 export const SNAPSHOT_MAX_BYTES = 64 * 1024;
 
 export interface ConfigSnapshotRow {
