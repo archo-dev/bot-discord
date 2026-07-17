@@ -122,24 +122,62 @@ client.once(Events.ClientReady, (c) => {
   setInterval(() => void heartbeat(), HEARTBEAT_INTERVAL_MS);
 });
 
+// --- Résilience session Discord --------------------------------------------
+// Panne du 14/07 : la session WS est devenue zombie (transport vivant, plus
+// aucun événement de dispatch) et discord.js n'a rien logué ni relancé →
+// 3 jours sans logs vocaux/stats. Deux gardes ; dans les deux cas on SORT et
+// systemd (Restart=always) relance avec une session fraîche (IDENTIFY).
+
+// 1. Session invalidée : discord.js cesse définitivement de se reconnecter.
+client.on(Events.Invalidated, () => {
+  console.error("discord session invalidated — exiting so systemd restarts with a fresh session");
+  shutdown("session-invalidated");
+});
+
+// 2. Watchdog zombie : un serveur avec des membres en ligne produit des paquets
+// en continu (présences, messages, voice) ; 60 min de silence total = session
+// morte même si le ping WS répond encore.
+const DISPATCH_WATCHDOG_MS = 60 * 60_000;
+let lastDispatchAt = Date.now();
+client.on(Events.Raw, () => {
+  lastDispatchAt = Date.now();
+});
+setInterval(() => {
+  if (Date.now() - lastDispatchAt > DISPATCH_WATCHDOG_MS) {
+    console.error(`no gateway dispatch for ${Math.round((Date.now() - lastDispatchAt) / 60000)} min — exiting (zombie session)`);
+    shutdown("dispatch-watchdog");
+  }
+}, 60_000).unref();
+
+// Traces de cycle de vie du shard : une prochaine coupure laissera un journal.
+client.on(Events.ShardDisconnect, (event, id) => console.error(`shard ${id} disconnected (code ${event.code})`));
+client.on(Events.ShardReconnecting, (id) => console.log(`shard ${id} reconnecting`));
+client.on(Events.ShardResume, (id, replayed) => console.log(`shard ${id} resumed (${replayed} events replayed)`));
+client.on(Events.ShardError, (error, id) => console.error(`shard ${id} error: ${error.message}`));
+
 const server = serve({ fetch: createHttpApp(env, client, music).fetch, port: env.GATEWAY_PORT }, (info) => {
   console.log(`gateway http listening on :${info.port}`);
 });
 
+// Graceful stop: flush buffered stats, then stop the outbox dispatcher (waits
+// for the in-flight batch, closes the DB — persisted events resume next boot).
+// In-flight voice sessions are lost (accepted).
+let shuttingDown = false;
+function shutdown(reason: string): void {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`shutting down (${reason})`);
+  server.close();
+  void stats
+    .flush()
+    .catch(() => {})
+    .then(() => outbox.stop())
+    .catch(() => {})
+    .finally(() => client.destroy().finally(() => process.exit(0)));
+}
+
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.on(signal, () => {
-    console.log(`${signal} received, shutting down`);
-    server.close();
-    // Graceful stop: flush buffered stats, then stop the outbox dispatcher (waits
-    // for the in-flight batch, closes the DB — persisted events resume next boot).
-    // In-flight voice sessions are lost (accepted).
-    void stats
-      .flush()
-      .catch(() => {})
-      .then(() => outbox.stop())
-      .catch(() => {})
-      .finally(() => client.destroy().finally(() => process.exit(0)));
-  });
+  process.on(signal, () => shutdown(signal));
 }
 
 await client.login(env.DISCORD_TOKEN);
