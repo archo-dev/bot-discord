@@ -49,8 +49,8 @@ beforeAll(async () => {
 });
 
 describe("M02 panel mutation policy", () => {
-  it("versions all 23 current mutations", () => {
-    expect(PANEL_MUTATION_POLICIES).toHaveLength(23);
+  it("versions all 27 current mutations", () => {
+    expect(PANEL_MUTATION_POLICIES).toHaveLength(27);
     for (const policy of PANEL_MUTATION_POLICIES) {
       const concrete = policy.path.replace(":guildId", "910000000000000001").replace(":warnId", "1").replace(":id", "1");
       expect(matchPanelMutationPolicy(policy.method, concrete)).toEqual(policy);
@@ -72,7 +72,7 @@ describe("M02 panel mutation policy", () => {
     expect((await request(`/api/guilds/${GUILD_B}`, sid)).status).toBe(403);
   });
 
-  it("table-denies all 23 mutations to moderators and outsiders", async () => {
+  it("table-denies all 27 mutations to moderators and outsiders", async () => {
     const [moderator, outsider] = await Promise.all([session(MODERATOR), session(OUTSIDER)]);
     for (const policy of PANEL_MUTATION_POLICIES) {
       const path = policy.path.replace(":guildId", GUILD_A).replace(":warnId", "1").replace(":id", "1");

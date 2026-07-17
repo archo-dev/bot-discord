@@ -22,4 +22,5 @@ export * from "./queries/observability.js";
 export * from "./queries/security.js";
 export * from "./queries/modules.js";
 export * from "./queries/onboarding.js";
+export * from "./queries/config-snapshots.js";
 export * from "./queries/reliable-delivery.js";

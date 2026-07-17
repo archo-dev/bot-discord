@@ -21,6 +21,7 @@ import { healthRouter } from "./api/health.js";
 import { auditRouter } from "./api/audit.js";
 import { modulesRouter } from "./api/modules.js";
 import { onboardingRouter } from "./api/onboarding.js";
+import { configBackupRouter } from "./api/config-backup.js";
 import { publicRouter } from "./api/public.js";
 import { internalRouter } from "./internal/routes.js";
 import { enforcePanelMutationPolicy, requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
@@ -78,6 +79,7 @@ api.route("/", healthRouter);
 api.route("/", auditRouter);
 api.route("/", modulesRouter);
 api.route("/", onboardingRouter);
+api.route("/", configBackupRouter);
 api.route("/", guildsRouter);
 app.route("/api", api);
 
