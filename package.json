@@ -13,6 +13,11 @@
     "test": "pnpm -r test",
     "register:dev": "tsx scripts/register-commands.ts dev",
     "register:global": "tsx scripts/register-commands.ts global",
+    "commands:list": "tsx scripts/register-commands.ts list",
+    "commands:diff": "tsx scripts/register-commands.ts diff",
+    "commands:sync:global": "tsx scripts/register-commands.ts sync-global",
+    "commands:sync:guild": "tsx scripts/register-commands.ts sync-guild",
+    "commands:cleanup:guild": "tsx scripts/register-commands.ts cleanup-guild",
     "migrate:local": "pnpm --filter @bot/worker migrate:local",
     "migrate:remote": "pnpm --filter @bot/worker migrate:remote"
   },

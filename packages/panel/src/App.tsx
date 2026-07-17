@@ -24,6 +24,7 @@ const ConfigPage = lazy(() => import("./pages/Config.js").then((m) => ({ default
 const CommandsPage = lazy(() => import("./pages/Commands.js").then((m) => ({ default: m.CommandsPage })));
 const CommandEditorPage = lazy(() => import("./pages/CommandEditor.js").then((m) => ({ default: m.CommandEditorPage })));
 const ModLogPage = lazy(() => import("./pages/ModLog.js").then((m) => ({ default: m.ModLogPage })));
+const SanctionsPage = lazy(() => import("./pages/Sanctions.js").then((m) => ({ default: m.SanctionsPage })));
 const VoiceLogPage = lazy(() => import("./pages/VoiceLog.js").then((m) => ({ default: m.VoiceLogPage })));
 const StatsPage = lazy(() => import("./pages/Stats.js").then((m) => ({ default: m.StatsPage })));
 const PanelAccessPage = lazy(() => import("./pages/PanelAccess.js").then((m) => ({ default: m.PanelAccessPage })));
@@ -108,6 +109,7 @@ export function App() {
         <Route path="tempvoice" element={<TempVoicePage />} />
         <Route path="music" element={<MusicPage />} />
         <Route path="modlog" element={<ModLogPage />} />
+        <Route path="sanctions" element={<SanctionsPage />} />
         <Route path="voicelog" element={<VoiceLogPage />} />
         <Route path="access" element={<PanelAccessPage />} />
       </Route>

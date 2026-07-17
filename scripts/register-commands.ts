@@ -41,7 +41,7 @@ const MANAGE_MESSAGES = "8192";
 const MANAGE_GUILD = "32";
 const MODERATE_MEMBERS = (1n << 40n).toString();
 
-const commands = [
+export const commands = [
   { name: "ping", description: "Vérifie que le bot répond", dm_permission: false },
   {
     name: "ban",
@@ -285,8 +285,11 @@ const commands = [
 
 async function main(): Promise<void> {
   const mode = process.argv[2];
-  if (mode !== "dev" && mode !== "global") {
-    console.error("Usage: tsx scripts/register-commands.ts <dev|global>");
+  const apply = process.argv.includes("--apply");
+  const aliases: Record<string, "sync-guild" | "sync-global"> = { dev: "sync-guild", global: "sync-global" };
+  const normalized = mode ? (aliases[mode] ?? mode) : undefined;
+  if (!normalized || !["list", "diff", "sync-global", "sync-guild", "cleanup-guild"].includes(normalized)) {
+    console.error("Usage: tsx scripts/register-commands.ts <list|diff|sync-global|sync-guild|cleanup-guild> [--apply]");
     process.exit(1);
   }
 
@@ -297,31 +300,84 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  let url = `https://discord.com/api/v10/applications/${clientId}/commands`;
-  if (mode === "dev") {
-    const guildId = getVar("DEV_GUILD_ID");
-    if (!guildId) {
-      console.error("DEV_GUILD_ID est requis en mode dev (ID de votre serveur de test).");
-      process.exit(1);
-    }
-    url = `https://discord.com/api/v10/applications/${clientId}/guilds/${guildId}/commands`;
-  }
-
-  const res = await fetch(url, {
-    method: "PUT",
-    headers: { authorization: `Bot ${token}`, "content-type": "application/json" },
-    body: JSON.stringify(commands),
-  });
-
-  if (!res.ok) {
-    console.error(`Échec (${res.status}) : ${await res.text()}`);
+  // This bot has one public application. Refuse an accidental .env from an
+  // unrelated bot before listing, overwriting or deleting any command.
+  const expectedApplicationId = "1524597895859536074";
+  if (clientId !== expectedApplicationId) {
+    console.error("DISCORD_CLIENT_ID ne correspond pas à l'application botdiscord attendue; aucune action effectuée.");
     process.exit(1);
   }
-  const registered = (await res.json()) as Array<{ name: string }>;
-  console.log(
-    `✅ ${registered.length} commandes enregistrées en mode ${mode} : ${registered.map((c) => c.name).join(", ")}`,
-  );
-  if (mode === "global") console.log("Propagation globale : jusqu'à 1 heure.");
+
+  const guildId = getVar("DEV_GUILD_ID");
+  const api = `https://discord.com/api/v10/applications/${clientId}`;
+  const headers = { authorization: `Bot ${token}`, "content-type": "application/json" };
+  const request = async (path: string, init: RequestInit = {}): Promise<Response> => fetch(`${api}${path}`, {
+    ...init, headers: { ...headers, ...(init.headers ?? {}) },
+  });
+  type Registered = { id: string; name: string; type: number; description?: string; options?: unknown[] };
+  const list = async (path: string): Promise<Registered[]> => {
+    const response = await request(path);
+    if (!response.ok) throw new Error(`Discord API ${response.status}`);
+    return response.json() as Promise<Registered[]>;
+  };
+  const commandKey = (command: Pick<Registered, "name" | "type">) => `${command.type}:${command.name}`;
+  const expected = new Set(commands.map((command) => `1:${command.name}`));
+  const printInventory = (label: string, items: Registered[]) => {
+    console.log(`${label} (${items.length}) : ${items.map((command) => command.name).sort().join(", ") || "aucune"}`);
+  };
+
+  try {
+    const global = await list("/commands");
+    const guild = guildId ? await list(`/guilds/${guildId}/commands`) : [];
+    if (normalized === "list") {
+      printInventory("Commandes globales", global);
+      if (guildId) printInventory(`Commandes de guilde (${guildId})`, guild);
+      return;
+    }
+
+    if (normalized === "diff") {
+      if (!guildId) throw new Error("DEV_GUILD_ID est requis pour comparer la guilde de test.");
+      const globalKeys = new Set(global.map(commandKey));
+      const guildKeys = new Set(guild.map(commandKey));
+      const overlap = [...guildKeys].filter((key) => globalKeys.has(key));
+      const duplicateDefinitions = (items: Registered[]) => items.filter((item, index) => items.findIndex((other) => commandKey(other) === commandKey(item)) !== index);
+      printInventory("Commandes globales", global);
+      printInventory(`Commandes de guilde (${guildId})`, guild);
+      console.log(`Chemins présents aux deux portées : ${overlap.map((key) => key.slice(2)).join(", ") || "aucun"}`);
+      console.log(`Doublons internes globaux : ${duplicateDefinitions(global).map((item) => item.name).join(", ") || "aucun"}`);
+      console.log(`Doublons internes guilde : ${duplicateDefinitions(guild).map((item) => item.name).join(", ") || "aucun"}`);
+      return;
+    }
+
+    if (normalized === "cleanup-guild") {
+      if (!guildId) throw new Error("DEV_GUILD_ID est requis pour nettoyer la guilde de test.");
+      const globalKeys = new Set(global.map(commandKey));
+      // Only built-ins owned by this application and duplicated in the global
+      // collection qualify. Per-guild custom commands and /voice (therefore
+      // /voice kick) are kept even if a future deployment uses both scopes.
+      const candidates = guild.filter((command) => command.name !== "voice" && expected.has(commandKey(command)) && globalKeys.has(commandKey(command)));
+      printInventory("Commandes globales conservées", global);
+      console.log(`Commandes de guilde candidates au nettoyage : ${candidates.map((command) => command.name).join(", ") || "aucune"}`);
+      if (!apply) { console.log("Dry-run : aucune commande n'a été supprimée. Relancez avec --apply pour confirmer."); return; }
+      for (const command of candidates) {
+        const response = await request(`/guilds/${guildId}/commands/${command.id}`, { method: "DELETE" });
+        if (!response.ok && response.status !== 404) throw new Error(`Suppression de ${command.name} échouée (${response.status})`);
+      }
+      console.log(`${candidates.length} commande(s) de guilde obsolète(s) supprimée(s). Les commandes globales et personnalisées sont intactes.`);
+      return;
+    }
+
+    const path = normalized === "sync-global" ? "/commands" : guildId ? `/guilds/${guildId}/commands` : null;
+    if (!path) throw new Error("DEV_GUILD_ID est requis pour synchroniser les commandes de guilde.");
+    const response = await request(path, { method: "PUT", body: JSON.stringify(commands) });
+    if (!response.ok) throw new Error(`Synchronisation échouée (${response.status})`);
+    const registered = await response.json() as Registered[];
+    console.log(`✅ ${registered.length} commandes synchronisées en mode ${normalized}.`);
+    if (normalized === "sync-global") console.log("Propagation globale : jusqu'à une heure.");
+  } catch (error) {
+    console.error(`Échec : ${error instanceof Error ? error.message : "erreur Discord"}`);
+    process.exit(1);
+  }
 }
 
 await main();

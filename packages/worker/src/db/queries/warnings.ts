@@ -60,3 +60,10 @@ export async function revokeWarning(
     .run();
   return res.meta.changes > 0;
 }
+
+export async function updateWarningReason(db: D1Database, guildId: string, warningId: number, reason: string | null): Promise<boolean> {
+  const result = await db.prepare(
+    `UPDATE warnings SET reason = ?3, updated_at = datetime('now') WHERE guild_id = ?1 AND id = ?2`,
+  ).bind(guildId, warningId, reason).run();
+  return (result.meta.changes ?? 0) === 1;
+}

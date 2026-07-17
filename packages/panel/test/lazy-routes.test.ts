@@ -14,6 +14,7 @@ const lazyRoutes: Array<{ path: string; load: () => Promise<Record<string, unkno
   { path: "Commands", name: "CommandsPage", load: () => import("../src/pages/Commands.js") },
   { path: "CommandEditor", name: "CommandEditorPage", load: () => import("../src/pages/CommandEditor.js") },
   { path: "ModLog", name: "ModLogPage", load: () => import("../src/pages/ModLog.js") },
+  { path: "Sanctions", name: "SanctionsPage", load: () => import("../src/pages/Sanctions.js") },
   { path: "VoiceLog", name: "VoiceLogPage", load: () => import("../src/pages/VoiceLog.js") },
   { path: "Stats", name: "StatsPage", load: () => import("../src/pages/Stats.js") },
   { path: "PanelAccess", name: "PanelAccessPage", load: () => import("../src/pages/PanelAccess.js") },

@@ -49,6 +49,7 @@ const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
     group: "Modération",
     items: [
       { to: "automod", label: "Auto-mod", icon: "shield", subtitle: "Filtres automatiques : spam, invitations, liens et mots interdits." },
+      { to: "sanctions", label: "Sanctions", icon: "shield", subtitle: "Appliquer, révoquer et consulter les sanctions du serveur." },
       { to: "modlog", label: "Mod-log", icon: "scroll", subtitle: "Historique des actions de modération et des avertissements." },
       { to: "voicelog", label: "Logs vocaux", icon: "mic", subtitle: "Historique des arrivées, départs et déplacements en vocal." },
       { to: "tickets", label: "Tickets", icon: "ticket", subtitle: "Support par tickets : réglages, panneau public et transcripts." },

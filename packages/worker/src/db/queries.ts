@@ -4,6 +4,7 @@
 export * from "./queries/guilds.js";
 export * from "./queries/warnings.js";
 export * from "./queries/mod-actions.js";
+export * from "./queries/sanctions.js";
 export * from "./queries/commands.js";
 export * from "./queries/panel-access.js";
 export * from "./queries/counters.js";
