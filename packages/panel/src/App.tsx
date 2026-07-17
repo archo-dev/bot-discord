@@ -23,6 +23,8 @@ import { Skeleton, SkeletonGuildGrid } from "./ui/skeleton.js";
 const ConfigPage = lazy(() => import("./pages/Config.js").then((m) => ({ default: m.ConfigPage })));
 const CommandsPage = lazy(() => import("./pages/Commands.js").then((m) => ({ default: m.CommandsPage })));
 const CommandEditorPage = lazy(() => import("./pages/CommandEditor.js").then((m) => ({ default: m.CommandEditorPage })));
+const AutomationsPage = lazy(() => import("./pages/Automations.js").then((m) => ({ default: m.AutomationsPage })));
+const AutomationEditorPage = lazy(() => import("./pages/AutomationEditor.js").then((m) => ({ default: m.AutomationEditorPage })));
 const ModLogPage = lazy(() => import("./pages/ModLog.js").then((m) => ({ default: m.ModLogPage })));
 const SanctionsPage = lazy(() => import("./pages/Sanctions.js").then((m) => ({ default: m.SanctionsPage })));
 const VoiceLogPage = lazy(() => import("./pages/VoiceLog.js").then((m) => ({ default: m.VoiceLogPage })));
@@ -100,6 +102,9 @@ export function App() {
         <Route path="commands" element={<CommandsPage />} />
         <Route path="commands/new" element={<CommandEditorPage />} />
         <Route path="commands/:commandId" element={<CommandEditorPage />} />
+        <Route path="automations" element={<AutomationsPage />} />
+        <Route path="automations/new" element={<AutomationEditorPage />} />
+        <Route path="automations/:automationId" element={<AutomationEditorPage />} />
         <Route path="tickets" element={<TicketsPage />} />
         <Route path="roles" element={<RolesPage />} />
         <Route path="welcome" element={<WelcomePage />} />

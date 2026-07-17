@@ -10,6 +10,7 @@ export const PANEL_CAPABILITIES = [
   "commands_write",
   "music_control",
   "tickets_write",
+  "automations_write",
 ] as const;
 
 export type PanelCapability = (typeof PANEL_CAPABILITIES)[number];
@@ -63,6 +64,14 @@ export const PANEL_MUTATION_POLICIES: readonly PanelMutationPolicy[] = [
   { method: "POST", path: "/api/guilds/:guildId/config-import/apply", capability: "guild_config_write", allowed: ADMIN },
   { method: "PATCH", path: "/api/guilds/:guildId/privacy", capability: "guild_config_write", allowed: ADMIN },
   { method: "POST", path: "/api/guilds/:guildId/feedback", capability: "guild_config_write", allowed: ADMIN },
+  { method: "POST", path: "/api/guilds/:guildId/automations", capability: "automations_write", allowed: ADMIN },
+  { method: "PUT", path: "/api/guilds/:guildId/automations/:id", capability: "automations_write", allowed: ADMIN },
+  { method: "PATCH", path: "/api/guilds/:guildId/automations/:id/state", capability: "automations_write", allowed: ADMIN },
+  { method: "POST", path: "/api/guilds/:guildId/automations/:id/duplicate", capability: "automations_write", allowed: ADMIN },
+  { method: "DELETE", path: "/api/guilds/:guildId/automations/:id", capability: "automations_write", allowed: ADMIN },
+  { method: "POST", path: "/api/guilds/:guildId/automations/:id/simulate", capability: "automations_write", allowed: ADMIN },
+  { method: "POST", path: "/api/guilds/:guildId/automations/import/validate", capability: "automations_write", allowed: ADMIN },
+  { method: "POST", path: "/api/guilds/:guildId/automations/import", capability: "automations_write", allowed: ADMIN },
 ] as const;
 
 function matchesPath(pattern: string, pathname: string): boolean {

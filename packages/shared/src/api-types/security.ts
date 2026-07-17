@@ -2,7 +2,7 @@ import type { PanelCapability, PanelGuildAccess } from "../security.js";
 
 export type AdminAuditOutcome = "success" | "error";
 export type AdminAuditMethod = "POST" | "PUT" | "PATCH" | "DELETE";
-export type AdminAuditTargetType = "command" | "warning" | "button_role" | null;
+export type AdminAuditTargetType = "command" | "warning" | "button_role" | "automation" | null;
 
 /** Minimal administrative history. It deliberately contains no Discord content or request payload. */
 export interface AdminAuditEntryDto {

@@ -51,6 +51,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     if (res.status === 401 && path !== "/api/me") window.dispatchEvent(new Event("panel:session-expired"));
     throw new ApiError(res.status, code, fields);
   }
+  if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 

@@ -59,6 +59,7 @@ const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
     group: "Outils",
     items: [
       { to: "commands", label: "Commandes", icon: "command", subtitle: "Créez des commandes personnalisées avec conditions et actions." },
+      { to: "automations", label: "Automatisations", icon: "workflow", subtitle: "Composez des scénarios SI… ALORS… avec déclencheurs, conditions et actions." },
       { to: "music", label: "Musique", icon: "music", subtitle: "État de la lecture en cours et contrôles du lecteur." },
     ],
   },

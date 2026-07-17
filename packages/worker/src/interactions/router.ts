@@ -4,6 +4,7 @@ import {
   InteractionType,
   type APIChatInputApplicationCommandInteraction,
   type APIInteraction,
+  ComponentType,
 } from "discord-api-types/v10";
 import { moduleForCommand, type ModuleId } from "@bot/shared";
 import type { Env } from "../env.js";
@@ -15,6 +16,7 @@ import { ensureGuild } from "../db/ensure-guild.js";
 import { getEnabledSlashCommand, isGuildModuleEnabled } from "../db/queries.js";
 import { executeCustomCommand } from "./custom.js";
 import { recordProductMetric } from "../analytics/service.js";
+import { emitWorkerAutomationEvent } from "../automation/emit.js";
 
 export const interactionsRouter = new Hono<{ Bindings: Env }>();
 
@@ -75,6 +77,11 @@ interactionsRouter.post("/interactions", async (c) => {
 
     // Governance rows have a guild foreign key, so ensure the tenant first.
     await ensureGuild(c.env, command.guild_id);
+    c.executionCtx.waitUntil(emitWorkerAutomationEvent(c.env,command.guild_id,{
+      event:{type:"slash_command_executed",id:interaction.id,depth:0},guild:{id:command.guild_id},
+      user:{id:command.member.user.id,name:command.member.user.username,bot:command.member.user.bot??false,roleIds:command.member.roles},
+      channel:command.channel_id?{id:command.channel_id}:undefined,command:command.data.name,
+    }));
 
     const handler = builtins[command.data.name];
     if (handler) {
@@ -104,6 +111,14 @@ interactionsRouter.post("/interactions", async (c) => {
       return ephemeral("Ce bouton ne fonctionne que dans un serveur.");
     }
     await ensureGuild(c.env, interaction.guild_id);
+    const componentTrigger=interaction.data.component_type===ComponentType.Button?"button_pressed":interaction.data.component_type===ComponentType.StringSelect?"select_menu":null;
+    if(componentTrigger)c.executionCtx.waitUntil(emitWorkerAutomationEvent(c.env,interaction.guild_id,{
+      event:{type:componentTrigger,id:interaction.id,depth:0},guild:{id:interaction.guild_id},
+      user:{id:interaction.member.user.id,name:interaction.member.user.username,bot:interaction.member.user.bot??false,roleIds:interaction.member.roles},
+      channel:interaction.channel_id?{id:interaction.channel_id}:undefined,
+      message:interaction.message?{id:interaction.message.id}:undefined,
+      component:{customId:interaction.data.custom_id,values:"values"in interaction.data?[...interaction.data.values]:undefined},
+    }));
     const disabled = await moduleDisabled(c.env, interaction.guild_id, moduleForComponent(interaction.data.custom_id));
     if (disabled) return disabled;
     const handler = findComponentHandler(interaction.data.custom_id);

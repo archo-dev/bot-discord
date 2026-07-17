@@ -5,7 +5,7 @@
   "compatibility_date": "2025-09-01",
   "placement": { "mode": "smart" },
   // Daily retention purge (src/cron.ts). 04:23 UTC — off-peak, avoids :00 rushes.
-  "triggers": { "crons": ["23 4 * * *"] },
+  "triggers": { "crons": ["* * * * *", "23 4 * * *"] },
   // Panel SPA served by the same Worker (build it first: pnpm build).
   "assets": {
     "directory": "../panel/dist",
@@ -48,7 +48,7 @@
     "SECURITY_CSP_MODE": "report",
     "SESSION_GLOBAL_VERSION": "1",
     "PRODUCT_ANALYTICS_ENABLED": "true",
-    "APP_VERSION": "m09",
+    "APP_VERSION": "m10",
     "INTERNAL_AUTH_MODE": "signed"
   }
   // Secrets (wrangler secret put …, mirrored in .dev.vars for local dev):

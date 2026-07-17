@@ -16,6 +16,7 @@ export const MODULE_IDS = [
   "health",
   "audit",
   "social",
+  "automations",
 ] as const;
 
 export type ModuleId = (typeof MODULE_IDS)[number];
@@ -133,6 +134,16 @@ function capabilities(id: ModuleId, options: { configure?: boolean; execute?: bo
 }
 
 export const MODULE_DEFINITIONS: readonly ModuleDefinition[] = [
+  {
+    id: "automations", publicName: "Studio d’automatisations", description: "Workflows visuels déclenchés par Discord, tickets ou planification.", category: "tools",
+    configVersion: 1, minimumConfigVersion: 1, defaultEnabled: false, toggleable: true, availability: "public", dependencies: [], conflicts: [],
+    requiredIntents: ["guilds"], optionalIntents: ["guild_members", "guild_messages", "message_content", "guild_voice_states", "guild_message_reactions"],
+    requiredPermissions: ["view_channel", "send_messages", "embed_links"], gateway: "required", worker: true,
+    apiRoutes: ["/api/guilds/:guildId/automations", "/internal/events/batch"], commands: [],
+    storage: ["automation_workflows", "automation_workflow_revisions", "automation_event_queue", "automation_executions", "automation_scheduled_tasks"],
+    capabilities: capabilities("automations"), quotas: [], healthModule: "automations",
+    panel: { configurePath: "automations", icon: "workflow" }, disableConsequence: "automation_execution_stopped_definitions_preserved",
+  },
   {
     id: "general", publicName: "Configuration générale", description: "Identité du bot, journaux serveur et réglages communs.", category: "server",
     configVersion: 1, minimumConfigVersion: 1, defaultEnabled: true, toggleable: false, availability: "system", dependencies: [], conflicts: [],

@@ -10,6 +10,9 @@ export interface GuildModuleRow {
 }
 
 const LEGACY_MODULES = new Set<ModuleId>(["tickets", "welcome", "automod", "levels", "starboard", "temp_voice"]);
+const EXTENSION_MODULES = new Set<ModuleId>(["automations"]);
+const moduleTable = (moduleId: ModuleId): "guild_modules" | "guild_module_extensions" =>
+  EXTENSION_MODULES.has(moduleId) ? "guild_module_extensions" : "guild_modules";
 
 interface LegacySignals {
   tickets: number;
@@ -36,7 +39,7 @@ async function legacySignals(db: D1Database, guildId: string): Promise<LegacySig
 
 export async function ensureGuildModules(db: D1Database, guildId: string): Promise<void> {
   await db.batch(MODULE_DEFINITIONS.map((definition) => db.prepare(
-    `INSERT INTO guild_modules (guild_id, module_id, enabled, config_version, authority)
+    `INSERT INTO ${moduleTable(definition.id)} (guild_id, module_id, enabled, config_version, authority)
      VALUES (?1, ?2, ?3, ?4, ?5)
      ON CONFLICT(guild_id, module_id) DO NOTHING`,
   ).bind(
@@ -51,8 +54,10 @@ export async function ensureGuildModules(db: D1Database, guildId: string): Promi
 export async function listGuildModuleRows(db: D1Database, guildId: string): Promise<GuildModuleRow[]> {
   await ensureGuildModules(db, guildId);
   const result = await db.prepare(
-    `SELECT guild_id, module_id, enabled, config_version, authority, updated_at
-       FROM guild_modules WHERE guild_id = ?1 ORDER BY module_id`,
+    `SELECT guild_id, module_id, enabled, config_version, authority, updated_at FROM guild_modules WHERE guild_id = ?1
+     UNION ALL
+     SELECT guild_id, module_id, enabled, config_version, authority, updated_at FROM guild_module_extensions WHERE guild_id = ?1
+     ORDER BY module_id`,
   ).bind(guildId).all<GuildModuleRow>();
   return result.results;
 }
@@ -76,7 +81,7 @@ export async function isGuildModuleEnabled(db: D1Database, guildId: string, modu
 export async function setGuildModuleEnabled(db: D1Database, guildId: string, moduleId: ModuleId, enabled: boolean): Promise<void> {
   const definition = MODULE_REGISTRY[moduleId];
   await db.prepare(
-    `INSERT INTO guild_modules (guild_id, module_id, enabled, config_version, authority, updated_at)
+    `INSERT INTO ${moduleTable(moduleId)} (guild_id, module_id, enabled, config_version, authority, updated_at)
      VALUES (?1, ?2, ?3, ?4, 'governance', datetime('now'))
      ON CONFLICT(guild_id, module_id) DO UPDATE SET
        enabled = excluded.enabled,
@@ -99,7 +104,7 @@ export function syncGuildModuleStatement(
 ): D1PreparedStatement {
   const definition = MODULE_REGISTRY[moduleId];
   return db.prepare(
-    `INSERT INTO guild_modules (guild_id, module_id, enabled, config_version, authority, updated_at)
+    `INSERT INTO ${moduleTable(moduleId)} (guild_id, module_id, enabled, config_version, authority, updated_at)
      VALUES (?1, ?2, ?3, ?4, 'governance', datetime('now'))
      ON CONFLICT(guild_id, module_id) DO UPDATE SET
        enabled = excluded.enabled,

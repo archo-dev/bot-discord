@@ -52,7 +52,7 @@ export interface AdminAuditInput {
   actorAccess: PanelGuildAccess;
   capability: PanelCapability;
   method: "POST" | "PUT" | "PATCH" | "DELETE";
-  targetType: "command" | "warning" | "button_role" | null;
+  targetType: "command" | "warning" | "button_role" | "automation" | null;
   targetId: string | null;
   outcome: "success" | "error";
   status: number;
@@ -60,14 +60,17 @@ export interface AdminAuditInput {
 }
 
 export async function insertAdminAudit(db: D1Database, input: AdminAuditInput): Promise<void> {
-  await db.prepare(
-    `INSERT INTO admin_audit_log
+  const statement = (table: "admin_audit_log" | "admin_audit_log_v2") => db.prepare(
+    `INSERT INTO ${table}
        (guild_id, actor_id, actor_access, capability, method, target_type, target_id, outcome, status, request_id)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`,
   ).bind(
     input.guildId, input.actorId, input.actorAccess, input.capability, input.method,
     input.targetType, input.targetId, input.outcome, input.status, input.requestId,
-  ).run();
+  );
+  const statements = [statement("admin_audit_log_v2")];
+  if (input.capability !== "automations_write" && input.targetType !== "automation") statements.push(statement("admin_audit_log"));
+  await db.batch(statements);
 }
 
 interface AdminAuditRow {
@@ -76,7 +79,7 @@ interface AdminAuditRow {
   actor_access: PanelGuildAccess;
   capability: PanelCapability;
   method: "POST" | "PUT" | "PATCH" | "DELETE";
-  target_type: "command" | "warning" | "button_role" | null;
+  target_type: "command" | "warning" | "button_role" | "automation" | null;
   target_id: string | null;
   outcome: AdminAuditOutcome;
   status: number;
@@ -94,7 +97,7 @@ export async function listAdminAudit(db: D1Database, input: {
   const result = await db.prepare(
     `SELECT id, actor_id, actor_access, capability, method, target_type, target_id,
             outcome, status, request_id, created_at
-       FROM admin_audit_log
+       FROM admin_audit_log_v2
       WHERE guild_id = ?1
         AND (?2 IS NULL OR id < ?2)
         AND (?3 IS NULL OR capability = ?3)
@@ -122,14 +125,15 @@ export async function listAdminAudit(db: D1Database, input: {
 }
 
 export async function purgeSecurityData(db: D1Database): Promise<{ nonces: number; quotas: number; audit: number }> {
-  const [nonces, quotas, audit] = await db.batch([
+  const [nonces, quotas, audit, auditV2] = await db.batch([
     db.prepare(`DELETE FROM internal_request_nonces WHERE expires_at < datetime('now')`),
     db.prepare(`DELETE FROM security_quota_usage WHERE day < date('now', '-7 days')`),
     db.prepare(`DELETE FROM admin_audit_log WHERE created_at < datetime('now', '-90 days')`),
+    db.prepare(`DELETE FROM admin_audit_log_v2 WHERE created_at < datetime('now', '-90 days')`),
   ]);
   return {
     nonces: nonces!.meta.changes ?? 0,
     quotas: quotas!.meta.changes ?? 0,
-    audit: audit!.meta.changes ?? 0,
+    audit: (audit!.meta.changes ?? 0) + (auditV2!.meta.changes ?? 0),
   };
 }

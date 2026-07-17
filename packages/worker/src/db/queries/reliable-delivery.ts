@@ -25,7 +25,7 @@ function processedInsert(db: D1Database, eventId: string, type: string, now: num
  * so the route can compose [effect..., processedInsert] into a single atomic
  * db.batch — dedup and effect commit or roll back together.
  */
-function effectStatements(db: D1Database, env: ReliableEnvelope): D1PreparedStatement[] {
+function effectStatements(db: D1Database, env: ReliableEnvelope, now: number): D1PreparedStatement[] {
   const g = env.guildId;
   switch (env.type) {
     case "voice_log": {
@@ -72,6 +72,20 @@ function effectStatements(db: D1Database, env: ReliableEnvelope): D1PreparedStat
           .bind(g, p.eventType, JSON.stringify(p.payload)),
       ];
     }
+    case "automation_event": {
+      const p = env.payload;
+      return [
+        db.prepare(
+          `INSERT OR IGNORE INTO automation_event_queue
+             (id, guild_id, trigger_type, context, correlation_id, root_event_id, depth, expires_at,
+              status, attempts, available_at, created_at, updated_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'queued', 0, ?9, ?9, ?9)`,
+        ).bind(
+          env.eventId, env.guildId, p.context.event.type, JSON.stringify(p.context), p.correlationId,
+          p.rootEventId, p.depth, env.occurredAt + 10 * 60_000, now,
+        ),
+      ];
+    }
   }
 }
 
@@ -82,7 +96,7 @@ function effectStatements(db: D1Database, env: ReliableEnvelope): D1PreparedStat
  * retry — safe, since the atomic rollback means no partial apply.
  */
 export async function applyReliableEvent(db: D1Database, env: ReliableEnvelope, now: number): Promise<void> {
-  await db.batch([...effectStatements(db, env), processedInsert(db, env.eventId, env.type, now)]);
+  await db.batch([...effectStatements(db, env, now), processedInsert(db, env.eventId, env.type, now)]);
 }
 
 /** Retention purge (daily cron): drop dedup markers older than the retry window. */

@@ -23,6 +23,7 @@ import { modulesRouter } from "./api/modules.js";
 import { onboardingRouter } from "./api/onboarding.js";
 import { configBackupRouter } from "./api/config-backup.js";
 import { privacyRouter } from "./api/privacy.js";
+import { automationsRouter } from "./api/automations.js";
 import { publicRouter } from "./api/public.js";
 import { internalRouter } from "./internal/routes.js";
 import { enforcePanelMutationPolicy, requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
@@ -82,6 +83,7 @@ api.route("/", modulesRouter);
 api.route("/", onboardingRouter);
 api.route("/", configBackupRouter);
 api.route("/", privacyRouter);
+api.route("/", automationsRouter);
 api.route("/", guildsRouter);
 app.route("/api", api);
 
@@ -115,8 +117,8 @@ app.get("/", (c) => serveIndex(c));
 app.get("/index.html", (c) => serveIndex(c));
 
 // Cron trigger (wrangler.jsonc → triggers.crons): daily retention purge.
-const scheduled = async (_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> => {
-  ctx.waitUntil(runScheduled(env));
+const scheduled = async (event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> => {
+  ctx.waitUntil(runScheduled(env, { purge: event.cron === "23 4 * * *" }));
 };
 
 // Keep the Hono instance as the default export (tests call app.request(...)) but

@@ -18,6 +18,7 @@ const CAPABILITY_LABELS: Record<PanelCapability, string> = {
   commands_write: "Commandes",
   music_control: "Musique",
   tickets_write: "Tickets",
+  automations_write: "Automatisations",
 };
 
 function actorLabel(entry: AdminAuditEntryDto): string {
@@ -26,7 +27,7 @@ function actorLabel(entry: AdminAuditEntryDto): string {
 
 function Target({ entry }: { entry: AdminAuditEntryDto }) {
   if (!entry.targetType || !entry.targetId) return <span className="text-zinc-600">—</span>;
-  const labels = { command: "Commande", warning: "Avertissement", button_role: "Bouton-rôle" } as const;
+  const labels = { command: "Commande", warning: "Avertissement", button_role: "Bouton-rôle", automation: "Automatisation" } as const;
   return <span className="text-zinc-300">{labels[entry.targetType]} #{entry.targetId}</span>;
 }
 

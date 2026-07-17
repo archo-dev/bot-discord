@@ -10,6 +10,7 @@ import {
 } from "@bot/shared";
 import type { Env } from "../env.js";
 import { applyReliableEvent, findProcessedEvents, isGuildModuleEnabled } from "../db/queries.js";
+import { processAutomationRuntime } from "../automation/engine.js";
 
 export const internalEventsRouter = new Hono<{ Bindings: Env }>();
 
@@ -42,6 +43,7 @@ internalEventsRouter.post("/internal/events/batch", async (c) => {
 
   const now = Date.now();
   const results: ReliableAck[] = [];
+  let automationAccepted = false;
   for (const raw of parsed.data.events) {
     let status: ReliableAckStatus;
     if (processed.has(raw.eventId)) {
@@ -57,6 +59,7 @@ internalEventsRouter.post("/internal/events/batch", async (c) => {
         try {
           await applyReliableEvent(c.env.DB, validated.envelope, now);
           status = "accepted";
+          if (validated.envelope.type === "automation_event") automationAccepted = true;
         } catch {
           // Atomic rollback guarantees no partial apply; a concurrent duplicate
           // or transient D1 error → retry (next attempt hits the dedup fast path).
@@ -66,6 +69,8 @@ internalEventsRouter.post("/internal/events/batch", async (c) => {
     }
     results.push({ eventId: raw.eventId, status });
   }
+
+  if (automationAccepted) c.executionCtx.waitUntil(processAutomationRuntime(c.env));
 
   return c.json({ results });
 });

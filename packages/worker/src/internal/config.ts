@@ -14,6 +14,7 @@ import {
   listAutoRoles,
   listCustomCommands,
   listEffectiveGuildModules,
+  listEnabledAutomationTriggerTypes,
 } from "../db/queries.js";
 import { logRowToDto, welcomeRowToDto } from "../api/welcome.js";
 import { automodRowToDto } from "../api/automod.js";
@@ -25,7 +26,7 @@ internalConfigRouter.get("/internal/guilds/:guildId/config", async (c) => {
   // M04: aucune de ces lectures ne dépend d'une autre — un seul aller-retour D1
   // parallèle au lieu de ~8 séquentiels. La réponse (contrat gateway) est
   // strictement identique à l'ancienne construction séquentielle.
-  const [guild, autoRoles, moduleRows, welcomeRow, logRow, automodRow, xpRow, starboardRow, tempVoiceRow] =
+  const [guild, autoRoles, moduleRows, welcomeRow, logRow, automodRow, xpRow, starboardRow, tempVoiceRow, automationTriggers] =
     await Promise.all([
       getGuild(c.env.DB, guildId),
       listAutoRoles(c.env.DB, guildId),
@@ -36,6 +37,7 @@ internalConfigRouter.get("/internal/guilds/:guildId/config", async (c) => {
       getXpSettings(c.env.DB, guildId),
       getStarboardSettings(c.env.DB, guildId),
       getTempVoiceSettings(c.env.DB, guildId),
+      listEnabledAutomationTriggerTypes(c.env.DB, guildId),
     ]);
   if (!guild) return c.json({ error: "not_found" }, 404);
 
@@ -74,6 +76,7 @@ internalConfigRouter.get("/internal/guilds/:guildId/config", async (c) => {
       userLimit: tempVoiceRow?.user_limit ?? 0,
       maxChannels: tempVoiceRow?.max_channels ?? 10,
     },
+    automationTriggers: enabled("automations") ? automationTriggers : [],
   });
 });
 

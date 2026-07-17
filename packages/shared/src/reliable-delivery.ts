@@ -4,11 +4,14 @@
  *
  * Privacy: envelopes carry ONLY the minimal fields already needed to apply the
  * effect. Never add token, secret, cookie, auth header, IP, raw error, attachment,
- * transcript, raw HTTP body or Discord message content to a payload here.
+ * transcript, raw HTTP body, token or secret to a payload here. M10 automation
+ * events may contain bounded message content only when a guild has subscribed
+ * to the message_create trigger; it is purged with the queue retention.
  */
 
 import { z } from "zod";
 import type { ModuleId } from "./modules.js";
+import { AUTOMATION_MAX_DEPTH, automationEventContextSchema } from "./automation.js";
 
 export const RELIABLE_DELIVERY_SCHEMA_VERSION = 1 as const;
 
@@ -20,7 +23,7 @@ export const RELIABLE_BATCH_MAX = 100;
  * flows are here: their whole effect can be applied atomically with the dedup
  * insert. Side-effect flows (xp/automod/starboard) stay on the direct path.
  */
-export const RELIABLE_EVENT_TYPES = ["voice_log", "channel_activity", "member_snapshot", "gateway_event"] as const;
+export const RELIABLE_EVENT_TYPES = ["voice_log", "channel_activity", "member_snapshot", "gateway_event", "automation_event"] as const;
 export type ReliableEventType = (typeof RELIABLE_EVENT_TYPES)[number];
 
 const SNOWFLAKE = /^\d{5,20}$/;
@@ -55,17 +58,28 @@ export const gatewayEventPayloadSchema = z.object({
   payload: z.record(z.string(), z.unknown()),
 });
 
+export const automationEventPayloadSchema = z.object({
+  context: automationEventContextSchema,
+  correlationId: z.string().uuid(),
+  rootEventId: z.string().uuid(),
+  depth: z.number().int().min(0).max(AUTOMATION_MAX_DEPTH),
+}).superRefine((value, ctx) => {
+  if (value.context.event.depth !== value.depth) ctx.addIssue({ code: "custom", path: ["context", "event", "depth"], message: "depth mismatch" });
+});
+
 export const RELIABLE_PAYLOAD_SCHEMAS = {
   voice_log: voiceLogPayloadSchema,
   channel_activity: channelActivityPayloadSchema,
   member_snapshot: memberSnapshotPayloadSchema,
   gateway_event: gatewayEventPayloadSchema,
+  automation_event: automationEventPayloadSchema,
 } satisfies Record<ReliableEventType, z.ZodType>;
 
 export type VoiceLogPayload = z.infer<typeof voiceLogPayloadSchema>;
 export type ChannelActivityPayload = z.infer<typeof channelActivityPayloadSchema>;
 export type MemberSnapshotPayload = z.infer<typeof memberSnapshotPayloadSchema>;
 export type GatewayEventPayload = z.infer<typeof gatewayEventPayloadSchema>;
+export type AutomationEventPayload = z.infer<typeof automationEventPayloadSchema>;
 
 // --- Governance / routing metadata per type ---------------------------------
 
@@ -75,6 +89,7 @@ export const RELIABLE_EVENT_MODULE = {
   channel_activity: "stats",
   member_snapshot: "stats",
   gateway_event: "stats",
+  automation_event: "automations",
 } satisfies Record<ReliableEventType, ModuleId>;
 
 /** 0 = normal (drained first), 1 = low (droppable under backpressure). */
@@ -83,6 +98,7 @@ export const RELIABLE_EVENT_PRIORITY = {
   gateway_event: 0,
   channel_activity: 1,
   member_snapshot: 1,
+  automation_event: 0,
 } satisfies Record<ReliableEventType, 0 | 1>;
 
 /** Ordering partition. All reliable flows are per-guild; no cross-guild order. */

@@ -26,3 +26,4 @@ export * from "./queries/onboarding.js";
 export * from "./queries/config-snapshots.js";
 export * from "./queries/reliable-delivery.js";
 export * from "./queries/analytics.js";
+export * from "./queries/automations.js";

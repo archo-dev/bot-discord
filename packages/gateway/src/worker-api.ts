@@ -11,6 +11,7 @@ import {
   type ReliableEnvelope,
   type ReliableEventType,
   type VoiceLogAction,
+  type AutomationTriggerId,
 } from "@bot/shared";
 import type { GatewayEnv } from "./env.js";
 import type { Outbox } from "./outbox/index.js";
@@ -98,6 +99,7 @@ export interface GuildGatewayConfig {
     userLimit: number;
     maxChannels: number;
   };
+  automationTriggers: AutomationTriggerId[];
 }
 
 export interface TempVoiceChannelRef {

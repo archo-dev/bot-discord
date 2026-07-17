@@ -1,5 +1,7 @@
 # Milestone 10 — Studio d’automatisations Discord
 
+> La spécification finale et les guides livrés sont dans [`docs/automations/`](../automations/README.md). Les arbitrages historiques ci-dessous ne réduisent plus le périmètre M10 final.
+
 ## 1. Résumé
 
 Étendre le moteur conditions/actions des commandes personnalisées en workflows visuels déclenchés par événements ou horaires, avec templates, simulation, limites, journal, idempotence et coupe-circuit.

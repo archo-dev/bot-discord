@@ -17,6 +17,7 @@ import { registerTempVoice } from "./temp-voice.js";
 import { logTelemetry, telemetryErrorCode } from "./telemetry.js";
 import { buildGatewayRuntimeSnapshot } from "./health.js";
 import { createOutbox } from "./outbox/index.js";
+import { registerAutomations } from "./automations.js";
 
 // 120 s (TTL KV côté Worker = 300 s) : reste sous le quota d'écritures KV du
 // plan gratuit (1000/jour) tout en gardant le badge « Gateway » fiable.
@@ -65,6 +66,7 @@ registerXp(client, configCache, api);
 registerVoiceXp(client, configCache, api);
 registerStarboard(client, configCache, api);
 registerTempVoice(client, configCache, api);
+registerAutomations(client, configCache, outbox);
 const music = registerMusic(client, api);
 
 /** Per-guild presence counts from cache — empty until the Presence intent is on. */

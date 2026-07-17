@@ -51,6 +51,9 @@ function parseReliableTypes(raw: string | undefined): Set<ReliableEventType> {
   for (const token of (raw ?? "").split(",").map((t) => t.trim()).filter(Boolean)) {
     if ((RELIABLE_EVENT_TYPES as readonly string[]).includes(token)) set.add(token as ReliableEventType);
   }
+  // M10 automation events are never allowed to fall back to an ephemeral direct
+  // path: they must be durable/idempotent or not emitted at all.
+  set.add("automation_event");
   return set;
 }
 
