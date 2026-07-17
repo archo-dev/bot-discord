@@ -1,6 +1,14 @@
 import type { APIMessageComponentInteraction, APIModalSubmitInteraction } from "discord-api-types/v10";
 import type { Env } from "../../env.js";
-import { openTicket, promptCloseTicket, submitCloseTicket } from "./tickets.js";
+import {
+  changeTicketState,
+  openTicket,
+  promptCloseTicket,
+  submitCloseTicket,
+  submitOpenTicket,
+  toggleTicketClaim,
+  toggleTicketPriority,
+} from "./tickets.js";
 import { toggleButtonRole } from "./button-roles.js";
 import type { ModuleId } from "@bot/shared";
 
@@ -20,12 +28,18 @@ type ModalHandler = (ctx: ComponentContext<APIModalSubmitInteraction>) => Promis
 
 const componentHandlers: Array<{ id: string; handler: ComponentHandler }> = [
   { id: "ticket:open", handler: openTicket },
+  { id: "ticket:open:v2", handler: openTicket },
+  { id: "ticket:open:v2:", handler: openTicket },
   { id: "ticket:close", handler: promptCloseTicket },
+  { id: "ticket:claim:", handler: toggleTicketClaim },
+  { id: "ticket:state:", handler: changeTicketState },
+  { id: "ticket:priority:", handler: toggleTicketPriority },
   { id: "brole:", handler: toggleButtonRole },
 ];
 
 const modalHandlers: Array<{ id: string; handler: ModalHandler }> = [
   { id: "ticket:closec:", handler: submitCloseTicket },
+  { id: "ticket:create:v2:", handler: submitOpenTicket },
 ];
 
 function matches(customId: string, id: string): boolean {
@@ -41,7 +55,7 @@ export function findModalHandler(customId: string): ModalHandler | undefined {
 }
 
 export function moduleForComponent(customId: string): ModuleId | null {
-  if (customId === "ticket:open") return "tickets";
+  if (customId.startsWith("ticket:")) return "tickets";
   if (customId.startsWith("brole:")) return "button_roles";
   return null;
 }

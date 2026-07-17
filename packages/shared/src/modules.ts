@@ -152,9 +152,9 @@ export const MODULE_DEFINITIONS: readonly ModuleDefinition[] = [
   },
   {
     id: "tickets", publicName: "Tickets", description: "Support privé avec panneaux, salons et transcripts.", category: "moderation",
-    configVersion: 1, minimumConfigVersion: 1, defaultEnabled: false, toggleable: true, availability: "public", dependencies: [], conflicts: [],
+    configVersion: 2, minimumConfigVersion: 1, defaultEnabled: false, toggleable: true, availability: "public", dependencies: [], conflicts: [],
     requiredIntents: ["guilds"], optionalIntents: [], requiredPermissions: ["view_channel", "send_messages", "embed_links", "attach_files", "manage_channels"],
-    gateway: "none", worker: true, apiRoutes: ["/api/guilds/:guildId/tickets/*"], commands: [], storage: ["ticket_settings", "tickets"],
+    gateway: "none", worker: true, apiRoutes: ["/api/guilds/:guildId/tickets/*"], commands: [], storage: ["ticket_settings", "tickets", "ticket_events", "ticket_open_claims"],
     capabilities: capabilities("tickets"), quotas: [{ id: "discord_publish", scope: "guild", period: "day" }], healthModule: "tickets",
     panel: { configurePath: "tickets", icon: "ticket" }, disableConsequence: "new_tickets_stopped_existing_preserved",
   },

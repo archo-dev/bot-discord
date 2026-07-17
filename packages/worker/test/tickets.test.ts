@@ -3,13 +3,21 @@ import { env, createExecutionContext, waitOnExecutionContext, fetchMock } from "
 import app from "../src/index.js";
 import { createSession } from "../src/auth/session.js";
 import {
+  claimTicket,
   closeTicket,
+  compensateFailedTicketClose,
+  getTicketById,
   getOpenTicketForUser,
   getTicketByChannel,
+  getTicketStats,
   insertTicket,
+  listTicketEvents,
+  reserveTicket,
+  setTicketState,
   upsertGuild,
   upsertTicketSettings,
 } from "../src/db/queries.js";
+import { DEFAULT_TICKET_FORM } from "@bot/shared";
 import type { Env } from "../src/env.js";
 
 const G = "920000000000000001";
@@ -62,14 +70,14 @@ function member(userId: string, permissions = "0", roles: string[] = []) {
   return { user: { id: userId, username: `u${userId.slice(-2)}` }, permissions, roles };
 }
 
-function buttonPayload(customId: string, userId: string, channelId: string, permissions = "0") {
+function buttonPayload(customId: string, userId: string, channelId: string, permissions = "0", roles: string[] = []) {
   return {
     type: 3,
     application_id: "100000000000000000",
     token: "tok-component",
     guild_id: G,
     channel: { id: channelId, type: 0 },
-    member: member(userId, permissions),
+    member: member(userId, permissions, roles),
     message: { id: "600000000000000001" },
     data: { component_type: 2, custom_id: customId },
   };
@@ -278,6 +286,8 @@ describe("ticket system", () => {
         categoryId: CATEGORY,
         staffRoleIds: ["930000000000000001", "930000000000000002"],
         transcriptChannelId: null,
+        formEnabled: true,
+        form: DEFAULT_TICKET_FORM,
       }),
     });
     expect(put.status).toBe(200);
@@ -307,6 +317,128 @@ describe("ticket system", () => {
 
     const transcript = await apiRequest(`/api/guilds/${G}/tickets/${id}/transcript`, sid);
     expect(transcript.status).toBe(200);
+  });
+
+  it("collects a bounded form and rejects hostile modal fields", async () => {
+    await upsertTicketSettings(env.DB, G, {
+      enabled: true,
+      categoryId: CATEGORY,
+      staffRoleIds: ["930000000000000001"],
+      transcriptChannelId: null,
+      formEnabled: true,
+      form: DEFAULT_TICKET_FORM,
+    });
+
+    const prompt = await postInteraction(buttonPayload("ticket:open:v2:general", CREATOR, PANEL_CHANNEL));
+    const promptPayload = (await prompt.res.json()) as { type: number; data: { custom_id: string; components: unknown[] } };
+    expect(promptPayload.type).toBe(9);
+    expect(promptPayload.data.custom_id).toBe("ticket:create:v2:general");
+    expect(promptPayload.data.components).toHaveLength(2);
+
+    const hostile = await postInteraction({
+      type: 5,
+      application_id: "100000000000000000",
+      token: "tok-hostile",
+      guild_id: G,
+      member: member(CREATOR),
+      data: {
+        custom_id: "ticket:create:v2:general",
+        components: [{ type: 1, components: [{ type: 4, custom_id: "rogue", value: "secret" }] }],
+      },
+    });
+    const hostilePayload = (await hostile.res.json()) as { type: number; data: { content: string } };
+    expect(hostilePayload.type).toBe(4);
+    expect(hostilePayload.data.content).toContain("invalide");
+    expect(await getOpenTicketForUser(env.DB, G, CREATOR)).toBeNull();
+
+    const { res, ctx } = await postInteraction({
+      type: 5,
+      application_id: "100000000000000000",
+      token: "tok-create",
+      guild_id: G,
+      member: member(CREATOR),
+      data: {
+        custom_id: "ticket:create:v2:general",
+        components: [
+          { type: 1, components: [{ type: 4, custom_id: "subject", value: "Connexion" }] },
+          { type: 1, components: [{ type: 4, custom_id: "details", value: "Je ne peux plus me connecter." }] },
+        ],
+      },
+    });
+    expect(((await res.json()) as { type: number }).type).toBe(5);
+    await waitOnExecutionContext(ctx);
+    const ticket = await getOpenTicketForUser(env.DB, G, CREATOR);
+    expect(ticket).toMatchObject({ category_key: "general", state: "open", priority: "normal" });
+    expect(JSON.parse(ticket!.form_response!)).toEqual({ subject: "Connexion", details: "Je ne peux plus me connecter." });
+  });
+
+  it("makes claims atomic, transitions explicit and records metadata events", async () => {
+    const id = await insertTicket(env.DB, { guildId: G, number: 31, channelId: TICKET_CHANNEL, userId: CREATOR });
+    const [first, second] = await Promise.all([
+      claimTicket(env.DB, G, id, "930000000000000010"),
+      claimTicket(env.DB, G, id, "930000000000000011"),
+    ]);
+    expect([first.outcome, second.outcome].sort()).toEqual(["claimed", "conflict"]);
+    const claimed = await getTicketById(env.DB, G, id);
+    expect(["930000000000000010", "930000000000000011"]).toContain(claimed!.assignee_id);
+
+    const pending = await setTicketState(env.DB, G, id, claimed!.assignee_id!, "pending");
+    expect(pending).toMatchObject({ state: "pending", status: "open" });
+    const events = await listTicketEvents(env.DB, G, id);
+    expect(events.map((event) => event.type)).toEqual(expect.arrayContaining(["assigned", "state_changed"]));
+
+    const stats = await getTicketStats(env.DB, G);
+    expect(stats).toMatchObject({ total: 1, pending: 1, open: 0, unassigned: 0 });
+  });
+
+  it("recovers an abandoned opener claim but keeps a fresh one exclusive", async () => {
+    await env.DB.prepare(
+      `INSERT INTO ticket_open_claims (guild_id, user_id, created_at) VALUES (?1, ?2, datetime('now', '-11 minutes'))`,
+    ).bind(G, CREATOR).run();
+    const recovered = await reserveTicket(env.DB, { guildId: G, userId: CREATOR, categoryKey: null, formResponse: null });
+    expect(recovered).not.toBeNull();
+    const blocked = await reserveTicket(env.DB, { guildId: G, userId: CREATOR, categoryKey: null, formResponse: null });
+    expect(blocked).toBeNull();
+  });
+
+  it("compensates D1 when Discord channel deletion fails after close", async () => {
+    const id = await insertTicket(env.DB, { guildId: G, number: 35, channelId: TICKET_CHANNEL, userId: CREATOR });
+    await setTicketState(env.DB, G, id, CREATOR, "pending");
+    const before = (await getTicketById(env.DB, G, id))!;
+    expect(await closeTicket(env.DB, id, CREATOR, "temporary", "private transcript")).toBe(true);
+    expect((await getTicketById(env.DB, G, id))!.state).toBe("closed");
+
+    expect(await compensateFailedTicketClose(env.DB, before)).toBe(true);
+    const restored = await getTicketById(env.DB, G, id);
+    expect(restored).toMatchObject({ state: "pending", status: "open", closed_at: null, transcript: null });
+    expect((await listTicketEvents(env.DB, G, id)).some((event) => event.type === "closed")).toBe(false);
+  });
+
+  it("allows support triage on Discord, blocks strangers, and scopes panel ticket ids", async () => {
+    const id = await insertTicket(env.DB, { guildId: G, number: 41, channelId: TICKET_CHANNEL, userId: CREATOR });
+    const stranger = await postInteraction(buttonPayload(`ticket:claim:${id}`, STRANGER, TICKET_CHANNEL));
+    expect(((await stranger.res.json()) as { data: { content: string } }).data.content).toContain("réservée");
+
+    const staff = await postInteraction(buttonPayload(`ticket:claim:${id}`, STRANGER, TICKET_CHANNEL, "0", ["930000000000000001"]));
+    expect(((await staff.res.json()) as { data: { content: string } }).data.content).toContain("assigné");
+    expect((await getTicketById(env.DB, G, id))!.assignee_id).toBe(STRANGER);
+
+    const sid = await makeSession("810000000000000088");
+    const patch = await apiRequest(`/api/guilds/${G}/tickets/${id}`, sid, {
+      method: "PATCH",
+      body: JSON.stringify({ action: "set_priority", priority: "high" }),
+    });
+    expect(patch.status).toBe(200);
+    expect(((await patch.json()) as { priority: string }).priority).toBe("high");
+
+    const otherGuild = "920000000000000099";
+    await upsertGuild(env.DB, otherGuild, "Other Guild", null);
+    const idor = await apiRequest(`/api/guilds/${otherGuild}/tickets/${id}`, sid, {
+      method: "PATCH",
+      body: JSON.stringify({ action: "set_priority", priority: "normal" }),
+    });
+    expect([403, 404]).toContain(idor.status);
+    expect((await getTicketById(env.DB, G, id))!.priority).toBe("high");
   });
 
   it("rejects an unknown component and a rogue modal id", async () => {
