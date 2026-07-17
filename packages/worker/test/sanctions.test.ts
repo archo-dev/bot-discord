@@ -15,11 +15,16 @@ import { matchPanelMutationPolicy } from "@bot/shared";
 import { recordOwnerTargetAttempt } from "../src/moderation/owner-attempt.js";
 
 const GUILD = "880000000000000001";
+const GUILD_TWO = "880000000000000011";
 const USER = "880000000000000002";
+const USER_TWO = "880000000000000012";
 const ROLE = "880000000000000003";
 const OWNER = "880000000000000004";
 
-beforeAll(async () => { await upsertGuild(env.DB, GUILD, "Sanctions", null); });
+beforeAll(async () => {
+  await upsertGuild(env.DB, GUILD, "Sanctions", null);
+  await upsertGuild(env.DB, GUILD_TWO, "Sanctions two", null);
+});
 
 describe("panel sanctions persistence", () => {
   it("keeps exemptions independently per sanction type", async () => {
@@ -75,5 +80,23 @@ describe("panel sanctions persistence", () => {
     await expect(recordOwnerTargetAttempt(env.DB, {
       guildId: GUILD, actorId: "automod", ownerId: OWNER, sanctionType: "warn", origin: "automation", requestId: "owner-attempt-00000003",
     })).resolves.toBe("audit_only");
+  });
+
+  it("is concurrency-safe and isolates the idempotency key by guild", async () => {
+    const input = { guildId: GUILD, actorId: USER_TWO, ownerId: OWNER, sanctionType: "kick" as const, origin: "slash" as const, requestId: "owner-attempt-concurrent" };
+    const outcomes = await Promise.all([recordOwnerTargetAttempt(env.DB, input), recordOwnerTargetAttempt(env.DB, input)]);
+    expect(outcomes.filter((outcome) => outcome === "warn_recorded")).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome === "duplicate")).toHaveLength(1);
+    await expect(recordOwnerTargetAttempt(env.DB, { ...input, guildId: GUILD_TWO })).resolves.toBe("warn_recorded");
+  });
+
+  it("caps distinct owner-target attempts durably at five warnings per minute", async () => {
+    const actor = "880000000000000013";
+    const outcomes = await Promise.all(Array.from({ length: 6 }, (_, index) => recordOwnerTargetAttempt(env.DB, {
+      guildId: GUILD_TWO, actorId: actor, ownerId: OWNER, sanctionType: "timeout", origin: "panel", requestId: `owner-attempt-rate-${index}`,
+    })));
+    expect(outcomes.filter((outcome) => outcome === "warn_recorded")).toHaveLength(5);
+    expect(outcomes.filter((outcome) => outcome === "rate_limited")).toHaveLength(1);
+    expect((await listWarnings(env.DB, GUILD_TWO, actor)).filter((warning) => warning.reason?.includes("propriétaire du serveur"))).toHaveLength(5);
   });
 });

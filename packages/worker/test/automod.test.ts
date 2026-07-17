@@ -67,6 +67,11 @@ beforeAll(async () => {
     .intercept({ path: new RegExp(`/api/v10/guilds/${G}/members/\\d+`), method: "PATCH" })
     .reply(200, {})
     .persist();
+  fetchMock
+    .get("https://discord.com")
+    .intercept({ path: `/api/v10/guilds/${G}`, method: "GET" })
+    .reply(200, { owner_id: "930000000000000099" })
+    .persist();
 });
 
 describe("automod settings API", () => {
