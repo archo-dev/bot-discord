@@ -219,7 +219,7 @@ export function GuildLayout({ me }: { me: MeResponse }) {
       {/* Carte serveur unifiée (D.S. v2 §4.13) : icône + nom (une fois) + membres + switch */}
       <div className="px-2.5 pt-2.5 pb-1.5">
         <div className="relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/70 p-2.5 shadow-(--shadow-sm)">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-[radial-gradient(circle_at_80%_0%,rgba(93,87,242,0.32),transparent_65%)]" aria-hidden />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-[radial-gradient(circle_at_80%_0%,rgba(107,78,242,0.16),transparent_65%)]" aria-hidden />
           <div className="relative flex items-center gap-2.5">
           {g ? (
             iconUrl ? (
@@ -264,7 +264,7 @@ export function GuildLayout({ me }: { me: MeResponse }) {
       <nav className="flex-1 overflow-y-auto px-2.5 py-1.5" aria-label="Pages du serveur">
         {favoriteItems.length > 0 && (
           <div className="mb-2 border-b border-zinc-800/70 pb-2">
-            <div className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+            <div className="flex items-center gap-1.5 px-2 pb-1 font-display text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
               <Icon.star />
               Favoris
             </div>
@@ -289,7 +289,7 @@ export function GuildLayout({ me }: { me: MeResponse }) {
               aria-expanded={openGroup === group.group}
               aria-controls={`nav-group-${group.group}`}
               onClick={() => setOpenGroup((current) => (current === group.group ? "" : group.group))}
-              className="group flex h-10 w-full items-center justify-between rounded-lg px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500 transition hover:bg-(--state-hover) hover:text-zinc-300 lg:h-8"
+              className="group flex h-10 w-full items-center justify-between rounded-lg px-2 font-display text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 transition hover:bg-(--state-hover) hover:text-zinc-300 lg:h-8"
             >
               <span>{group.group}</span>
               <span className={`transition-transform duration-(--motion-base) ${openGroup === group.group ? "rotate-180" : ""}`}>
@@ -375,7 +375,7 @@ export function GuildLayout({ me }: { me: MeResponse }) {
               <Icon.menu />
             </IconButton>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold tracking-tight text-zinc-100">{active.label}</h1>
+              <h1 className="font-display text-[22px] font-semibold tracking-tight text-zinc-100">{active.label}</h1>
               <p className="mt-0.5 max-w-3xl text-[13px] text-zinc-400">{active.subtitle}</p>
             </div>
             {g?.access === "moderator" && (
@@ -464,9 +464,9 @@ function SidebarItem({
         end={item.end}
         onClick={onNavigate}
         aria-current={active ? "page" : undefined}
-        className={`flex min-h-10 w-full items-center gap-2.5 rounded-lg px-2.5 pr-9 text-[13px] transition lg:min-h-8 ${
+        className={`relative flex min-h-10 w-full items-center gap-2.5 rounded-lg px-2.5 pr-9 text-[13px] transition lg:min-h-8 ${
           active
-            ? "bg-indigo-500/15 font-semibold text-white shadow-[inset_2px_0_0_var(--primary)]"
+            ? "bg-(--primary-subtle) font-semibold text-white before:absolute before:left-0 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-r-full before:bg-(--primary)"
             : "text-zinc-400 hover:bg-(--state-hover) hover:text-zinc-200"
         }`}
       >

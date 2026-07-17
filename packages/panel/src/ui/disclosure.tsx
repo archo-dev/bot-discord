@@ -18,7 +18,7 @@ export function DisclosureCard({
     <details
       open={open}
       onToggle={(event) => onOpenChange?.(event.currentTarget.open)}
-      className="group rounded-xl border border-zinc-800/90 bg-[linear-gradient(145deg,rgba(24,29,44,0.96),rgba(17,21,33,0.96))] shadow-(--shadow-sm)"
+      className="group rounded-xl border border-zinc-800/90 bg-[linear-gradient(150deg,rgba(29,26,40,0.96),rgba(22,20,31,0.96))] shadow-(--shadow-card)"
     >
       <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 px-4 py-2.5 transition hover:bg-(--state-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400/70 sm:px-5 [&::-webkit-details-marker]:hidden">
         <div className="min-w-0 flex-1">

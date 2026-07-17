@@ -1,10 +1,20 @@
 @import "tailwindcss";
 
-/* Inter variable self-hostée (D.S. v2 §2.5) */
+/* Inter variable self-hostée (D.S. v2 §2.5) — reste la police de corps */
 @font-face {
   font-family: "Inter";
   src: url("/fonts/InterVariable.woff2") format("woff2");
   font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Space Grotesk variable self-hostée (SIL OFL, cf. SpaceGrotesk.LICENSE.txt) —
+   police d'affichage « Archodev » : titres, éyebrows, logotype. Le corps reste Inter. */
+@font-face {
+  font-family: "Space Grotesk";
+  src: url("/fonts/SpaceGrotesk.woff2") format("woff2");
+  font-weight: 300 700;
   font-style: normal;
   font-display: swap;
 }
@@ -16,34 +26,41 @@
  * tokens sémantiques (--surface-*, --primary, --viz-*) pour les nouveaux composants.
  */
 @theme {
-  /* Police UI — Inter, proche de la « gg sans » de Discord */
+  /* Police de corps — Inter (lisibilité maximale) */
   --font-sans:
     "Inter", -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+
+  /* Police d'affichage « Archodev » — Space Grotesk (titres, éyebrows, logo).
+     Génère l'utilitaire `font-display`. */
+  --font-display:
+    "Space Grotesk", "Inter", -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
 
   /* Rayons alignés sur le design system (cartes 14, boutons/inputs 10, modales 20) */
   --radius-lg: 10px;
   --radius-xl: 14px;
   --radius-2xl: 20px;
 
-  /* --- Fonds & surfaces (échelle zinc remappée, ordre de luminance préservé) --- */
-  --color-zinc-950: #0a0b12; /* bg-app : canvas le plus sombre */
-  --color-zinc-900: #141824; /* surface-1 : cartes, panneaux */
-  --color-zinc-800: #232838; /* border standard / hover de surface */
-  --color-zinc-700: #2e3548; /* border-strong : bordures d'inputs/boutons */
-  --color-zinc-600: #3a4152;
-  --color-zinc-500: #6b7180; /* text-muted */
-  --color-zinc-400: #9ba1b0; /* text-secondary */
-  --color-zinc-300: #c3c8d4;
-  --color-zinc-200: #e4e6ec;
-  --color-zinc-100: #f3f4f8; /* text-primary */
+  /* --- Fonds & surfaces (échelle zinc remappée) — « nuit chaude » Archodev :
+     sous-ton violet subtil qui remplace le bleu-SaaS clinique, ordre de luminance préservé --- */
+  --color-zinc-950: #0c0a11; /* bg-app : canvas le plus sombre */
+  --color-zinc-900: #16141f; /* surface-1 : cartes, panneaux */
+  --color-zinc-800: #272433; /* border standard / hover de surface */
+  --color-zinc-700: #34303f; /* border-strong : bordures d'inputs/boutons */
+  --color-zinc-600: #423d4c;
+  --color-zinc-500: #736d7e; /* text-muted */
+  --color-zinc-400: #a49dad; /* text-secondary */
+  --color-zinc-300: #cbc6d2;
+  --color-zinc-200: #e7e4ec;
+  --color-zinc-100: #f4f2f8; /* text-primary */
 
-  /* --- Accent primaire : blurple --- */
-  --color-indigo-600: #5d57f2; /* primary */
-  --color-indigo-500: #6e68f5; /* primary-hover */
-  --color-indigo-400: #8b86f7;
-  --color-indigo-300: #a9a5fa;
-  --color-indigo-200: #c9c5fa; /* texte de chip sélectionnée */
-  --color-indigo-950: #211e4a; /* fond de chip sélectionnée (blurple sombre) */
+  /* --- Accent primaire propriétaire « Aurora Iris » (décalé du blurple Discord
+     vers un iris plus violet et lumineux : la couleur signature d'Archodev) --- */
+  --color-indigo-600: #6b4ef2; /* primary (iris) */
+  --color-indigo-500: #8168f6; /* primary-hover */
+  --color-indigo-400: #9a86f9;
+  --color-indigo-300: #b7a8fb;
+  --color-indigo-200: #d4cbfc; /* texte de chip sélectionnée */
+  --color-indigo-950: #211a4d; /* fond de chip sélectionnée (iris sombre) */
 
   /* --- Sémantique : succès --- */
   --color-green-300: #6ee0a0;
@@ -67,32 +84,39 @@
 
 /* Tokens sémantiques Nocturne (pour les composants qui n'utilisent pas les utilitaires zinc) */
 :root {
-  --bg-app: #0a0b12;
-  --bg-base: #0d0e1a;
-  --surface-1: #131724;
-  --surface-2: #191e2d;
-  --surface-3: #20263a;
-  --surface-raised: #181d2c;
-  --surface-sidebar: #10131f;
+  --bg-app: #0c0a11;
+  --bg-base: #0e0c16;
+  --surface-1: #16141f;
+  --surface-2: #1d1a28;
+  --surface-3: #262133;
+  --surface-raised: #1a1726;
+  --surface-sidebar: #100e18;
 
-  --border: #232838;
-  --border-strong: #2e3548;
+  --border: #272433;
+  --border-strong: #34303f;
 
-  --primary: #5d57f2;
-  --primary-hover: #6e68f5;
-  --primary-subtle: rgba(93, 87, 242, 0.16);
-  --primary-ring: rgba(93, 87, 242, 0.38);
+  --primary: #6b4ef2;
+  --primary-hover: #8168f6;
+  --primary-subtle: rgba(107, 78, 242, 0.16);
+  --primary-ring: rgba(122, 96, 245, 0.42);
 
-  --viz-violet: #7c4dee;
+  /* Signature « aurore » : dégradé iris → périwinkle → cyan. Volontairement RARE —
+     réservé au seul logotype (le monogramme). Partout ailleurs, l'accent est l'iris
+     solide (--primary). Ne pas étendre son usage : c'est ce qui garde le panel sobre. */
+  --aurora: linear-gradient(120deg, #6b4ef2 0%, #8a6bff 46%, #6fc7ff 100%);
+  /* « Lumière de voûte » : filet clair en haut des surfaces surélevées (le geste répété). */
+  --shadow-vault: inset 0 1px 0 rgba(198, 190, 255, 0.07);
+
+  --viz-violet: #8a6bff;
   --viz-blue: #3e7afc;
   --viz-green: #1fc069;
   --viz-amber: #f0b114;
   --viz-red: #ed4b4b;
   --viz-gray: #4b5163;
 
-  --text-primary: #f3f4f8;
-  --text-secondary: #9ba1b0;
-  --text-muted: #6b7180;
+  --text-primary: #f4f2f8;
+  --text-secondary: #a49dad;
+  --text-muted: #736d7e;
 
   /* --- Tokens v2 (docs/design_system_v2.md §2) --- */
 
@@ -122,9 +146,14 @@
 
   /* Élévation */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.28), 0 8px 20px rgba(0, 0, 0, 0.08);
+  /* Ombre des surfaces surélevées = lumière de voûte + élévation. Le filet clair
+     en haut est le geste signature qu'on retrouve sur chaque carte. */
+  --shadow-card: var(--shadow-vault), var(--shadow-sm);
   --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.36);
   --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.5);
-  --shadow-primary: 0 8px 24px rgba(93, 87, 242, 0.24);
+  /* Élévation du bouton primaire : ombre nette et neutre + un souffle d'iris à
+     peine perceptible. Plus de halo coloré — sobriété premium (Linear/Vercel). */
+  --shadow-primary: 0 1px 2px rgba(0, 0, 0, 0.42), 0 4px 10px rgba(107, 78, 242, 0.10);
 }
 
 html {
@@ -133,15 +162,51 @@ html {
 }
 
 body {
+  position: relative;
   min-height: 100vh;
   margin: 0;
   background:
-    radial-gradient(circle at 72% -10%, rgba(93, 87, 242, 0.1), transparent 31rem),
-    linear-gradient(135deg, #0b0d16 0%, var(--bg-app) 48%, #090a11 100%);
+    radial-gradient(circle at 72% -10%, rgba(107, 78, 242, 0.09), transparent 32rem),
+    linear-gradient(135deg, #100b1a 0%, var(--bg-app) 46%, #0a0710 100%);
   color: var(--text-primary);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   /* Chiffres tabulaires : la signature « dashboard » du design system */
+  font-feature-settings: "tnum" 1;
+}
+
+/* Grain « nuit » Archodev — voile de bruit fixe très discret qui casse
+   l'aplat parfait et donne de la profondeur/matière au canvas (signature). */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  /* Quasi imperceptible : on ne doit pas le « voir », seulement sentir que le fond
+     n'est pas un aplat plat. Sobriété avant tout. */
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='150' height='150' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 140px 140px;
+}
+@media (prefers-reduced-motion: reduce) {
+  body::after {
+    display: none;
+  }
+}
+
+/* Filet aurore appliqué au texte (titres/mots signature) : dégradé clippé. */
+.text-aurora {
+  background: var(--aurora);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Police d'affichage — les titres portent l'identité, avec un crénage resserré. */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
   font-feature-settings: "tnum" 1;
 }
 

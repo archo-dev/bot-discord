@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { MODULE_REGISTRY, type ModuleId, type OnboardingInvite } from "@bot/shared";
 import { api } from "../lib/api.js";
 import { Icon, type IconName } from "../ui/icons.js";
+import { Wordmark } from "../ui/brand.js";
 
 /* Modules mis en avant sur la vitrine (registre M03 = source de vérité). */
 const FEATURED: readonly ModuleId[] = ["welcome", "automod", "levels", "tickets", "music", "temp_voice", "starboard", "stats"];
@@ -17,7 +18,7 @@ function FeatureCard({ id }: { id: ModuleId }) {
   const module = MODULE_REGISTRY[id];
   const IconComponent = Icon[module.panel.icon as IconName] ?? Icon.bolt;
   return (
-    <div className="rounded-xl border border-zinc-800/90 bg-[linear-gradient(145deg,rgba(24,29,44,0.9),rgba(17,21,33,0.9))] p-5 shadow-(--shadow-sm)">
+    <div className="rounded-xl border border-zinc-800/90 bg-[linear-gradient(150deg,rgba(29,26,40,0.9),rgba(22,20,31,0.9))] p-5 shadow-(--shadow-card)">
       <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-300" aria-hidden>
         <IconComponent />
       </span>
@@ -44,12 +45,7 @@ export function Landing() {
       <div className="pointer-events-none absolute left-1/2 top-[-10rem] h-[38rem] w-[38rem] -translate-x-1/2 rounded-full bg-indigo-600/15 blur-3xl" aria-hidden />
 
       <header className="relative mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-6">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-400 to-indigo-700 text-white shadow-(--shadow-primary)">
-            <DiscordMark className="h-5 w-5 fill-current" />
-          </span>
-          <span className="font-semibold tracking-tight text-zinc-100">Archodev</span>
-        </div>
+        <Wordmark size={30} textClassName="text-[18px]" />
         <a
           href="/auth/login"
           className="inline-flex h-9 items-center rounded-lg border border-zinc-700 px-4 text-sm font-medium text-zinc-200 transition hover:border-zinc-600 hover:bg-(--surface-2) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
@@ -60,8 +56,8 @@ export function Landing() {
 
       <main className="relative mx-auto max-w-6xl px-4 sm:px-6">
         <section className="py-14 text-center sm:py-20">
-          <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-300">Panel Nocturne</div>
-          <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight text-zinc-50 sm:text-5xl">
+          <div className="mb-4 font-display text-[11px] font-semibold uppercase tracking-[0.2em] text-indigo-300">Panel Archodev</div>
+          <h1 className="mx-auto max-w-3xl font-display text-4xl font-semibold tracking-[-0.02em] text-zinc-50 sm:text-5xl">
             Un seul bot pour animer, modérer et gérer votre serveur Discord.
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-zinc-400 sm:text-lg">
@@ -92,7 +88,7 @@ export function Landing() {
         </section>
 
         <section className="pb-8">
-          <h2 className="mb-6 text-center text-sm font-semibold uppercase tracking-wide text-zinc-500">Les modules</h2>
+          <h2 className="mb-6 text-center font-display text-sm font-semibold uppercase tracking-[0.16em] text-zinc-500">Les modules</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {FEATURED.map((id) => <FeatureCard key={id} id={id} />)}
           </div>

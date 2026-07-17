@@ -60,7 +60,7 @@ export function GuildList({ me }: { me: MeResponse }) {
           <li key={g.id}>
             <Link
               to={`/guilds/${g.id}`}
-              className="group flex min-h-24 items-center gap-4 rounded-xl border border-zinc-800/90 bg-[linear-gradient(145deg,rgba(24,29,44,0.96),rgba(17,21,33,0.96))] p-4 shadow-(--shadow-sm) transition hover:-translate-y-0.5 hover:border-indigo-500/70 hover:shadow-(--shadow-md) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+              className="group flex min-h-24 items-center gap-4 rounded-xl border border-zinc-800/90 bg-[linear-gradient(150deg,rgba(29,26,40,0.96),rgba(22,20,31,0.96))] p-4 shadow-(--shadow-card) transition hover:-translate-y-0.5 hover:border-indigo-500/70 hover:shadow-(--shadow-md) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
             >
               {guildIconUrl(g.id, g.icon) ? (
                 <img src={guildIconUrl(g.id, g.icon)!} alt="" className="h-12 w-12 rounded-full" />

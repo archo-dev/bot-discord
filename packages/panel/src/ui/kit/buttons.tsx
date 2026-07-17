@@ -10,7 +10,8 @@ const buttonBase =
   "inline-flex min-w-0 items-center justify-center gap-2 rounded-lg font-semibold shadow-sm transition-[background-color,border-color,color,box-shadow,transform] duration-(--motion-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none disabled:active:translate-y-0";
 
 const buttonVariants: Record<ButtonVariant, string> = {
-  primary: "bg-gradient-to-b from-indigo-500 to-indigo-600 text-white shadow-(--shadow-primary) hover:from-indigo-400 hover:to-indigo-500",
+  primary:
+    "bg-gradient-to-b from-indigo-500 to-indigo-600 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.17),var(--shadow-primary)] hover:from-indigo-400 hover:to-indigo-500",
   secondary: "border border-zinc-700 bg-(--surface-2) text-zinc-100 hover:border-zinc-600 hover:bg-(--surface-3)",
   ghost: "shadow-none text-zinc-300 hover:bg-(--state-hover) hover:text-zinc-100",
   danger: "bg-red-500 text-white hover:bg-red-400",
