@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, useEffect } from "react";
 import type { MeResponse } from "@bot/shared";
 import { api, ApiError } from "./lib/api.js";
-import { Login } from "./pages/Login.js";
+import { Landing } from "./pages/Landing.js";
 import { GuildList } from "./pages/GuildList.js";
 import { GuildLayout } from "./pages/GuildLayout.js";
 import { Dashboard } from "./pages/Dashboard.js";
@@ -67,7 +67,7 @@ export function App() {
   }
 
   if (me.isError) {
-    if (me.error instanceof ApiError && me.error.status === 401) return <Login />;
+    if (me.error instanceof ApiError && me.error.status === 401) return <Landing />;
     return (
       <div className="mx-auto flex min-h-screen max-w-md items-center px-4">
         <div className="w-full">

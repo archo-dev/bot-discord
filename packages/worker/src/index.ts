@@ -21,6 +21,7 @@ import { healthRouter } from "./api/health.js";
 import { auditRouter } from "./api/audit.js";
 import { modulesRouter } from "./api/modules.js";
 import { onboardingRouter } from "./api/onboarding.js";
+import { publicRouter } from "./api/public.js";
 import { internalRouter } from "./internal/routes.js";
 import { enforcePanelMutationPolicy, requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
 import { runScheduled } from "./cron.js";
@@ -43,6 +44,8 @@ app.get("/health", (c) => c.json({ ok: true }));
 app.route("/", interactionsRouter);
 app.route("/", authRouter);
 app.route("/", internalRouter);
+// Public landing endpoints — registered before the session-guarded /api sub-app.
+app.route("/", publicRouter);
 
 // Panel API: every route needs a session; every guild-scoped route re-verifies
 // the user's real Discord permissions (see auth/guard.ts).

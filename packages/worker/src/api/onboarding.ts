@@ -45,15 +45,19 @@ type OnboardingContext = Context<AppContext>;
  */
 const STARTER_MODULES: readonly ModuleId[] = ["welcome", "automod", "levels", "tickets", "starboard", "temp_voice"];
 
-/** One-time bot invite for this guild: minimal-yet-complete permissions, pre-targeted. */
-function buildInvite(env: Env, guildId: string): OnboardingInvite {
+/**
+ * Bot invite with minimal-yet-complete permissions. `guildId` pre-targets the guild
+ * (used inside the panel to re-invite / grant missing permissions); omit it for the
+ * public landing, where Discord shows the server picker.
+ */
+export function buildInvite(env: Env, guildId?: string): OnboardingInvite {
   const permissions = invitePermissionBitfield().toString();
   const params = new URLSearchParams({
     client_id: env.DISCORD_CLIENT_ID,
     scope: "bot applications.commands",
     permissions,
-    guild_id: guildId,
   });
+  if (guildId) params.set("guild_id", guildId);
   return { url: `https://discord.com/oauth2/authorize?${params}`, permissions, usage: invitePermissionUsage() };
 }
 
