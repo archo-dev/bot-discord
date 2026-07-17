@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import {
   ApplicationCommandType,
   InteractionType,
@@ -14,12 +14,33 @@ import { ephemeral, pong } from "./respond.js";
 import { ensureGuild } from "../db/ensure-guild.js";
 import { getEnabledSlashCommand, isGuildModuleEnabled } from "../db/queries.js";
 import { executeCustomCommand } from "./custom.js";
+import { recordProductMetric } from "../analytics/service.js";
 
 export const interactionsRouter = new Hono<{ Bindings: Env }>();
 
 async function moduleDisabled(env: Env, guildId: string, moduleId: ModuleId | null): Promise<Response | null> {
   if (!moduleId || await isGuildModuleEnabled(env.DB, guildId, moduleId)) return null;
   return ephemeral("Ce module est désactivé sur ce serveur.");
+}
+
+async function trackFeatureResult(
+  c: Context<{ Bindings: Env }>,
+  guildId: string,
+  moduleId: ModuleId | null,
+  operation: Promise<Response>,
+): Promise<Response> {
+  try {
+    const response = await operation;
+    c.executionCtx.waitUntil(recordProductMetric(c.env, guildId, {
+      event: "feature_result", module: moduleId, step: null, outcome: "success",
+    }).catch(() => false));
+    return response;
+  } catch (error) {
+    c.executionCtx.waitUntil(recordProductMetric(c.env, guildId, {
+      event: "feature_result", module: moduleId, step: null, outcome: "failure",
+    }).catch(() => false));
+    throw error;
+  }
 }
 
 interactionsRouter.post("/interactions", async (c) => {
@@ -60,18 +81,19 @@ interactionsRouter.post("/interactions", async (c) => {
       // Existing temporary channels remain manageable after creation is disabled.
       const disabled = await moduleDisabled(c.env, command.guild_id, command.data.name === "voice" ? null : moduleForCommand(command.data.name));
       if (disabled) return disabled;
-      return handler({
+      const moduleId = command.data.name === "voice" ? "temp_voice" : moduleForCommand(command.data.name);
+      return trackFeatureResult(c, command.guild_id, moduleId, handler({
         env: c.env,
         interaction: command,
         waitUntil: (p) => c.executionCtx.waitUntil(p),
-      });
+      }));
     }
 
     const customDisabled = await moduleDisabled(c.env, command.guild_id, "custom_commands");
     if (customDisabled) return customDisabled;
     const custom = await getEnabledSlashCommand(c.env.DB, command.guild_id, command.data.name);
     if (custom) {
-      return executeCustomCommand(c.env, command, custom, (p) => c.executionCtx.waitUntil(p));
+      return trackFeatureResult(c, command.guild_id, "custom_commands", executeCustomCommand(c.env, command, custom, (p) => c.executionCtx.waitUntil(p)));
     }
 
     return ephemeral(`Commande inconnue : \`/${command.data.name}\`.`);
@@ -86,7 +108,8 @@ interactionsRouter.post("/interactions", async (c) => {
     if (disabled) return disabled;
     const handler = findComponentHandler(interaction.data.custom_id);
     if (handler) {
-      return handler({ env: c.env, interaction, waitUntil: (p) => c.executionCtx.waitUntil(p) });
+      const moduleId = moduleForComponent(interaction.data.custom_id);
+      return trackFeatureResult(c, interaction.guild_id, moduleId, handler({ env: c.env, interaction, waitUntil: (p) => c.executionCtx.waitUntil(p) }));
     }
     return ephemeral("Ce bouton n'est plus pris en charge.");
   }
@@ -100,7 +123,8 @@ interactionsRouter.post("/interactions", async (c) => {
     if (disabled) return disabled;
     const handler = findModalHandler(interaction.data.custom_id);
     if (handler) {
-      return handler({ env: c.env, interaction, waitUntil: (p) => c.executionCtx.waitUntil(p) });
+      const moduleId = moduleForComponent(interaction.data.custom_id);
+      return trackFeatureResult(c, interaction.guild_id, moduleId, handler({ env: c.env, interaction, waitUntil: (p) => c.executionCtx.waitUntil(p) }));
     }
     return ephemeral("Ce formulaire n'est plus pris en charge.");
   }
