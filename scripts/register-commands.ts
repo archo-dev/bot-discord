@@ -374,8 +374,15 @@ async function main(): Promise<void> {
       console.log(`Commandes de guilde candidates au nettoyage : ${candidates.map((command) => command.name).join(", ") || "aucune"}`);
       if (!apply) { console.log("Dry-run : aucune commande n'a été supprimée. Relancez avec --apply pour confirmer."); return; }
       for (const command of candidates) {
-        const response = await request(`/guilds/${guildId}/commands/${command.id}`, { method: "DELETE" });
-        if (!response.ok && response.status !== 404) throw new Error(`Suppression de ${command.name} échouée (${response.status})`);
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const response = await request(`/guilds/${guildId}/commands/${command.id}`, { method: "DELETE" });
+          if (response.ok || response.status === 404) break;
+          if (response.status !== 429 || attempt === 2) throw new Error(`Suppression de ${command.name} échouée (${response.status})`);
+          const body = await response.json().catch(() => null) as { retry_after?: unknown } | null;
+          const retryAfter = typeof body?.retry_after === "number" ? Math.ceil(body.retry_after * 1000) : 1_000;
+          console.log(`Limite Discord pour ${command.name}; reprise dans ${retryAfter} ms.`);
+          await new Promise((resolve) => setTimeout(resolve, retryAfter));
+        }
       }
       console.log(`${candidates.length} commande(s) de guilde obsolète(s) supprimée(s). Les commandes globales et personnalisées sont intactes.`);
       return;
