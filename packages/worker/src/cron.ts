@@ -1,5 +1,6 @@
 import type { Env } from "./env.js";
 import { purgeOldStats, purgePanelSanctionRequests, purgeProcessedEvents, purgeProductAnalytics, purgeSecurityData } from "./db/queries.js";
+import { purgeOwnerTargetAttemptData } from "./moderation/owner-attempt.js";
 
 /**
  * Daily scheduled job (cron "23 4 * * *"). Enforces the D1 retention bounds so
@@ -8,12 +9,13 @@ import { purgeOldStats, purgePanelSanctionRequests, purgeProcessedEvents, purgeP
  * dedup markers 48 h).
  */
 export async function runScheduled(env: Env): Promise<void> {
-  const [stats, security, processedEvents, productAnalytics, sanctionRequests] = await Promise.all([
+  const [stats, security, processedEvents, productAnalytics, sanctionRequests, ownerTargetAttempts] = await Promise.all([
     purgeOldStats(env.DB),
     purgeSecurityData(env.DB),
     purgeProcessedEvents(env.DB),
     purgeProductAnalytics(env.DB),
     purgePanelSanctionRequests(env.DB),
+    purgeOwnerTargetAttemptData(env.DB),
   ]);
-  console.log("cron purge:", JSON.stringify({ stats, security, processedEvents, productAnalytics, sanctionRequests }));
+  console.log("cron purge:", JSON.stringify({ stats, security, processedEvents, productAnalytics, sanctionRequests, ownerTargetAttempts }));
 }

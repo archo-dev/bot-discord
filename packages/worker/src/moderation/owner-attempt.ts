@@ -95,3 +95,12 @@ async function setResult(db: D1Database, input: OwnerTargetAttempt, result: "aud
 }
 
 export const OWNER_TARGET_ATTEMPT_REASON = REASON;
+
+/** Retain the audit for 90 days and short-lived limiter windows for 2 days. */
+export async function purgeOwnerTargetAttemptData(db: D1Database): Promise<{ attempts: number; limits: number }> {
+  const [attempts, limits] = await db.batch([
+    db.prepare(`DELETE FROM owner_target_attempts WHERE created_at < datetime('now', '-90 days')`),
+    db.prepare(`DELETE FROM owner_target_attempt_limits WHERE window_start < strftime('%Y-%m-%dT%H:%M:00Z', 'now', '-2 days')`),
+  ]);
+  return { attempts: attempts!.meta.changes ?? 0, limits: limits!.meta.changes ?? 0 };
+}
