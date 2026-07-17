@@ -1,6 +1,6 @@
 # Milestone 9 — Tickets d’équipe avancés
 
-> **Implémentation locale :** réalisée sur `milestone/team-tickets` le 2026-07-17. Migration `0030_team_tickets.sql`, sans migration distante ni déploiement. Les rappels actifs restent hors périmètre tant que C2.0 n'est pas disponible. Guide d'exploitation : `docs/team-tickets.md`.
+> **Implémentation :** réalisée depuis `milestone/team-tickets` le 2026-07-17 avec la migration additive `0030_team_tickets.sql`. La livraison inclut la réouverture contrôlée dans un nouveau salon et la conservation du transcript historique. Les rappels actifs restent hors périmètre tant que C2.0 n'est pas disponible. Guide d'exploitation : `docs/team-tickets.md`.
 
 ## 1. Résumé
 
