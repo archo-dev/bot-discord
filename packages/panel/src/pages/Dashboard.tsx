@@ -6,6 +6,7 @@ import type {
   GuildOverview,
   MemberStatsDto,
   ModActionDto,
+  OnboardingResponse,
   Paginated,
   PresenceStatsDto,
 } from "@bot/shared";
@@ -43,6 +44,11 @@ export function Dashboard() {
     queryKey: ["stats-channels", guildId, 7],
     queryFn: () => api<ChannelStatsDto>(`/api/guilds/${guildId}/stats/channels?days=7`),
   });
+  // Encart de prise en main, masqué une fois la configuration marquée terminée (best-effort).
+  const onboarding = useQuery({
+    queryKey: ["onboarding", guildId],
+    queryFn: () => api<OnboardingResponse>(`/api/guilds/${guildId}/onboarding`),
+  });
 
   if (overview.isPending) return <SkeletonDashboard />;
   if (overview.isError) {
@@ -70,8 +76,33 @@ export function Dashboard() {
     </Link>
   );
 
+  const ob = onboarding.data;
+  const obPct = ob && ob.progress.total > 0 ? Math.round((ob.progress.done / ob.progress.total) * 100) : 0;
+
   return (
     <div className="space-y-5">
+      {/* Encart prise en main (M06) — visible tant que la configuration n'est pas terminée. */}
+      {ob && !ob.completedAt && (
+        <Link
+          to={`/guilds/${guildId}/onboarding`}
+          className="flex flex-col gap-3 rounded-xl border border-indigo-800/60 bg-indigo-950/30 p-5 transition hover:border-indigo-600/70 sm:flex-row sm:items-center"
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-indigo-300">
+            <Icon.star />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-indigo-100">Terminez la configuration de votre serveur</p>
+            <p className="mt-0.5 text-sm text-indigo-200/70">
+              {ob.progress.done} étape(s) sur {ob.progress.total} — presets, permissions et checklist guidée.
+            </p>
+            <div className="mt-2 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-indigo-950">
+              <div className="h-full rounded-full bg-indigo-400" style={{ width: `${obPct}%` }} />
+            </div>
+          </div>
+          <span className="shrink-0 text-indigo-300" aria-hidden>→</span>
+        </Link>
+      )}
+
       {/* Rangée KPI : StatCard = numérique, InfoTile = état/config (D.S. v2 §4.10) — c'est le
           résumé du serveur, donc aucune carte « Résumé » redondante en dessous (M21). */}
       <div className="grid-kpi">

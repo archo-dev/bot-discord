@@ -38,6 +38,7 @@ const MusicPage = lazy(() => import("./pages/Music.js").then((m) => ({ default: 
 const HealthPage = lazy(() => import("./pages/Health.js").then((m) => ({ default: m.HealthPage })));
 const AuditPage = lazy(() => import("./pages/Audit.js").then((m) => ({ default: m.AuditPage })));
 const ModulesPage = lazy(() => import("./pages/Modules.js").then((m) => ({ default: m.ModulesPage })));
+const OnboardingPage = lazy(() => import("./pages/Onboarding.js").then((m) => ({ default: m.OnboardingPage })));
 
 export function App() {
   const queryClient = useQueryClient();
@@ -85,6 +86,7 @@ export function App() {
       <Route path="/" element={<GuildList me={me.data} />} />
       <Route path="/guilds/:guildId" element={<GuildLayout me={me.data} />}>
         <Route index element={<Dashboard />} />
+        <Route path="onboarding" element={<OnboardingPage />} />
         <Route path="stats" element={<StatsPage />} />
         <Route path="health" element={<HealthPage />} />
         <Route path="audit" element={<AuditPage />} />

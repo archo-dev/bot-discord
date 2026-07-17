@@ -24,6 +24,7 @@ const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
     group: "Serveur",
     items: [
       { to: "", label: "Aperçu", icon: "home", end: true, subtitle: "Vue d'ensemble de l'activité et de la configuration du serveur." },
+      { to: "onboarding", label: "Prise en main", icon: "star", subtitle: "Checklist guidée, presets de démarrage et permissions du bot." },
       { to: "modules", label: "Modules", icon: "bolt", subtitle: "Activez les capacités du bot et vérifiez leurs prérequis Discord." },
       { to: "stats", label: "Statistiques", icon: "chart", subtitle: "Évolution des membres, salons actifs, présence et événements à venir." },
       { to: "health", label: "Santé", icon: "pulse", subtitle: "SLO, état de la Gateway et diagnostic technique des modules." },
