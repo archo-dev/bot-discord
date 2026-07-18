@@ -144,8 +144,9 @@ export function ConfigPage() {
 
         <div className="mt-4 divide-y divide-zinc-800/80 border-t border-zinc-800/80">
           <details className="group py-1">
-            <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between py-2 text-sm font-medium text-zinc-200 [&::-webkit-details-marker]:hidden">
-              Identité du bot <span className="text-zinc-500 transition-transform group-open:rotate-180">⌄</span>
+            <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between py-2 text-sm font-medium text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400/70 [&::-webkit-details-marker]:hidden">
+              <span>Identité du bot</span>
+              <span className="text-zinc-500 transition-transform group-open:rotate-180 [&_svg]:h-4 [&_svg]:w-4" aria-hidden><Icon.chevron /></span>
             </summary>
             <div className="pb-3">
               <div className="flex gap-2">
@@ -159,8 +160,12 @@ export function ConfigPage() {
           </details>
 
           <details className="group py-1">
-            <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between py-2 text-sm font-medium text-zinc-200 [&::-webkit-details-marker]:hidden">
-              Rôles automatiques <span className="text-xs font-normal text-zinc-500">{selectedAutoRoles.length} sélectionné(s) · <span className="inline-block transition-transform group-open:rotate-180">⌄</span></span>
+            <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between py-2 text-sm font-medium text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400/70 [&::-webkit-details-marker]:hidden">
+              <span>Rôles automatiques</span>
+              <span className="flex items-center gap-2 text-xs font-normal text-zinc-500">
+                {selectedAutoRoles.length} sélectionné(s)
+                <span className="text-zinc-500 transition-transform group-open:rotate-180 [&_svg]:h-4 [&_svg]:w-4" aria-hidden><Icon.chevron /></span>
+              </span>
             </summary>
             <div className="flex flex-wrap gap-2 pb-3">
               {roles.data?.filter((r) => !r.managed).map((r) => (
@@ -172,8 +177,12 @@ export function ConfigPage() {
           </details>
 
           <details className="group py-1">
-            <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between py-2 text-sm font-medium text-zinc-200 [&::-webkit-details-marker]:hidden">
-              Cartes de membre sur mention <span className="text-xs font-normal text-zinc-500">{mentionCards ? "Activées" : "Désactivées"} · <span className="inline-block transition-transform group-open:rotate-180">⌄</span></span>
+            <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between py-2 text-sm font-medium text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400/70 [&::-webkit-details-marker]:hidden">
+              <span>Cartes de membre sur mention</span>
+              <span className="flex items-center gap-2 text-xs font-normal text-zinc-500">
+                {mentionCards ? "Activées" : "Désactivées"}
+                <span className="text-zinc-500 transition-transform group-open:rotate-180 [&_svg]:h-4 [&_svg]:w-4" aria-hidden><Icon.chevron /></span>
+              </span>
             </summary>
             <div className="pb-3">
               <Toggle checked={mentionCards} onChange={setMentionCards} label="Activer les cartes de membre" description="Une carte par membre unique mentionné, maximum 3 par message." />
