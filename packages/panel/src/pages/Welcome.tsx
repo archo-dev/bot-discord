@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LogSettingsDto, WelcomeSettingsDto } from "@bot/shared";
 import { api, fieldError } from "../lib/api.js";
-import { Card, InfoCard, Toggle } from "../ui/kit.js";
+import { Card, Field, InfoCard, Toggle } from "../ui/kit.js";
 import { ChannelSelect as EntityChannelSelect } from "../ui/entity-select.js";
 import { SaveBar, useDirty } from "../ui/savebar.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
@@ -25,15 +25,14 @@ const LOG_TOGGLES: Array<{ key: keyof Omit<LogSettingsDto, "channelId">; label: 
 ];
 
 function ChannelSelect(props: { guildId: string; value: string; onChange: (v: string) => void }) {
+  // Espacement label→contrôle fourni par Field (mb-1.5) : le wrapper mt-1 est devenu redondant (2.2.c-2).
   return (
-    <div className="mt-1">
-      <EntityChannelSelect
-        guildId={props.guildId}
-        value={props.value || null}
-        onChange={(id) => props.onChange(id ?? "")}
-        placeholder="— Aucun salon —"
-      />
-    </div>
+    <EntityChannelSelect
+      guildId={props.guildId}
+      value={props.value || null}
+      onChange={(id) => props.onChange(id ?? "")}
+      placeholder="— Aucun salon —"
+    />
   );
 }
 
@@ -197,12 +196,13 @@ export function WelcomePage() {
           </div>
         </div>
         <p className="mt-1 text-sm text-zinc-400">Envoyé par le Gateway à chaque arrivée de membre.</p>
+        <div className="mt-3">
+          <Field label="Salon">
+            <ChannelSelect guildId={guildId!} value={welcomeChannelId} onChange={setWelcomeChannelId} />
+          </Field>
+        </div>
         <label className="mt-3 block text-sm text-zinc-300">
-          Salon
-          <ChannelSelect guildId={guildId!} value={welcomeChannelId} onChange={setWelcomeChannelId} />
-        </label>
-        <label className="mt-3 block text-sm text-zinc-300">
-          Message
+          <span className="text-body font-medium text-zinc-300">Message</span>
           <MessageEditor
             value={welcomeMessage}
             onChange={setWelcomeMessage}
@@ -219,12 +219,13 @@ export function WelcomePage() {
             <Toggle checked={leaveEnabled} onChange={setLeaveEnabled} />
           </div>
         </div>
+        <div className="mt-3">
+          <Field label="Salon">
+            <ChannelSelect guildId={guildId!} value={leaveChannelId} onChange={setLeaveChannelId} />
+          </Field>
+        </div>
         <label className="mt-3 block text-sm text-zinc-300">
-          Salon
-          <ChannelSelect guildId={guildId!} value={leaveChannelId} onChange={setLeaveChannelId} />
-        </label>
-        <label className="mt-3 block text-sm text-zinc-300">
-          Message
+          <span className="text-body font-medium text-zinc-300">Message</span>
           <MessageEditor value={leaveMessage} onChange={setLeaveMessage} error={fieldError(save.error, "leaveMessage")} />
         </label>
       </Card>
@@ -234,10 +235,11 @@ export function WelcomePage() {
         <p className="mt-1 text-sm text-zinc-400">
           Embeds postés par le Gateway pour chaque événement coché (distinct du salon de mod-log).
         </p>
-        <label className="mt-3 block text-sm text-zinc-300">
-          Salon des logs
-          <ChannelSelect guildId={guildId!} value={logChannelId} onChange={setLogChannelId} />
-        </label>
+        <div className="mt-3">
+          <Field label="Salon des logs">
+            <ChannelSelect guildId={guildId!} value={logChannelId} onChange={setLogChannelId} />
+          </Field>
+        </div>
         <div className="mt-3 divide-y divide-white/5">
           {LOG_TOGGLES.map((t) => (
             <div key={t.key} className="py-2.5 first:pt-0 last:pb-0">

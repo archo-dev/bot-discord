@@ -98,17 +98,14 @@ export function LevelsPage() {
           <span>Annoncer les passages de niveau</span>
         </div>
         {s.announceLevelUp && (
-          <label className="block text-sm text-zinc-300">
-            Salon des annonces
-            <div className="mt-1">
-              <ChannelSelect
-                guildId={guildId!}
-                value={s.announceChannelId}
-                onChange={(id) => set({ announceChannelId: id })}
-                placeholder="— Salon du message —"
-              />
-            </div>
-          </label>
+          <Field label="Salon des annonces">
+            <ChannelSelect
+              guildId={guildId!}
+              value={s.announceChannelId}
+              onChange={(id) => set({ announceChannelId: id })}
+              placeholder="— Salon du message —"
+            />
+          </Field>
         )}
       </Card>
 
