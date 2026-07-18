@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LogSettingsDto, WelcomeSettingsDto } from "@bot/shared";
 import { api, fieldError } from "../lib/api.js";
-import { Card, Field, InfoCard, Toggle } from "../ui/kit.js";
+import { Card, Field, InfoCard, Textarea, Toggle } from "../ui/kit.js";
 import { ChannelSelect as EntityChannelSelect } from "../ui/entity-select.js";
 import { SaveBar, useDirty } from "../ui/savebar.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
@@ -39,15 +39,15 @@ function ChannelSelect(props: { guildId: string; value: string; onChange: (v: st
 function MessageEditor(props: { value: string; onChange: (v: string) => void; error?: string }) {
   return (
     <div>
-      <textarea
+      {/* Hauteur historique (~3 lignes) : `!min-h-0` neutralise le min-h-[120px] du Textarea kit — équivalent
+          Tailwind déterministe de minHeight:0, la hauteur est pilotée par rows={3} (précédent M34/f-1). */}
+      <Textarea
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
         rows={3}
         maxLength={2000}
         aria-invalid={props.error ? true : undefined}
-        className={`mt-1 w-full rounded-lg border bg-zinc-950 px-3 py-2 text-sm ${
-          props.error ? "border-red-500/70" : "border-zinc-700"
-        }`}
+        className={`mt-1 !min-h-0 ${props.error ? "border-red-500/70" : ""}`}
       />
       {props.error && <p className="mt-1 text-xs text-red-400">{props.error}</p>}
       <div className="mt-2 flex flex-wrap gap-1">
