@@ -1,6 +1,6 @@
 # Roadmap — reprise de session
 
-_Dernière mise à jour : 2026-07-12. Bot Discord « Archodev#1241 » (monorepo Worker + Gateway VPS + Panel React)._
+_Dernière mise à jour : 2026-07-18. Bot Discord « Archodev#1241 » (monorepo Worker + Gateway VPS + Panel React)._
 
 ## ✅ Fait dans la session du 2026-07-12 (tout déployé)
 
@@ -9,20 +9,33 @@ _Dernière mise à jour : 2026-07-12. Bot Discord « Archodev#1241 » (monorepo 
 - **M22 — XP vocal** (opt-in) — commit `0f6757d`, migration `0017`.
 - **M23 — Starboard** (opt-in) — commit `18a008d`, migration `0018`.
 
-**État prod** : worker+panel `e794b93b`, gateway bundle `18a008d`, migrations appliquées jusqu'à `0018` (remote). Dernière migration locale = `0018_starboard.sql`.
+**État prod (2026-07-18)** : worker+panel **`6e2dab0` (M39 — Design System 2.2.f)** déployé, version Cloudflare `b0eff607`. Migrations D1 remote **appliquées jusqu'à `0031`** (vérifié : `wrangler d1 migrations list --remote` → « No migrations to apply »). Gateway hors de cette livraison (2.2.f = panel uniquement) ; dernier bundle connu `18a008d`, à revérifier au prochain déploiement gateway.
 
 ### Actions manuelles utilisateur en attente (pour profiter des features livrées)
 - **XP vocal** : Panel → Niveaux → activer + régler l'XP/min.
 - **Starboard** : Panel → Starboard → activer, choisir salon + seuil + emoji ; vérifier que le bot a `Envoyer des messages` + `Intégrer des liens` dans le salon starboard.
 - (Rappel M19) Presence intent déjà activé le 2026-07-11.
 
-## 🚧 Session en cours — commité sur `master`, PAS encore déployé
+## ✅ Déployé depuis (M24 → M39, tout en prod)
 
-- **M24 — Commandes sociales** `/kiss /hug /pat /slap /poke /cuddle` — commit `530cc6b`. Module data-driven `builtins/social-data.ts` (GIFs locaux, sans API externe). Worker uniquement, pas de migration.
-- **M25 — Cycle de vie des guildes** — `guildCreate`/`guildDelete` côté gateway (`guild-lifecycle.ts`) + endpoints internes `POST /internal/guilds/:id/installed|uninstalled`. Upsert immédiat de la guilde (fin du piège « panel vide avant le premier /ping ») + message de bienvenue. Pas de migration.
-- **M26 — Salons vocaux temporaires** (« join to create ») — migration `0019`, DTO shared, queries/api/internal worker, `/tempvoice` (setup/disable/status/reset) + `/voice` (rename/limit/lock/unlock/permit/reject/kick/transfer/claim), module gateway `temp-voice.ts` (création/déplacement/suppression + réconciliation au démarrage), page panel « Vocaux temporaires ». Tests : `temp-voice.test.ts`, `voice-commands.test.ts`.
+Tout ce qui figurait en « session en cours » a été livré, migré et déployé. D1 remote à jour **jusqu'à `0031`** (« No migrations to apply »).
 
-**À faire au déploiement** : `pnpm run migrate:remote` (M26/0019), `pnpm --filter @bot/worker run deploy`, redéployer le gateway (git bundle + scp), puis `pnpm register:global` (ou `register:dev` pour le serveur de test). Intents inchangés (aucune action portail).
+- **M24** commandes sociales (`/kiss /hug …`), **M25** cycle de vie des guildes (fin du piège « panel vide »), **M26** salons vocaux temporaires (migration `0019`).
+- **M27** centre de sanctions panel + diagnostics de commandes.
+- **M28–M35** Design System « Keystone / Nocturne » — identité, fondations, primitives polymorphes (`Card`/`Button`/`SegmentedControl`), adoption dans les pages, `Field`/titres/champs canoniques.
+- **M36–M39** Design System **2.2.f — éditeurs denses** : variante compacte `size="sm"` (`Input`/`Select`), puis CommandEditor, `ActionRow`/`ConditionRow`, builder de boutons de Roles, `MessageEditor` de Welcome. **Déployé le 2026-07-18** (voir release notes ci-dessous).
+- Migrations `0020`–`0031` (observabilité, sécurité publique, gouvernance de modules, livraison fiable, onboarding, snapshots de config, analytics/privacy, sanctions panel, owner-target, team tickets, automation studio) appliquées.
+
+_(TODO obsolète archivé : l'ancien « à faire au déploiement — migrate 0019 / register » est caduc, tout est en prod.)_
+
+### 📝 Release notes — Design System 2.2.f (M29 → M39, 2026-07-18)
+
+Refonte visuelle sans changement fonctionnel (panel uniquement, aucune migration).
+- **Nouveau** : variante compacte `size="sm"` (32 px) pour les champs `Input`/`Select` ; rendu `md` (défaut) inchangé.
+- **Éditeurs denses migrés** vers le Design System : commandes personnalisées (formulaire + conditions/actions + `SegmentedControl` Simple/Avancé), builder de boutons de rôles, éditeur de messages de bienvenue/départ.
+- **Fondations** : primitives polymorphes, tokens canoniques, nettoyage des styles ad hoc (`inputCls`/`selectCls` supprimés).
+- Densité, hauteurs, validations et `aria-invalid` **préservés à l'identique** ; contrôles natifs (couleur, pills de variables) conservés.
+- Livraison : `master` poussé, tag `backup/pre-2.2f-deploy-20260718`, worker+panel déployés (version `b0eff607`). Rollback : `wrangler rollback`.
 
 ---
 
