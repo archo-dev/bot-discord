@@ -132,55 +132,62 @@ export function RolesPage() {
         <div className="mt-4 space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-sm text-zinc-300">Boutons ({buttons.length}/25)</p>
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={addButton}
               disabled={buttons.length >= 25 || assignableRoles.length === 0}
-              className="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-800 disabled:opacity-40"
             >
               + Bouton
-            </button>
+            </Button>
           </div>
           {buttons.map((b, i) => (
+            // Rangée dense : selects auto via `!w-auto`, inputs fixes via `!w-*` — le kit impose `w-full`
+            // (émis après `.w-auto`/`.w-<n>` dans le CSS). `size="sm"` = 32 px = hauteur historique. cf. spec 2.2.f.
             <div key={i} className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950 p-2">
-              <select
+              <Select
+                size="sm"
+                className="!w-auto"
                 value={b.roleId}
                 onChange={(e) => {
                   const role = assignableRoles.find((r) => r.id === e.target.value);
                   setButton(i, { roleId: e.target.value, label: role?.name ?? b.label });
                 }}
-                className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm"
               >
                 {assignableRoles.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.name}
                   </option>
                 ))}
-              </select>
-              <input
+              </Select>
+              <Input
+                size="sm"
+                className="!w-40"
                 value={b.label}
                 onChange={(e) => setButton(i, { label: e.target.value })}
                 maxLength={80}
                 placeholder="Libellé"
-                className="w-40 rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm"
               />
-              <input
+              <Input
+                size="sm"
+                className="!w-20 text-center"
                 value={b.emoji}
                 onChange={(e) => setButton(i, { emoji: e.target.value })}
                 maxLength={8}
                 placeholder="Emoji"
-                className="w-20 rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-center text-sm"
               />
-              <select
+              <Select
+                size="sm"
+                className="!w-auto"
                 value={b.style}
                 onChange={(e) => setButton(i, { style: Number(e.target.value) })}
-                className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm"
               >
                 {STYLE_OPTIONS.map((s) => (
                   <option key={s.value} value={s.value}>
                     {s.label}
                   </option>
                 ))}
-              </select>
+              </Select>
               <IconButton
                 label="Retirer ce bouton"
                 danger
