@@ -83,10 +83,7 @@ export function Dashboard() {
     <div className="space-y-4">
       {/* Encart prise en main (M06) — visible tant que la configuration n'est pas terminée. */}
       {ob && !ob.completedAt && (
-        <Link
-          to={`/guilds/${guildId}/onboarding`}
-          className="flex flex-col gap-3 rounded-xl border border-indigo-800/60 bg-indigo-950/30 p-5 transition hover:border-indigo-600/70 sm:flex-row sm:items-center"
-        >
+        <Card to={`/guilds/${guildId}/onboarding`} className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-indigo-300">
             <Icon.star />
           </span>
@@ -100,7 +97,7 @@ export function Dashboard() {
             </div>
           </div>
           <span className="shrink-0 text-indigo-300" aria-hidden>→</span>
-        </Link>
+        </Card>
       )}
 
       {/* Un seul résumé scannable remplace quatre cartes KPI concurrentes. */}

@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { GuildSummary, MeResponse } from "@bot/shared";
 import { api, avatarUrl, guildIconUrl } from "../lib/api.js";
@@ -58,10 +57,7 @@ export function GuildList({ me }: { me: MeResponse }) {
       <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {guilds.data?.map((g) => (
           <li key={g.id}>
-            <Link
-              to={`/guilds/${g.id}`}
-              className="group flex min-h-24 items-center gap-4 rounded-xl border border-zinc-800/90 bg-[linear-gradient(150deg,rgba(29,26,40,0.96),rgba(22,20,31,0.96))] p-4 shadow-(--shadow-card) transition hover:-translate-y-0.5 hover:border-indigo-500/70 hover:shadow-(--shadow-md) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
-            >
+            <Card to={`/guilds/${g.id}`} className="group flex min-h-24 items-center gap-4">
               {guildIconUrl(g.id, g.icon) ? (
                 <img src={guildIconUrl(g.id, g.icon)!} alt="" className="h-12 w-12 rounded-full" />
               ) : (
@@ -76,7 +72,7 @@ export function GuildList({ me }: { me: MeResponse }) {
                 </p>
               </div>
               <span className="text-zinc-600 transition group-hover:translate-x-0.5 group-hover:text-indigo-300" aria-hidden>→</span>
-            </Link>
+            </Card>
           </li>
         ))}
       </ul>

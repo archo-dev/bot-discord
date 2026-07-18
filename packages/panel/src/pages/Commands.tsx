@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CustomCommandDto } from "@bot/shared";
 import { api } from "../lib/api.js";
-import { Badge, Card, EmptyState, IconButton, InfoCard, Toggle, Toolbar } from "../ui/kit.js";
+import { Badge, Button, Card, EmptyState, IconButton, InfoCard, Toggle, Toolbar } from "../ui/kit.js";
 import { ConfirmModal } from "../ui/overlay.js";
 import { SkeletonList } from "../ui/skeleton.js";
 import { toast } from "../ui/toast.js";
@@ -48,12 +48,7 @@ export function CommandsPage() {
     <div className="space-y-4">
       <Toolbar actions={
         canWrite ? (
-          <Link
-            to="new"
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-gradient-to-b from-indigo-500 to-indigo-600 px-4 text-sm font-semibold text-white shadow-(--shadow-primary) transition hover:from-indigo-400 hover:to-indigo-500"
-          >
-            + Nouvelle commande
-          </Link>
+          <Button to="new">+ Nouvelle commande</Button>
         ) : undefined
       }>
         <p className="text-sm text-zinc-400">

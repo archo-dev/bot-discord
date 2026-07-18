@@ -49,7 +49,18 @@ Sinon → étendre une primitive existante, ou garder le code local.
 - **Canonique** : ne plus recoder de carte-lien, de lien stylé en bouton, ni de groupe de boutons segmentés à la main → utiliser ces primitives.
 - Non cliquable = `<Card>` sans `to`/`href` (comportement `<section>` **inchangé**).
 
+### Adoption dans les pages (Phase 2.2.b — fait)
+
+Les contextes justifiant ci-dessus consomment désormais les primitives :
+- `Card (to)` : tuiles serveur (`GuildList`), bandeau onboarding (`Dashboard` — teinte indigo du conteneur abandonnée au profit de la surface canonique, décision de design).
+- `Button (to)` : CTA `+ Nouvelle commande` (`Commands`), `+ Nouvelle automatisation` (`Automations`).
+- `Button (href)` : CTA secondaires `Landing` (« Ouvrir le panel » `size=sm`, « Se connecter avec Discord » `size=lg`).
+- `SegmentedControl` : `Stats` (plages jours ×2, bascule messages/vocal).
+
+### Exceptions assumées (décisions de design, pas de la dette)
+
+- **Hero `Landing` — « Ajouter à mon serveur »** : reste un `<a>` sur mesure. Taille hors barème (h-11/px-6), icône Discord et état désactivé tant que l'invite ne charge pas (`aria-disabled` sur `<a>`, non exprimable par `<Button>`). Mise en avant marketing volontaire.
+
 ## Ce qui reste hors de ce lot (à venir)
 - Couleurs de texte (usage `text-secondary` vs `text-muted`) — Phase 2.5.
 - Anneaux de focus unifiés, survols (`--state-hover`) — Phase 2.3.
-- Migration des **pages** vers ces primitives (champs, titres, boutons, cartes inline) — Phase 2.2.

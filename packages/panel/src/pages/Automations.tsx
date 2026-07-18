@@ -107,7 +107,7 @@ export function AutomationsPage() {
       <Toolbar actions={canWrite ? <div className="flex gap-2">
         <input ref={importRef} type="file" accept="application/json,.json" className="hidden" onChange={(event) => void readImport(event.target.files?.[0])} />
         <Button variant="secondary" onClick={() => importRef.current?.click()} loading={importWorkflow.isPending}>Importer</Button>
-        <Link to="new" className="inline-flex h-10 items-center rounded-lg bg-gradient-to-b from-indigo-500 to-indigo-600 px-4 text-sm font-semibold text-white shadow-(--shadow-primary)">+ Nouvelle automatisation</Link>
+        <Button to="new">+ Nouvelle automatisation</Button>
       </div> : undefined}>
         <p className="text-sm text-zinc-400">Créez des scénarios SI… ALORS… sans code.</p>
       </Toolbar>

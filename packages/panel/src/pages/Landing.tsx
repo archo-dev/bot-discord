@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MODULE_REGISTRY, type ModuleId, type OnboardingInvite } from "@bot/shared";
 import { api } from "../lib/api.js";
+import { Button } from "../ui/kit.js";
 import { Icon, type IconName } from "../ui/icons.js";
 import { Wordmark } from "../ui/brand.js";
 
@@ -46,12 +47,7 @@ export function Landing() {
 
       <header className="relative mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-6">
         <Wordmark size={30} textClassName="text-[18px]" />
-        <a
-          href="/auth/login"
-          className="inline-flex h-9 items-center rounded-lg border border-zinc-700 px-4 text-sm font-medium text-zinc-200 transition hover:border-zinc-600 hover:bg-(--surface-2) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
-        >
-          Ouvrir le panel
-        </a>
+        <Button href="/auth/login" variant="secondary" size="sm">Ouvrir le panel</Button>
       </header>
 
       <main className="relative mx-auto max-w-6xl px-4 sm:px-6">
@@ -65,6 +61,10 @@ export function Landing() {
             panel web clair, sans quitter votre navigateur. Configuration guidée en moins de dix minutes.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            {/* Exception assumée au kit (décision de design, pas de la dette) : CTA marketing du
+                hero — taille hors barème (h-11/px-6), icône Discord et état désactivé tant que
+                l'invite ne charge pas (aria-disabled sur <a>, non exprimable par <Button>).
+                Cf. ui/kit/DESIGN_TOKENS.md § Exceptions assumées. */}
             <a
               href={invite.data?.url ?? "#"}
               aria-disabled={!invite.data}
@@ -75,12 +75,7 @@ export function Landing() {
               <DiscordMark className="h-5 w-5 fill-current" />
               Ajouter à mon serveur
             </a>
-            <a
-              href="/auth/login"
-              className="inline-flex h-11 items-center justify-center rounded-lg border border-zinc-700 px-6 font-semibold text-zinc-100 transition hover:border-zinc-600 hover:bg-(--surface-2) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
-            >
-              Se connecter avec Discord
-            </a>
+            <Button href="/auth/login" variant="secondary" size="lg">Se connecter avec Discord</Button>
           </div>
           <p className="mt-4 text-xs text-zinc-500">
             Permissions minimales, expliquées une par une lors de l'installation. Aucun accès administrateur global.

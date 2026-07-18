@@ -9,29 +9,13 @@ import type {
   ScheduledEventDto,
 } from "@bot/shared";
 import { api } from "../lib/api.js";
-import { Card, EmptyState, ErrorCard, InfoCard, Tabs } from "../ui/kit.js";
+import { Card, EmptyState, ErrorCard, InfoCard, SegmentedControl, Tabs } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
 import { Skeleton } from "../ui/skeleton.js";
 import { ChannelBarChart, JoinLeaveChart, MembersChart, PresenceDonut, type NamedStat } from "../ui/charts.js";
 
-function DaySelect({ value, onChange, options }: { value: number; onChange: (v: number) => void; options: number[] }) {
-  return (
-    <div className="inline-flex rounded-lg border border-zinc-700 p-0.5 text-xs">
-      {options.map((o) => (
-        <button
-          key={o}
-          type="button"
-          onClick={() => onChange(o)}
-          className={`rounded-md px-2.5 py-1 font-medium transition ${
-            value === o ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-zinc-200"
-          }`}
-        >
-          {o} j
-        </button>
-      ))}
-    </div>
-  );
-}
+/** Options de plage en jours pour un SegmentedControl. */
+const dayOptions = (...days: number[]) => days.map((d) => ({ value: d, label: `${d} j` }));
 
 function ChartSkeleton({ height }: { height: number }) {
   return (
@@ -140,7 +124,7 @@ export function StatsPage() {
       <Card
         title="Membres"
         description="Évolution du nombre de membres (snapshots horaires du service Gateway)."
-        action={<DaySelect value={memberDays} onChange={setMemberDays} options={[7, 30, 90]} />}
+        action={<SegmentedControl ariaLabel="Période — membres" value={memberDays} onChange={setMemberDays} options={dayOptions(7, 30, 90)} />}
       >
         {members.isPending ? (
           <ChartSkeleton height={260} />
@@ -179,21 +163,13 @@ export function StatsPage() {
           title="Salons les plus actifs"
           action={
             <div className="flex items-center gap-2">
-              <div className="inline-flex rounded-lg border border-zinc-700 p-0.5 text-xs">
-                {(["messages", "voice"] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setChannelMetric(m)}
-                    className={`rounded-md px-2.5 py-1 font-medium transition ${
-                      channelMetric === m ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-zinc-200"
-                    }`}
-                  >
-                    {m === "messages" ? "Messages" : "Vocal"}
-                  </button>
-                ))}
-              </div>
-              <DaySelect value={channelDays} onChange={setChannelDays} options={[1, 7, 30]} />
+              <SegmentedControl
+                ariaLabel="Métrique — salons"
+                value={channelMetric}
+                onChange={setChannelMetric}
+                options={[{ value: "messages", label: "Messages" }, { value: "voice", label: "Vocal" }]}
+              />
+              <SegmentedControl ariaLabel="Période — salons" value={channelDays} onChange={setChannelDays} options={dayOptions(1, 7, 30)} />
             </div>
           }
         >
