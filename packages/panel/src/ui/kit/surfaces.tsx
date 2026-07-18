@@ -11,6 +11,8 @@ export function Card({
   children,
   className = "",
   pad = "default",
+  to,
+  href,
 }: {
   title?: ReactNode;
   description?: ReactNode;
@@ -19,10 +21,20 @@ export function Card({
   className?: string;
   /** `compact` = padding 12 px ; `default` = 16/20 px. */
   pad?: "default" | "compact";
+  /** Rend la carte cliquable — lien interne (`to`) ou externe (`href`).
+   *  Ajoute le survol canonique de carte-lien. Sans `to`/`href` : `<section>` inchangé. */
+  to?: string;
+  href?: string;
 }) {
   const padCls = pad === "compact" ? "p-3" : "p-4 sm:p-5";
-  return (
-    <section className={`rounded-xl border border-zinc-800/90 bg-[linear-gradient(150deg,rgba(29,26,40,0.96),rgba(22,20,31,0.96))] ${padCls} shadow-(--shadow-card) ${className}`}>
+  const interactive = to != null || href != null;
+  const cls = `rounded-xl border border-zinc-800/90 bg-[linear-gradient(150deg,rgba(29,26,40,0.96),rgba(22,20,31,0.96))] ${padCls} shadow-(--shadow-card)${
+    interactive
+      ? " block transition duration-(--motion-base) hover:-translate-y-0.5 hover:border-indigo-500/70 hover:shadow-(--shadow-md) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+      : ""
+  } ${className}`;
+  const inner = (
+    <>
       {(title || action) && (
         <div className="mb-3 flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -33,8 +45,23 @@ export function Card({
         </div>
       )}
       {children}
-    </section>
+    </>
   );
+  if (to) {
+    return (
+      <Link to={to} className={cls}>
+        {inner}
+      </Link>
+    );
+  }
+  if (href) {
+    return (
+      <a href={href} className={cls}>
+        {inner}
+      </a>
+    );
+  }
+  return <section className={cls}>{inner}</section>;
 }
 
 /* Pastilles colorées des KPI/tuiles (design_system.md §data-viz). */

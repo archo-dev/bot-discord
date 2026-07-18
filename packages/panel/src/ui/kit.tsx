@@ -9,3 +9,4 @@ export * from "./kit/surfaces.js";
 export * from "./kit/feedback.js";
 export * from "./kit/navigation.js";
 export * from "./kit/layout.js";
+export * from "./kit/segmented.js";

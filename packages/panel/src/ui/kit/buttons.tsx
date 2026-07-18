@@ -1,7 +1,9 @@
 import { forwardRef } from "react";
-import type { ButtonHTMLAttributes } from "react";
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
+import { Link } from "react-router";
+import type { LinkProps } from "react-router";
 
-/* Kit Nocturne — boutons : Button (5.3), Spinner, IconButton (v2 §4.6). */
+/* Kit Nocturne — boutons : Button (5.3, polymorphe), Spinner, IconButton (v2 §4.6). */
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 type ButtonSize = "sm" | "md" | "lg";
@@ -33,24 +35,51 @@ export function Spinner({ className = "h-4 w-4" }: { className?: string }) {
   );
 }
 
-export function Button({
-  variant = "primary",
-  size = "md",
-  className = "",
-  loading = false,
-  children,
-  disabled,
-  ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; size?: ButtonSize; loading?: boolean }) {
-  // État loading (D.S. v2 §3) : spinner, label stable, bouton désactivé.
-  return (
-    <button
-      className={`${buttonBase} ${buttonVariants[variant]} ${buttonSizes[size]} ${className}`}
-      disabled={disabled || loading}
-      {...props}
-    >
+/* Props propres au Button, communes aux 3 rendus (button / Link / a). */
+type ButtonOwnProps = {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  loading?: boolean;
+  className?: string;
+  children?: ReactNode;
+};
+
+/* Polymorphe (Phase 2.2.a) : une seule API, un seul endroit où vivent variantes/tailles/états.
+ * `to` → <Link> interne · `href` → <a> externe · sinon <button>. Cf. DESIGN_TOKENS.md. */
+export type ButtonProps =
+  | (ButtonOwnProps & ButtonHTMLAttributes<HTMLButtonElement> & { to?: undefined; href?: undefined })
+  | (ButtonOwnProps & Omit<LinkProps, "className"> & { to: string; href?: undefined })
+  | (ButtonOwnProps & AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; to?: undefined });
+
+export function Button(props: ButtonProps) {
+  const { variant = "primary", size = "md", className = "", loading = false, children, ...rest } = props;
+  const cls = `${buttonBase} ${buttonVariants[variant]} ${buttonSizes[size]} ${className}`;
+  // État loading (D.S. v2 §3) : spinner, label stable.
+  const content = (
+    <>
       {loading && <Spinner />}
       {children}
+    </>
+  );
+
+  if (props.to !== undefined) {
+    return (
+      <Link className={cls} {...(rest as LinkProps)}>
+        {content}
+      </Link>
+    );
+  }
+  if (props.href !== undefined) {
+    return (
+      <a className={cls} {...(rest as AnchorHTMLAttributes<HTMLAnchorElement>)}>
+        {content}
+      </a>
+    );
+  }
+  const { disabled, ...buttonRest } = rest as ButtonHTMLAttributes<HTMLButtonElement>;
+  return (
+    <button className={cls} disabled={disabled || loading} {...buttonRest}>
+      {content}
     </button>
   );
 }

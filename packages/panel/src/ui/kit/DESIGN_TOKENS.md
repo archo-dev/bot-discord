@@ -35,6 +35,20 @@
 - Un **seul** chevron dans tout le kit : `Icon.chevron` (SVG). Le glyphe unicode `⌄` est **proscrit** (utiliser `<Icon.chevron />` contraint via `[&_svg]:h-4 [&_svg]:w-4`).
 - `Select` natif : la classe `field-caret` réinjecte la flèche (le même chevron, teinte `--text-muted`) après `appearance-none`. Tout `<select>` stylé doit la porter — ou mieux, passer par le composant `Select` du kit.
 
+## Primitives polymorphes & contrôles (Phase 2.2.a)
+
+Règle de création : **une abstraction n'est créée que si ≥ 2 contextes réels l'utilisent.**
+Sinon → étendre une primitive existante, ou garder le code local.
+
+| Primitive | Rendu | Quand l'utiliser | Contextes justifiant (≥2) |
+|---|---|---|---|
+| `Card` (`to` / `href`) | `<Link>` / `<a>` cliquable, sinon `<section>` | carte **entièrement cliquable** — passe le survol canonique (élévation + bord iris). Ne pas recoder une carte-lien à la main | tuiles serveur (`GuildList`), bandeau onboarding (`Dashboard`) |
+| `Button` (`to` / `href`) | `<Link>` / `<a>`, sinon `<button>` | action de navigation stylée en bouton — **une seule** API pour variantes/tailles/états | CTA `Landing`, `Commands`, `Automations` |
+| `SegmentedControl` | `role="radiogroup"` + flèches | choix unique parmi 2–5 options courtes (plages, bascule) | `Stats` (plage jours ×2 + messages/vocal) |
+
+- **Canonique** : ne plus recoder de carte-lien, de lien stylé en bouton, ni de groupe de boutons segmentés à la main → utiliser ces primitives.
+- Non cliquable = `<Card>` sans `to`/`href` (comportement `<section>` **inchangé**).
+
 ## Ce qui reste hors de ce lot (à venir)
 - Couleurs de texte (usage `text-secondary` vs `text-muted`) — Phase 2.5.
 - Anneaux de focus unifiés, survols (`--state-hover`) — Phase 2.3.
