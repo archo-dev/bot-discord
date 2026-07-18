@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ButtonRoleMessageDto, ChannelOption, RoleOption } from "@bot/shared";
 import { api } from "../lib/api.js";
-import { Button, Card, EmptyState, IconButton, InfoCard } from "../ui/kit.js";
+import { Button, Card, EmptyState, Field, IconButton, InfoCard, Input, Select, Textarea } from "../ui/kit.js";
 import { ConfirmModal } from "../ui/overlay.js";
 import { SkeletonList } from "../ui/skeleton.js";
 import { toast } from "../ui/toast.js";
@@ -103,40 +103,30 @@ export function RolesPage() {
         </p>
 
         <div className="mt-4 grid gap-4">
-          <label className="text-sm text-zinc-300">
-            Salon
-            <select
-              value={channelId}
-              onChange={(e) => setChannelId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
-            >
+          <Field label="Salon">
+            <Select value={channelId} onChange={(e) => setChannelId(e.target.value)}>
               <option value="">— Choisir un salon —</option>
               {textChannels.map((ch) => (
                 <option key={ch.id} value={ch.id}>
                   #{ch.name}
                 </option>
               ))}
-            </select>
-          </label>
-          <label className="text-sm text-zinc-300">
-            Titre
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              maxLength={256}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
-            />
-          </label>
-          <label className="text-sm text-zinc-300">
-            Description (optionnel)
-            <textarea
+            </Select>
+          </Field>
+          <Field label="Titre">
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={256} />
+          </Field>
+          <Field label="Description (optionnel)">
+            {/* Variante compacte : min-h du Textarea kit neutralisée (style local) pour préserver
+                le rythme rows=2 existant — le DS admet une variante dense (2.2.d, décision B). */}
+            <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               maxLength={2000}
               rows={2}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
+              style={{ minHeight: 0 }}
             />
-          </label>
+          </Field>
         </div>
 
         <div className="mt-4 space-y-2">
