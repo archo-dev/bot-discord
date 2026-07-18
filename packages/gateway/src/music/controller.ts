@@ -5,7 +5,16 @@ import { type Client, type GuildTextBasedChannel } from "discord.js";
 import { EMPTY_MUSIC_STATE, type MusicCommandPayload, type MusicStateDto } from "@bot/shared";
 import type { WorkerApi } from "../worker-api.js";
 import { errMsg } from "../util.js";
-import { UserError, formatDuration, loopLabel, toTrack, type MusicReply } from "./format.js";
+import {
+  PLAY_TIMEOUT_MS,
+  UserError,
+  formatDuration,
+  loopLabel,
+  normalizeQuery,
+  toTrack,
+  withTimeout,
+  type MusicReply,
+} from "./format.js";
 import { nowPlayingEmbed, queueEmbed } from "./embeds.js";
 
 interface NowPlaying {
@@ -58,10 +67,17 @@ export class MusicController {
         if (!voiceChannel) throw new UserError("⚠️ Rejoins d'abord un salon vocal.");
         const textChannel = await this.fetchTextChannel(payload.textChannelId);
         if (payload.command === "play") {
-          const query = payload.arg?.trim();
-          if (!query) throw new UserError("⚠️ Précise un titre ou un lien.");
+          const raw = payload.arg?.trim();
+          if (!raw) throw new UserError("⚠️ Précise un titre ou un lien.");
+          const query = normalizeQuery(raw); // strips playlist/mix params; may reject bare playlists
           const before = this.distube.getQueue(guild.id)?.songs.length ?? 0;
-          await this.distube.play(voiceChannel, query, { member, textChannel });
+          try {
+            await this.playWithTimeout(voiceChannel, query, { member, textChannel });
+          } catch (err) {
+            // On timeout, don't leave a half-built queue behind.
+            if (err instanceof UserError) await this.distube.getQueue(guild.id)?.stop().catch(() => {});
+            throw err;
+          }
           const queue = this.distube.getQueue(guild.id);
           if (!queue || queue.songs.length === 0) return { content: "🔎 Recherche lancée…" };
           if (before === 0) return { content: `🎵 Lecture : **${queue.songs[0]!.name}**` };
@@ -74,7 +90,13 @@ export class MusicController {
         const tracks = await this.api.getPlaylistTracks(guild.id, name);
         if (!tracks || tracks.length === 0) throw new UserError(`⚠️ Playlist **${name}** introuvable ou vide.`);
         for (const t of tracks) {
-          await this.distube.play(voiceChannel, t.url, { member, textChannel }).catch((e) =>
+          let trackUrl: string;
+          try {
+            trackUrl = normalizeQuery(t.url);
+          } catch {
+            continue; // skip an un-playable saved track (e.g. a bare playlist URL)
+          }
+          await this.playWithTimeout(voiceChannel, trackUrl, { member, textChannel }).catch((e) =>
             console.error("playlist track failed:", errMsg(e)),
           );
         }
@@ -188,6 +210,20 @@ export class MusicController {
         return { content: `💾 Playlist **${name}** enregistrée (${tracks.length} pistes).` };
       }
     }
+  }
+
+  /** distube.play() bounded by PLAY_TIMEOUT_MS so a stuck extraction can't
+   *  hang the interaction indefinitely. Rejects with a UserError on timeout. */
+  private playWithTimeout(
+    voiceChannel: Parameters<DisTube["play"]>[0],
+    query: Parameters<DisTube["play"]>[1],
+    options: Parameters<DisTube["play"]>[2],
+  ): Promise<void> {
+    return withTimeout(
+      this.distube.play(voiceChannel, query, options),
+      PLAY_TIMEOUT_MS,
+      () => new UserError("⏱️ YouTube met trop de temps à répondre. Réessaie avec un lien direct vers une vidéo."),
+    );
   }
 
   // --- DisTube events -------------------------------------------------------
