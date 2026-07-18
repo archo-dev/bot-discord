@@ -3,20 +3,29 @@ import type { InputHTMLAttributes, ReactElement, ReactNode, SelectHTMLAttributes
 
 /* Kit Nocturne — champs de formulaire : Input/Textarea/Select (5.7/5.8), Field, Toggle (5.6), Chip (5.4). */
 
-const fieldBase =
-  "w-full rounded-lg border border-(--border-strong) bg-[rgba(8,10,18,0.72)] px-3.5 text-sm text-zinc-100 shadow-inner shadow-black/10 placeholder:text-zinc-500 transition duration-(--motion-fast) hover:border-zinc-600 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:cursor-not-allowed disabled:opacity-55";
+/* `fieldChrome` = tout ce qui est indépendant de la taille (bordure, fond, focus, hover, disabled…).
+ * La hauteur et le padding horizontal vivent dans `sizeCls` → seule différence md/sm (spec 2.2.f).
+ * `md` reste strictement l'ancien rendu : l'ensemble des utilitaires produit est identique à l'ancien
+ * `fieldBase + h-10` (seul l'ordre littéral change ; Tailwind ordonne le CSS par utilitaire, pas par chaîne). */
+const fieldChrome =
+  "w-full rounded-lg border border-(--border-strong) bg-[rgba(8,10,18,0.72)] text-sm text-zinc-100 shadow-inner shadow-black/10 placeholder:text-zinc-500 transition duration-(--motion-fast) hover:border-zinc-600 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:cursor-not-allowed disabled:opacity-55";
 
-export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={`${fieldBase} h-10 ${className}`} {...props} />;
+/** Densité du champ. `md` = défaut historique (40 px) ; `sm` = variante compacte (32 px) pour éditeurs denses. */
+export type FieldSize = "sm" | "md";
+const sizeCls: Record<FieldSize, string> = { md: "h-10 px-3.5", sm: "h-8 px-3" };
+
+/* `size` (prop DS) remplace l'attribut HTML natif `size` (nombre) — non utilisé dans le panel, retiré via Omit. */
+export function Input({ className = "", size = "md", ...props }: Omit<InputHTMLAttributes<HTMLInputElement>, "size"> & { size?: FieldSize }) {
+  return <input className={`${fieldChrome} ${sizeCls[size]} ${className}`} {...props} />;
 }
 
 export function Textarea({ className = "", ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={`${fieldBase} min-h-[120px] resize-y py-2.5 leading-relaxed ${className}`} {...props} />;
+  return <textarea className={`${fieldChrome} px-3.5 min-h-[120px] resize-y py-2.5 leading-relaxed ${className}`} {...props} />;
 }
 
-export function Select({ className = "", children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+export function Select({ className = "", size = "md", children, ...props }: Omit<SelectHTMLAttributes<HTMLSelectElement>, "size"> & { size?: FieldSize }) {
   return (
-    <select className={`${fieldBase} field-caret h-10 appearance-none pr-9 ${className}`} {...props}>
+    <select className={`${fieldChrome} field-caret ${sizeCls[size]} appearance-none ${size === "sm" ? "pr-8" : "pr-9"} ${className}`} {...props}>
       {children}
     </select>
   );

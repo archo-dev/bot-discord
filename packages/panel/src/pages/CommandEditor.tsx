@@ -12,11 +12,11 @@ import {
   type ChannelOption,
 } from "@bot/shared";
 import { api, ApiError } from "../lib/api.js";
-import { Button, Card, Toggle } from "../ui/kit.js";
+import { Button, Card, Field, Input, SegmentedControl, Select, Textarea, Toggle } from "../ui/kit.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { TimeAgo } from "../ui/mod-meta.js";
 import { useCanWrite } from "../lib/access.js";
-import { PERMISSION_OPTIONS, buildLogic, emptyForm, hydrate, inputCls, selectCls, type FormState } from "./command-editor/logic.js";
+import { PERMISSION_OPTIONS, buildLogic, emptyForm, hydrate, type FormState } from "./command-editor/logic.js";
 import { ConditionRow } from "./command-editor/ConditionRow.js";
 import { ActionRow } from "./command-editor/ActionRow.js";
 
@@ -99,6 +99,9 @@ export function CommandEditorPage() {
       ? "Une commande porte déjà ce nom sur ce serveur."
       : undefined;
   const nameValid = /^[a-z0-9_-]{1,32}$/.test(form.name);
+  // Tri-état hérité : (1) sain, (2) saisie locale invalide → bordure rouge seule (pas de message, hint conservé,
+  // pas d'aria-invalid), (3) duplicate_name → traitement d'erreur complet via Field (bordure + message + aria).
+  const nameLocalInvalid = form.name !== "" && !nameValid && !nameError;
   const hasResponse = form.replyContent.trim() !== "" || form.embedEnabled;
   const canSave = nameValid && form.description.trim() !== "" && (hasResponse || form.extraActions.length > 0);
 
@@ -108,73 +111,63 @@ export function CommandEditorPage() {
     <div className="max-w-4xl space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">{isEditing ? `Modifier /${existing.data?.name ?? "…"}` : "Nouvelle commande"}</h2>
-        <div className="flex rounded-lg border border-zinc-700 p-0.5">
-          {(["simple", "advanced"] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              className={`rounded-md px-4 py-1.5 text-sm transition ${
-                mode === m ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-zinc-200"
-              }`}
-            >
-              {m === "simple" ? "Simple" : "Avancé"}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl<"simple" | "advanced">
+          ariaLabel="Mode d'édition"
+          options={[
+            { value: "simple", label: "Simple" },
+            { value: "advanced", label: "Avancé" },
+          ]}
+          value={mode}
+          onChange={setMode}
+        />
       </div>
 
       {/* fieldset disabled (M15) : tous les champs neutralisés en lecture seule ; l'en-tête (Simple/Avancé) et « Annuler » restent actifs. */}
       <fieldset disabled={!canWrite} className="space-y-4">
       <Card className="space-y-3">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <label className="text-sm text-zinc-300">
-            Nom de la commande
-            <input
-              className={`${inputCls} mt-1 ${(form.name && !nameValid) || nameError ? "border-red-700" : ""}`}
+          <Field label="Nom de la commande" error={nameError} hint="1-32 caractères : a-z, 0-9, - et _">
+            <Input
+              className={nameLocalInvalid ? "border-red-500/70" : ""}
               value={form.name}
               onChange={(e) => set("name", e.target.value.toLowerCase())}
               placeholder="bienvenue"
-              aria-invalid={nameError ? true : undefined}
             />
-            {nameError ? (
-              <span className="text-xs text-red-400">{nameError}</span>
-            ) : (
-              <span className="text-xs text-zinc-500">1-32 caractères : a-z, 0-9, - et _</span>
-            )}
-          </label>
-          <label className="text-sm text-zinc-300">
-            Description
-            <input
-              className={`${inputCls} mt-1`}
+          </Field>
+          <Field label="Description">
+            <Input
               value={form.description}
               onChange={(e) => set("description", e.target.value)}
               placeholder="Souhaite la bienvenue"
               maxLength={100}
             />
-          </label>
+          </Field>
         </div>
 
+        {/* Selects inline auto-dimensionnés : `!w-auto` neutralise le `w-full` par défaut du kit (spec 2.2.f : md/sm
+            gardent w-full ; l'override d'une largeur passe par `!` car `.w-full` est émis après `.w-auto` dans le CSS). */}
         <div className="flex items-center gap-4">
           <label className="text-sm text-zinc-300">
             Déclencheur{" "}
-            <select className={selectCls} value={form.triggerType} onChange={(e) => set("triggerType", e.target.value as "slash" | "keyword")}>
+            <Select size="sm" className="!w-auto" value={form.triggerType} onChange={(e) => set("triggerType", e.target.value as "slash" | "keyword")}>
               <option value="slash">Slash command (/)</option>
               <option value="keyword">Mot-clé (nécessite Gateway)</option>
-            </select>
+            </Select>
           </label>
           {form.triggerType === "keyword" && (
             <>
-              <input
-                className={`${inputCls} flex-1`}
+              <Input
+                size="sm"
+                className="flex-1"
                 value={form.keywords}
                 onChange={(e) => set("keywords", e.target.value)}
                 placeholder="mots-clés séparés par des virgules"
               />
-              <select className={selectCls} value={form.matchMode} onChange={(e) => set("matchMode", e.target.value as FormState["matchMode"])}>
+              <Select size="sm" className="!w-auto" value={form.matchMode} onChange={(e) => set("matchMode", e.target.value as FormState["matchMode"])}>
                 <option value="contains">contient</option>
                 <option value="exact">exact</option>
                 <option value="starts_with">commence par</option>
-              </select>
+              </Select>
             </>
           )}
         </div>
@@ -188,8 +181,9 @@ export function CommandEditorPage() {
 
       <Card className="space-y-3">
         <h3 className="font-medium">Réponse</h3>
-        <textarea
-          className={`${inputCls} min-h-24`}
+        {/* Hauteur historique (min-h-24 ≈ 96 px) préservée : neutralise le min-h-[120px] du Textarea kit (précédent M34). */}
+        <Textarea
+          className="!min-h-24"
           value={form.replyContent}
           onChange={(e) => set("replyContent", e.target.value)}
           placeholder="Bienvenue {mention} sur {server} ! Nous sommes {membercount} membres."
@@ -218,13 +212,13 @@ export function CommandEditorPage() {
         </div>
         {form.embedEnabled && (
           <div className="grid grid-cols-1 gap-3 rounded-lg bg-zinc-950 p-4 sm:grid-cols-[1fr_1fr_auto]">
-            <input className={inputCls} value={form.embedTitle} onChange={(e) => set("embedTitle", e.target.value)} placeholder="Titre de l'embed" />
-            <input
-              className={inputCls}
+            <Input value={form.embedTitle} onChange={(e) => set("embedTitle", e.target.value)} placeholder="Titre de l'embed" />
+            <Input
               value={form.embedDescription}
               onChange={(e) => set("embedDescription", e.target.value)}
               placeholder="Description ({user}, {server}…)"
             />
+            {/* Sélecteur de couleur natif : hors périmètre DS (aucune primitive équivalente). */}
             <input type="color" className="h-9 w-14 cursor-pointer rounded border border-zinc-700 bg-zinc-950" value={form.embedColor} onChange={(e) => set("embedColor", e.target.value)} />
           </div>
         )}
@@ -236,17 +230,18 @@ export function CommandEditorPage() {
             <div className="flex items-center justify-between">
               <h3 className="font-medium">Conditions</h3>
               <div className="flex items-center gap-2">
-                <select className={selectCls} value={form.conditionMode} onChange={(e) => set("conditionMode", e.target.value as "all" | "any")}>
+                <Select size="sm" className="!w-auto" value={form.conditionMode} onChange={(e) => set("conditionMode", e.target.value as "all" | "any")}>
                   <option value="all">Toutes requises (ET)</option>
                   <option value="any">Au moins une (OU)</option>
-                </select>
-                <button
+                </Select>
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => set("conditions", [...form.conditions, { type: "user_has_role", roleId: roles.data?.[0]?.id ?? "" }])}
                   disabled={form.conditions.length >= 10}
-                  className="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-800 disabled:opacity-40"
                 >
                   + Condition
-                </button>
+                </Button>
               </div>
             </div>
             {form.conditions.map((cond, i) => (
@@ -260,30 +255,29 @@ export function CommandEditorPage() {
               />
             ))}
             {form.conditions.length > 0 && (
-              <label className="block text-sm text-zinc-300">
-                Réponse si les conditions échouent (éphémère)
-                <input
-                  className={`${inputCls} mt-1`}
+              <Field label="Réponse si les conditions échouent (éphémère)">
+                <Input
                   value={form.elseReply}
                   onChange={(e) => set("elseReply", e.target.value)}
                   placeholder="Vous ne pouvez pas utiliser cette commande."
                 />
-              </label>
+              </Field>
             )}
           </Card>
 
           <Card className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="font-medium">Actions supplémentaires (exécutées dans l'ordre)</h3>
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() =>
                   set("extraActions", [...form.extraActions, { type: "increment_counter", counter: "compteur", amount: 1 }])
                 }
                 disabled={form.extraActions.length >= 4}
-                className="rounded-md border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-800 disabled:opacity-40"
               >
                 + Action
-              </button>
+              </Button>
             </div>
             {form.extraActions.map((action, i) => (
               <ActionRow
@@ -301,34 +295,30 @@ export function CommandEditorPage() {
           </Card>
 
           <Card className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <label className="text-sm text-zinc-300">
-              Cooldown (secondes, 0 = aucun)
-              <input
+            <Field label="Cooldown (secondes, 0 = aucun)">
+              <Input
                 type="number"
                 min={0}
                 max={86400}
-                className={`${inputCls} mt-1`}
                 value={form.cooldownSeconds}
                 onChange={(e) => set("cooldownSeconds", Number(e.target.value))}
               />
-            </label>
-            <label className="text-sm text-zinc-300">
-              Portée du cooldown
-              <select className={`${inputCls} mt-1`} value={form.cooldownScope} onChange={(e) => set("cooldownScope", e.target.value as "user" | "guild")}>
+            </Field>
+            <Field label="Portée du cooldown">
+              <Select value={form.cooldownScope} onChange={(e) => set("cooldownScope", e.target.value as "user" | "guild")}>
                 <option value="user">Par utilisateur</option>
                 <option value="guild">Tout le serveur</option>
-              </select>
-            </label>
-            <label className="text-sm text-zinc-300">
-              Permission requise
-              <select className={`${inputCls} mt-1`} value={form.requiredPermissions} onChange={(e) => set("requiredPermissions", e.target.value)}>
+              </Select>
+            </Field>
+            <Field label="Permission requise">
+              <Select value={form.requiredPermissions} onChange={(e) => set("requiredPermissions", e.target.value)}>
                 {PERMISSION_OPTIONS.map((p) => (
                   <option key={p.value} value={p.value}>
                     {p.label}
                   </option>
                 ))}
-              </select>
-            </label>
+              </Select>
+            </Field>
           </Card>
         </>
       )}
