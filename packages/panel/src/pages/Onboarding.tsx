@@ -113,7 +113,7 @@ export function OnboardingPage() {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="font-semibold text-zinc-100">
+            <h2 className="text-title font-semibold text-zinc-100">
               {data.completedAt ? "Configuration terminée 🎉" : "Terminez votre configuration"}
             </h2>
             <p className="mt-1 text-sm text-zinc-400">{data.progress.done} étape(s) sur {data.progress.total} complétée(s).</p>
@@ -134,7 +134,7 @@ export function OnboardingPage() {
 
       {/* Checklist */}
       <Card>
-        <h2 className="font-semibold text-zinc-100">Liste de vérification</h2>
+        <h2 className="text-title font-semibold text-zinc-100">Liste de vérification</h2>
         <ul className="mt-1 divide-y divide-zinc-800/70">
           {data.steps.map((step) => (
             <StepRow key={step.id} step={step} guildId={guildId!} canWrite={canWrite} onDismiss={(id) => dismiss.mutate(id)} />

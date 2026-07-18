@@ -97,7 +97,7 @@ export function RolesPage() {
       {/* fieldset disabled (M15) : composition + publication neutralisées en lecture seule. */}
       <fieldset disabled={!canWrite} className="contents">
       <Card>
-        <h2 className="font-semibold">Nouveau message de rôles</h2>
+        <h2 className="text-title font-semibold text-zinc-100">Nouveau message de rôles</h2>
         <p className="mt-1 text-sm text-zinc-400">
           Publie un message avec des boutons : un clic ajoute le rôle, un second le retire. Fonctionne sans le Gateway.
         </p>
@@ -213,7 +213,7 @@ export function RolesPage() {
 
       <div className="space-y-4">
       <Card>
-        <h2 className="font-semibold">Messages publiés</h2>
+        <h2 className="text-title font-semibold text-zinc-100">Messages publiés</h2>
         <div className="mt-3 divide-y divide-zinc-800">
           {messages.isPending && <SkeletonList rows={2} />}
           {messages.data?.length === 0 && (

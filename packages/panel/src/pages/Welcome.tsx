@@ -190,7 +190,7 @@ export function WelcomePage() {
       <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
       <Card>
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Message de bienvenue</h2>
+          <h2 className="text-title font-semibold text-zinc-100">Message de bienvenue</h2>
           <div className="flex items-center gap-2 text-sm text-zinc-300">
             <span>Activé</span>
             <Toggle checked={welcomeEnabled} onChange={setWelcomeEnabled} />
@@ -213,7 +213,7 @@ export function WelcomePage() {
 
       <Card>
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Message de départ</h2>
+          <h2 className="text-title font-semibold text-zinc-100">Message de départ</h2>
           <div className="flex items-center gap-2 text-sm text-zinc-300">
             <span>Activé</span>
             <Toggle checked={leaveEnabled} onChange={setLeaveEnabled} />
@@ -230,7 +230,7 @@ export function WelcomePage() {
       </Card>
 
       <Card>
-        <h2 className="font-semibold">Logs serveur</h2>
+        <h2 className="text-title font-semibold text-zinc-100">Logs serveur</h2>
         <p className="mt-1 text-sm text-zinc-400">
           Embeds postés par le Gateway pour chaque événement coché (distinct du salon de mod-log).
         </p>

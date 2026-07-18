@@ -58,7 +58,7 @@ export function LevelsPage() {
       <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
       <Card className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold">XP par message</h2>
+          <h2 className="text-title font-semibold text-zinc-100">XP par message</h2>
           <div className="flex items-center gap-2 text-sm text-zinc-300">
             <span>Activé</span>
             <Toggle checked={s.enabled} onChange={(v) => set({ enabled: v })} />
@@ -114,7 +114,7 @@ export function LevelsPage() {
 
       <Card className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold">XP vocal</h2>
+          <h2 className="text-title font-semibold text-zinc-100">XP vocal</h2>
           <div className="flex items-center gap-2 text-sm text-zinc-300">
             <span>Activé</span>
             <Toggle checked={s.voiceEnabled} onChange={(v) => set({ voiceEnabled: v })} />
@@ -138,7 +138,7 @@ export function LevelsPage() {
       </Card>
 
       <Card>
-        <h2 className="font-semibold">Rôles récompense</h2>
+        <h2 className="text-title font-semibold text-zinc-100">Rôles récompense</h2>
         <p className="mt-1 text-sm text-zinc-400">Attribués automatiquement quand le niveau est atteint.</p>
         <div className="mt-3 space-y-2">
           {s.rewards.map((reward, i) => (
@@ -188,7 +188,7 @@ export function LevelsPage() {
       </div>
 
       <Card>
-        <h2 className="font-semibold">Classement</h2>
+        <h2 className="text-title font-semibold text-zinc-100">Classement</h2>
         {leaderboard.data && leaderboard.data.length > 0 ? (
           <div className="-mx-5 mt-3 overflow-x-auto px-5">
             <table className="w-full min-w-[30rem] text-sm">

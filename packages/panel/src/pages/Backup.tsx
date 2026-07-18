@@ -85,7 +85,7 @@ export function BackupPage() {
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="max-w-2xl">
-            <h2 className="font-semibold text-zinc-100">Sauvegarde et restauration</h2>
+            <h2 className="text-title font-semibold text-zinc-100">Sauvegarde et restauration</h2>
             <p className="mt-1 text-sm text-zinc-400">
               Photographie la <strong>Configuration générale</strong> et l'<strong>Auto-modération</strong>. Aucun secret
               n'est stocké. Les données métier (tickets, logs, XP) ne sont pas couvertes.

@@ -111,7 +111,7 @@ export function ModulesPage() {
                   <div className="flex items-start gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-300" aria-hidden><ModuleIcon name={module.panel.icon} /></span>
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold text-zinc-100">{module.publicName}</h2><Badge tone={meta.tone}>{meta.label}</Badge></div>
+                      <div className="flex flex-wrap items-center gap-2"><h2 className="text-title font-semibold text-zinc-100">{module.publicName}</h2><Badge tone={meta.tone}>{meta.label}</Badge></div>
                       <p className="mt-1 text-xs text-zinc-500">{CATEGORY_LABELS[module.category]}</p>
                     </div>
                   </div>

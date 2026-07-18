@@ -20,6 +20,12 @@
 - `text-eyebrow` / `text-body` / `text-title` sont générés en **`font-size` seul** (`@utility` dans `index.css`) : le `line-height` reste **hérité**, exactement comme les anciens `text-[Npx]`. Pour régler l'interligne, ajouter `leading-*` explicitement.
 - Tokens sources : `--text-eyebrow` / `--text-body` / `--text-title` (dans `:root`, `index.css`).
 
+### Titre de carte fait main (Phase 2.2.c-1)
+
+- Un titre de carte codé à la main hérite sinon **16px** (base `body`, sans `font-size`). Classe canonique = celle du composant `Card` : **`text-title font-semibold text-zinc-100`** (→ 15px).
+- **Couleur** : `text-zinc-100` résout `--color-zinc-100 = #f4f2f8`, soit **exactement** `--text-primary` (neutre chaud Keystone, gelé). Poser `text-zinc-100` est donc sans effet visuel — on l'ajoute pour aligner sur la classe canonique de `Card`, sans régresser l'identité. (Si un jour la rampe `zinc` divergeait du neutre Keystone, préférer `text-title` seul et laisser la couleur héritée.)
+- Non converti en prop `Card.title` : la plupart des cartes ont une description `<p class="text-sm">` bespoke (14px) qui régresserait à 12px via `Card.description`, et l'en-tête `Card` (`mb-3`/`items-start`) décalerait le rythme. `text-title` en classe = risque nul, diff minimal. Adoption `Card.title` réévaluée seulement si une carte est refactorée par ailleurs.
+
 ## Bordures neutres
 
 | Token | Classe | Valeur | Usage |

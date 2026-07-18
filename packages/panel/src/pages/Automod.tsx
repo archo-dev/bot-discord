@@ -92,7 +92,7 @@ export function AutomodPage() {
       {/* M21 : masonry 2 colonnes (chaque colonne se remplit sans aligner les rangées → pas de vide entre cartes). */}
       <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
       <Card>
-        <h2 className="font-semibold">Sanction</h2>
+        <h2 className="text-title font-semibold text-zinc-100">Sanction</h2>
         <p className="mt-1 text-sm text-zinc-400">
           Appliquée à chaque infraction. Les avertissements alimentent le seuil warns → mute auto de la Configuration.
           Les membres avec « Gérer les messages » sont toujours exemptés.
@@ -124,7 +124,7 @@ export function AutomodPage() {
       </Card>
 
       <Card className="space-y-3">
-        <h2 className="font-semibold">Anti-spam</h2>
+        <h2 className="text-title font-semibold text-zinc-100">Anti-spam</h2>
         <Toggle checked={s.antiSpamEnabled} onChange={(v) => set({ antiSpamEnabled: v })} label="Activé" />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Messages max" error={fieldError(save.error, "antiSpamMaxMessages")}>
@@ -152,7 +152,7 @@ export function AutomodPage() {
       </Card>
 
       <Card className="space-y-3">
-        <h2 className="font-semibold">Invitations & liens</h2>
+        <h2 className="text-title font-semibold text-zinc-100">Invitations & liens</h2>
         <Toggle checked={s.antiInviteEnabled} onChange={(v) => set({ antiInviteEnabled: v })} label="Bloquer les invitations Discord" />
         <Toggle checked={s.antiLinkEnabled} onChange={(v) => set({ antiLinkEnabled: v })} label="Bloquer les liens" />
         {s.antiLinkEnabled && (
@@ -169,7 +169,7 @@ export function AutomodPage() {
       </Card>
 
       <Card>
-        <h2 className="font-semibold">Mots interdits</h2>
+        <h2 className="text-title font-semibold text-zinc-100">Mots interdits</h2>
         <p className="mt-1 text-sm text-zinc-400">Un mot ou une expression par ligne (insensible à la casse).</p>
         <Textarea
           value={wordsText}
@@ -180,7 +180,7 @@ export function AutomodPage() {
       </Card>
 
       <Card className="space-y-3">
-        <h2 className="font-semibold">Exemptions</h2>
+        <h2 className="text-title font-semibold text-zinc-100">Exemptions</h2>
         <div>
           <p className="text-sm text-zinc-400">Rôles exemptés</p>
           <div className="mt-2 flex flex-wrap gap-2">

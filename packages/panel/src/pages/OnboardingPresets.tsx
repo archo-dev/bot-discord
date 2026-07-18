@@ -51,7 +51,7 @@ export function PresetPicker({ guildId, response, canWrite }: {
 
   return (
     <Card>
-      <h2 className="font-semibold text-zinc-100">Presets de démarrage</h2>
+      <h2 className="text-title font-semibold text-zinc-100">Presets de démarrage</h2>
       <p className="mt-1 text-sm text-zinc-400">
         Activez d'un coup un ensemble de modules cohérent. Aucun réglage existant n'est écrasé — vous configurez ensuite
         chaque module.
@@ -60,7 +60,7 @@ export function PresetPicker({ guildId, response, canWrite }: {
         {response.presets.map((preset) => (
           <div key={preset.id} className="flex flex-col rounded-xl border border-zinc-800/90 bg-(--surface-2) p-4">
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-zinc-100">{preset.name}</h3>
+              <h3 className="text-title font-semibold text-zinc-100">{preset.name}</h3>
               {response.appliedPreset === preset.id && <Badge tone="primary">Appliqué</Badge>}
             </div>
             <p className="mt-1.5 flex-1 text-[13px] leading-relaxed text-zinc-400">{preset.description}</p>
