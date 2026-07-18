@@ -11,3 +11,12 @@ onlyBuiltDependencies:
 # (@snazzah/davey). Lives here (not package.json) as newer pnpm ignores pnpm.overrides.
 overrides:
   "@discordjs/voice": "0.19.2"
+
+# Patch @distube/yt-dlp@2.0.1 (latest; bug unfixed upstream): the plugin merged
+# yt-dlp's stderr into stdout and JSON.parse'd the result inside the child's
+# `close` handler, so any stderr line (e.g. the "--no-call-home" deprecation
+# notice) threw an uncaught SyntaxError → crashed the gateway → systemd restart.
+# The patch separates the streams, wraps JSON.parse in try/catch (reject, never
+# throw), and drops the deprecated noCallHome flag. See patches/ for the diff.
+patchedDependencies:
+  "@distube/yt-dlp@2.0.1": patches/@distube__yt-dlp@2.0.1.patch

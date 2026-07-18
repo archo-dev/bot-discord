@@ -7,6 +7,11 @@ settings:
 overrides:
   '@discordjs/voice': 0.19.2
 
+patchedDependencies:
+  '@distube/yt-dlp@2.0.1':
+    hash: 3e1505f52fad02305f42aedffd1aa1a6d679e67498d4beda613c9697bd253822
+    path: patches/@distube__yt-dlp@2.0.1.patch
+
 importers:
 
   .:
@@ -31,7 +36,7 @@ importers:
         version: 2.0.2(distube@5.2.3(@discordjs/voice@0.19.2(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(opusscript@0.0.8))(discord.js@14.26.4))
       '@distube/yt-dlp':
         specifier: ^2.0.0
-        version: 2.0.1(distube@5.2.3(@discordjs/voice@0.19.2(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(opusscript@0.0.8))(discord.js@14.26.4))
+        version: 2.0.1(patch_hash=3e1505f52fad02305f42aedffd1aa1a6d679e67498d4beda613c9697bd253822)(distube@5.2.3(@discordjs/voice@0.19.2(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(opusscript@0.0.8))(discord.js@14.26.4))
       '@hono/node-server':
         specifier: ^1.14.0
         version: 1.19.14(hono@4.12.28)
@@ -2949,7 +2954,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@distube/yt-dlp@2.0.1(distube@5.2.3(@discordjs/voice@0.19.2(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(opusscript@0.0.8))(discord.js@14.26.4))':
+  '@distube/yt-dlp@2.0.1(patch_hash=3e1505f52fad02305f42aedffd1aa1a6d679e67498d4beda613c9697bd253822)(distube@5.2.3(@discordjs/voice@0.19.2(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(opusscript@0.0.8))(discord.js@14.26.4))':
     dependencies:
       dargs: 7.0.0
       distube: 5.2.3(@discordjs/voice@0.19.2(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(opusscript@0.0.8))(discord.js@14.26.4)

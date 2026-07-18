@@ -1,0 +1,126 @@
+diff --git a/dist/index.js b/dist/index.js
+index b17b126740f87c6ac36ce70c841be3c773150411..c41c82fb89f2aeb69213a594f7802d6278d3fa34 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -70,19 +70,37 @@ var makeRequest = /* @__PURE__ */ __name(async (url) => {
+ Status code ${response.statusCode.toString()}`);
+ }, "makeRequest");
+ var args = /* @__PURE__ */ __name((url, flags = {}) => [url].concat((0, import_dargs.default)(flags, { useEquals: false })).filter(Boolean), "args");
++var clip = /* @__PURE__ */ __name((s, max = 500) => {
++  const cleaned = String(s ?? "").replace(/\x1b\[[0-9;]*m/g, "").replace(/\s+/g, " ").trim();
++  return cleaned.length > max ? `${cleaned.slice(0, max)}… [truncated]` : cleaned;
++}, "clip");
+ var json = /* @__PURE__ */ __name((url, flags, options) => {
+   const process2 = (0, import_node_child_process.spawn)(YTDLP_PATH, args(url, flags), options);
+   return new Promise((resolve, reject) => {
+-    let output = "";
++    let stdout = "";
++    let stderr = "";
+     process2.stdout?.on("data", (chunk) => {
+-      output += chunk;
++      stdout += chunk;
+     });
+     process2.stderr?.on("data", (chunk) => {
+-      output += chunk;
++      stderr += chunk;
+     });
+     process2.on("close", (code) => {
+-      if (code === 0) resolve(JSON.parse(output));
+-      else reject(new Error(output));
++      if (code === 0) {
++        try {
++          resolve(JSON.parse(stdout));
++        } catch {
++          const err = new Error(
++            `yt-dlp exited 0 but stdout was not valid JSON: ${clip(stdout)}${stderr ? ` | stderr: ${clip(stderr)}` : ""}`
++          );
++          err.stderr = stderr;
++          reject(err);
++        }
++      } else {
++        const err = new Error(`yt-dlp exited ${code}: ${clip(stderr.trim() || stdout.trim())}`);
++        err.stderr = stderr;
++        reject(err);
++      }
+     });
+     process2.on("error", reject);
+   });
+@@ -144,7 +162,6 @@ var YtDlpPlugin = class extends import_distube.PlayableExtractorPlugin {
+     const info = await json(url, {
+       dumpSingleJson: true,
+       noWarnings: true,
+-      noCallHome: true,
+       preferFreeFormats: true,
+       skipDownload: true,
+       simulate: true
+@@ -174,7 +191,6 @@ var YtDlpPlugin = class extends import_distube.PlayableExtractorPlugin {
+     const info = await json(song.url, {
+       dumpSingleJson: true,
+       noWarnings: true,
+-      noCallHome: true,
+       preferFreeFormats: true,
+       skipDownload: true,
+       simulate: true,
+diff --git a/dist/index.mjs b/dist/index.mjs
+index bf0733715e9229249d227c77a6d394084f879237..51998d98b914fa11dfbc9450f105563b1a45cfaa 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -41,19 +41,37 @@ var makeRequest = /* @__PURE__ */ __name(async (url) => {
+ Status code ${response.statusCode.toString()}`);
+ }, "makeRequest");
+ var args = /* @__PURE__ */ __name((url, flags = {}) => [url].concat(dargs(flags, { useEquals: false })).filter(Boolean), "args");
++var clip = /* @__PURE__ */ __name((s, max = 500) => {
++  const cleaned = String(s ?? "").replace(/\x1b\[[0-9;]*m/g, "").replace(/\s+/g, " ").trim();
++  return cleaned.length > max ? `${cleaned.slice(0, max)}… [truncated]` : cleaned;
++}, "clip");
+ var json = /* @__PURE__ */ __name((url, flags, options) => {
+   const process2 = spawn(YTDLP_PATH, args(url, flags), options);
+   return new Promise((resolve, reject) => {
+-    let output = "";
++    let stdout = "";
++    let stderr = "";
+     process2.stdout?.on("data", (chunk) => {
+-      output += chunk;
++      stdout += chunk;
+     });
+     process2.stderr?.on("data", (chunk) => {
+-      output += chunk;
++      stderr += chunk;
+     });
+     process2.on("close", (code) => {
+-      if (code === 0) resolve(JSON.parse(output));
+-      else reject(new Error(output));
++      if (code === 0) {
++        try {
++          resolve(JSON.parse(stdout));
++        } catch {
++          const err = new Error(
++            `yt-dlp exited 0 but stdout was not valid JSON: ${clip(stdout)}${stderr ? ` | stderr: ${clip(stderr)}` : ""}`
++          );
++          err.stderr = stderr;
++          reject(err);
++        }
++      } else {
++        const err = new Error(`yt-dlp exited ${code}: ${clip(stderr.trim() || stdout.trim())}`);
++        err.stderr = stderr;
++        reject(err);
++      }
+     });
+     process2.on("error", reject);
+   });
+@@ -115,7 +133,6 @@ var YtDlpPlugin = class extends PlayableExtractorPlugin {
+     const info = await json(url, {
+       dumpSingleJson: true,
+       noWarnings: true,
+-      noCallHome: true,
+       preferFreeFormats: true,
+       skipDownload: true,
+       simulate: true
+@@ -145,7 +162,6 @@ var YtDlpPlugin = class extends PlayableExtractorPlugin {
+     const info = await json(song.url, {
+       dumpSingleJson: true,
+       noWarnings: true,
+-      noCallHome: true,
+       preferFreeFormats: true,
+       skipDownload: true,
+       simulate: true,
