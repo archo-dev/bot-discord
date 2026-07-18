@@ -1,6 +1,7 @@
 /*
  * Kit de composants « Nocturne » — implémente docs/design_system.md §5.
  * Barrel : les composants vivent dans ./kit/ par famille (buttons, forms, surfaces, feedback, navigation).
+ * Tokens canoniques (typo, bordures, chevron/caret) : voir ./kit/DESIGN_TOKENS.md.
  */
 export * from "./kit/buttons.js";
 export * from "./kit/forms.js";

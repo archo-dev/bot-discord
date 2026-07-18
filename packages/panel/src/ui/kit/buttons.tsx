@@ -12,13 +12,13 @@ const buttonBase =
 const buttonVariants: Record<ButtonVariant, string> = {
   primary:
     "bg-gradient-to-b from-indigo-500 to-indigo-600 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.17),var(--shadow-primary)] hover:from-indigo-400 hover:to-indigo-500",
-  secondary: "border border-zinc-700 bg-(--surface-2) text-zinc-100 hover:border-zinc-600 hover:bg-(--surface-3)",
+  secondary: "border border-(--border-strong) bg-(--surface-2) text-zinc-100 hover:border-zinc-600 hover:bg-(--surface-3)",
   ghost: "shadow-none text-zinc-300 hover:bg-(--state-hover) hover:text-zinc-100",
   danger: "bg-red-500 text-white hover:bg-red-400",
 };
 
 const buttonSizes: Record<ButtonSize, string> = {
-  sm: "h-8 px-3 text-[13px]",
+  sm: "h-8 px-3 text-body",
   md: "h-10 px-4 text-sm",
   lg: "h-[46px] px-5 text-sm",
 };

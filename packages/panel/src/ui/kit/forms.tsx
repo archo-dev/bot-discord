@@ -4,7 +4,7 @@ import type { InputHTMLAttributes, ReactElement, ReactNode, SelectHTMLAttributes
 /* Kit Nocturne — champs de formulaire : Input/Textarea/Select (5.7/5.8), Field, Toggle (5.6), Chip (5.4). */
 
 const fieldBase =
-  "w-full rounded-lg border border-zinc-700 bg-[rgba(8,10,18,0.72)] px-3.5 text-sm text-zinc-100 shadow-inner shadow-black/10 placeholder:text-zinc-500 transition duration-(--motion-fast) hover:border-zinc-600 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:cursor-not-allowed disabled:opacity-55";
+  "w-full rounded-lg border border-(--border-strong) bg-[rgba(8,10,18,0.72)] px-3.5 text-sm text-zinc-100 shadow-inner shadow-black/10 placeholder:text-zinc-500 transition duration-(--motion-fast) hover:border-zinc-600 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:cursor-not-allowed disabled:opacity-55";
 
 export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={`${fieldBase} h-10 ${className}`} {...props} />;
@@ -16,7 +16,7 @@ export function Textarea({ className = "", ...props }: TextareaHTMLAttributes<HT
 
 export function Select({ className = "", children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select className={`${fieldBase} h-10 appearance-none pr-9 ${className}`} {...props}>
+    <select className={`${fieldBase} field-caret h-10 appearance-none pr-9 ${className}`} {...props}>
       {children}
     </select>
   );
@@ -46,7 +46,7 @@ export function Field({
       : children;
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[13px] font-medium text-zinc-300">{label}</span>
+      <span className="mb-1.5 block text-body font-medium text-zinc-300">{label}</span>
       <span className={error ? "block [&_input]:border-red-500/70 [&_select]:border-red-500/70 [&_textarea]:border-red-500/70" : "block"}>
         {child}
       </span>
@@ -120,10 +120,10 @@ export function Chip({
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`relative inline-flex h-8 items-center rounded-full border px-3.5 text-[13px] font-medium transition before:absolute before:-inset-y-1 before:-inset-x-0.5 before:content-[''] ${
+      className={`relative inline-flex h-8 items-center rounded-full border px-3.5 text-body font-medium transition before:absolute before:-inset-y-1 before:-inset-x-0.5 before:content-[''] ${
         selected
           ? "border-indigo-500/55 bg-indigo-950 text-indigo-200"
-          : "border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+          : "border-(--border-strong) text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
       }`}
     >
       {children}

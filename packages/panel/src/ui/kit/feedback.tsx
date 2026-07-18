@@ -15,7 +15,7 @@ const badgeTones: Record<BadgeTone, string> = {
 export function Badge({ tone = "neutral", children }: { tone?: BadgeTone; children: ReactNode }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${badgeTones[tone]}`}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-eyebrow font-semibold uppercase tracking-wide ${badgeTones[tone]}`}
     >
       {children}
     </span>
@@ -42,7 +42,7 @@ export function EmptyState({
         {icon}
       </span>
       <p className="mt-3 text-sm font-semibold text-zinc-100">{title}</p>
-      {description && <p className="mt-1 max-w-sm text-[13px] leading-relaxed text-zinc-400">{description}</p>}
+      {description && <p className="mt-1 max-w-sm text-body leading-relaxed text-zinc-400">{description}</p>}
       {action && <div className={compact ? "mt-3" : "mt-4"}>{action}</div>}
     </div>
   );
@@ -57,7 +57,7 @@ export function ErrorCard({
   onRetry?: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center rounded-xl border border-zinc-800 bg-zinc-900 py-8 text-center">
+    <div className="flex flex-col items-center rounded-xl border border-(--border) bg-zinc-900 py-8 text-center">
       <span className="flex h-10 w-10 items-center justify-center rounded-full bg-red-950 text-red-400" aria-hidden>
         <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
           <path d="M12 9v4" />

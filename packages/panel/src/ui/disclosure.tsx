@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Icon } from "./icons.js";
 
 /** Carte repliable pour les réglages et informations consultés occasionnellement. */
 export function DisclosureCard({
@@ -25,7 +26,7 @@ export function DisclosureCard({
           <h2 className="text-[14px] font-semibold text-zinc-100">{title}</h2>
           {description && <p className="mt-0.5 truncate text-xs text-zinc-500 group-open:whitespace-normal">{description}</p>}
         </div>
-        <span className="text-zinc-500 transition-transform duration-(--motion-base) group-open:rotate-180" aria-hidden>⌄</span>
+        <span className="text-zinc-500 transition-transform duration-(--motion-base) group-open:rotate-180 [&_svg]:h-4 [&_svg]:w-4" aria-hidden><Icon.chevron /></span>
       </summary>
       <div className="border-t border-zinc-800/80 p-4 sm:p-5">{children}</div>
     </details>

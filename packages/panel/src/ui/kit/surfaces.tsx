@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
+import { Icon } from "../icons.js";
 
 /* Kit Nocturne — surfaces : Card (5.1), StatCard (5.2), InfoTile (v2 §4.10), InfoCard, tokens VizColor. */
 
@@ -25,7 +26,7 @@ export function Card({
       {(title || action) && (
         <div className="mb-3 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            {title && <h2 className="text-[15px] font-semibold text-zinc-100">{title}</h2>}
+            {title && <h2 className="text-title font-semibold text-zinc-100">{title}</h2>}
             {description && <p className="mt-0.5 text-xs leading-relaxed text-zinc-400">{description}</p>}
           </div>
           {action && <div className="shrink-0">{action}</div>}
@@ -69,7 +70,7 @@ export function StatCard({
         </span>
         <div className="min-w-0">
           <div className="text-[22px] font-bold leading-none tracking-tight text-zinc-100">{value}</div>
-          <div className="mt-1 truncate text-[13px] text-zinc-400">{label}</div>
+          <div className="mt-1 truncate text-body text-zinc-400">{label}</div>
         </div>
       </div>
       {hint && <p className="mt-2 text-xs text-zinc-500">{hint}</p>}
@@ -99,8 +100,8 @@ export function InfoTile({
         {icon}
       </span>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[15px] font-semibold text-zinc-100">{value}</div>
-        <div className="mt-0.5 truncate text-[13px] text-zinc-400">{label}</div>
+        <div className="truncate text-title font-semibold text-zinc-100">{value}</div>
+        <div className="mt-0.5 truncate text-body text-zinc-400">{label}</div>
       </div>
       {badge && <div className="shrink-0">{badge}</div>}
     </div>
@@ -119,15 +120,15 @@ export function InfoTile({
 /* --- Carte d'info « Bon à savoir » / « Astuce » (design2) --- */
 export function InfoCard({ icon, title, children }: { icon: ReactNode; title: ReactNode; children: ReactNode }) {
   return (
-    <details className="group rounded-xl border border-zinc-800 bg-zinc-900/80">
+    <details className="group rounded-xl border border-(--border) bg-zinc-900/80">
       <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2.5 px-3.5 py-2 text-sm font-semibold text-zinc-200 transition hover:bg-(--state-hover) [&::-webkit-details-marker]:hidden">
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 text-indigo-400 [&_svg]:h-4 [&_svg]:w-4">
           {icon}
         </span>
         <span className="min-w-0 flex-1">{title}</span>
-        <span className="text-zinc-500 transition-transform group-open:rotate-180" aria-hidden>⌄</span>
+        <span className="text-zinc-500 transition-transform group-open:rotate-180 [&_svg]:h-4 [&_svg]:w-4" aria-hidden><Icon.chevron /></span>
       </summary>
-      <div className="border-t border-zinc-800/80 px-4 py-3 text-[13px] leading-relaxed text-zinc-400">{children}</div>
+      <div className="border-t border-zinc-800/80 px-4 py-3 text-body leading-relaxed text-zinc-400">{children}</div>
     </details>
   );
 }

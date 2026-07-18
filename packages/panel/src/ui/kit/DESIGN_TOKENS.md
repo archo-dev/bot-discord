@@ -1,0 +1,41 @@
+# Kit Nocturne / Keystone — tokens canoniques
+
+> Référence pour toute contribution au panel. Établie en **Phase 2.1 (Fondations)**.
+> Règle d'or : **on ne code plus une valeur ad hoc quand un token existe.**
+> Les valeurs (hex, familles de police, tailles) sont **gelées** (identité Keystone) —
+> ce document dit *quel token utiliser*, pas *quelle valeur inventer*.
+
+## Typographie — taille
+
+| Rôle | Classe canonique | Taille | Quand l'utiliser |
+|---|---|---|---|
+| Surtitre / éyebrow / badge | `text-eyebrow` | 11px | libellés capitales, badges, éyebrows (souvent avec `font-display uppercase tracking-[0.16em]`) |
+| Métadonnée / légende | `text-xs` (Tailwind) | 12px | horodatages, compteurs, notes secondaires |
+| **Corps (défaut du panel)** | **`text-body`** | 13px | libellés de champ, descriptions de carte, lignes de liste, la plupart du texte dense |
+| Texte courant | `text-sm` (Tailwind) | 14px | paragraphes un peu plus aérés, contenus de lecture |
+| Titre de carte | `text-title` | 15px | `Card`/`InfoTile` (déjà appliqué dans le kit) |
+| Titre de page (H1) | `font-display` + taille display | 22–26px | fourni par `GuildLayout`/`PageHeader` |
+
+- **Interdit** : `text-[13px]`, `text-[15px]`, `text-[11px]` en dur → utiliser les classes ci-dessus.
+- `text-eyebrow` / `text-body` / `text-title` sont générés en **`font-size` seul** (`@utility` dans `index.css`) : le `line-height` reste **hérité**, exactement comme les anciens `text-[Npx]`. Pour régler l'interligne, ajouter `leading-*` explicitement.
+- Tokens sources : `--text-eyebrow` / `--text-body` / `--text-title` (dans `:root`, `index.css`).
+
+## Bordures neutres
+
+| Token | Classe | Valeur | Usage |
+|---|---|---|---|
+| `--border` | `border-(--border)` | `#272433` | séparateurs et contours **pleins** (cartes, onglets, listes) — **canonique** |
+| `--border-strong` | `border-(--border-strong)` | `#34303f` | contours d'éléments interactifs : champs, boutons secondaires, pagination |
+
+- **Canonique** : préférer `border-(--border)` / `border-(--border-strong)` à `border-zinc-800` / `border-zinc-700` (mêmes valeurs, mais intention explicite).
+- **Variantes à alpha existantes** (`border-zinc-800/90`, `/80`, `/70`) : **laissées telles quelles pour l'instant** — leur résolution (unifier vers le token plein = changement imperceptible mais réel) est une décision de micro-passe ultérieure. Ne pas les convertir sans validation.
+
+## Chevron / caret
+
+- Un **seul** chevron dans tout le kit : `Icon.chevron` (SVG). Le glyphe unicode `⌄` est **proscrit** (utiliser `<Icon.chevron />` contraint via `[&_svg]:h-4 [&_svg]:w-4`).
+- `Select` natif : la classe `field-caret` réinjecte la flèche (le même chevron, teinte `--text-muted`) après `appearance-none`. Tout `<select>` stylé doit la porter — ou mieux, passer par le composant `Select` du kit.
+
+## Ce qui reste hors de ce lot (à venir)
+- Couleurs de texte (usage `text-secondary` vs `text-muted`) — Phase 2.5.
+- Anneaux de focus unifiés, survols (`--state-hover`) — Phase 2.3.
+- Migration des **pages** vers ces primitives (champs, titres, boutons, cartes inline) — Phase 2.2.

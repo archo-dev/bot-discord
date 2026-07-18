@@ -25,7 +25,7 @@ export function Tabs<T extends string>({
     <div
       role="tablist"
       onKeyDown={onKeyDown}
-      className="no-scrollbar -mx-4 mb-4 flex gap-1 overflow-x-auto border-b border-zinc-800 px-4 sm:mx-0 sm:px-0"
+      className="no-scrollbar -mx-4 mb-4 flex gap-1 overflow-x-auto border-b border-(--border) px-4 sm:mx-0 sm:px-0"
     >
       {tabs.map((t) => (
         <button
@@ -36,7 +36,7 @@ export function Tabs<T extends string>({
           aria-selected={active === t.id}
           tabIndex={active === t.id ? 0 : -1}
           onClick={() => onChange(t.id)}
-          className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 text-[13px] transition lg:py-2 ${
+          className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 text-body transition lg:py-2 ${
             active === t.id
               ? "border-indigo-500 font-semibold text-white"
               : "border-transparent text-zinc-400 hover:text-zinc-200"
@@ -60,7 +60,7 @@ export function TableWrap({ children, className = "" }: { children: ReactNode; c
 
 /* --- v2 §4.8 Pagination --- */
 const pgArrow =
-  "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-700 text-zinc-300 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40";
+  "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-(--border-strong) text-zinc-300 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40";
 
 export function Pagination({
   page,
@@ -75,7 +75,7 @@ export function Pagination({
 }) {
   if (totalPages <= 1) return null;
   return (
-    <div className="mt-4 flex items-center justify-end gap-3 text-[13px] text-zinc-400">
+    <div className="mt-4 flex items-center justify-end gap-3 text-body text-zinc-400">
       <span style={{ fontFeatureSettings: '"tnum" 1' }}>
         {total != null && (
           <>
