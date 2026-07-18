@@ -119,9 +119,3 @@ export function buildLogic(f: FormState): CommandLogic {
     requiredPermissions: f.requiredPermissions || null,
   };
 }
-
-/* Styles partagés entre la page et les lignes condition/action. */
-export const inputCls =
-  "w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40";
-export const selectCls =
-  "rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100 transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40";
