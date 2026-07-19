@@ -21,6 +21,7 @@ const MUSIC_COMMANDS = new Set([
   "nowplaying",
   "playlist_save",
   "playlist_load",
+  "search",
 ]);
 
 function parseMusicPayload(body: unknown): MusicCommandPayload | null {

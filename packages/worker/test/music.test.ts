@@ -182,6 +182,22 @@ describe("music state", () => {
       expect(res.status, JSON.stringify(body)).toBe(400);
     }
   });
+
+  it("strictly validates bounded panel searches and enqueue requests", async () => {
+    const sid = await makeSession("850000000000000006");
+    for (const route of ["music-search", "music-enqueue"]) {
+      expect((await panel(`/api/guilds/${G}/${route}`, sid, {
+        method: "POST",
+        body: JSON.stringify({ query: "Niska Réseaux" }),
+      })).status).toBe(503);
+      for (const body of [{ query: "" }, { query: "x".repeat(501) }, { query: "ok", extra: true }]) {
+        expect((await panel(`/api/guilds/${G}/${route}`, sid, {
+          method: "POST",
+          body: JSON.stringify(body),
+        })).status).toBe(400);
+      }
+    }
+  });
 });
 
 describe("playlists", () => {

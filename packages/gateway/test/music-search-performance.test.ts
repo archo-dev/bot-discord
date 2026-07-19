@@ -83,6 +83,19 @@ function createHarness() {
       get: vi.fn((guildId: string) => voices.get(guildId)),
       leave: vi.fn(),
     },
+    handler: {
+      resolve: vi.fn(async (query: string) => ({
+        id: query,
+        name: new URL(query).pathname.split("/").at(-1) ?? "track",
+        url: query,
+        duration: 180,
+        thumbnail: null,
+        uploader: { name: "Artist" },
+        metadata: {},
+        stream: { playFromSource: true },
+        plugin: { getStreamURL: vi.fn() },
+      })),
+    },
     play: vi.fn(async (channel: { guild: { id: string } }, query: unknown, options: { metadata?: unknown }) => {
       const queue = queueFor(channel.guild.id);
       const added = {
@@ -205,5 +218,63 @@ describe("MusicController — SoundCloud search latency", () => {
     expect(
       log.mock.calls.some(([line]) => String(line).includes("music_soundcloud_search_performance")),
     ).toBe(false);
+  });
+
+  it("uses the same cached TrackResolver for panel preview and enqueue without interrupting the current song", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    ytDlpMocks.json.mockResolvedValue(searchInfo);
+    const { controller, distube } = createHarness();
+    const search = await controller.handle({ ...payload("g1", "Artist Track"), command: "search" });
+    expect(search).toMatchObject({
+      ok: true,
+      search: { results: [{ title: "track", type: "track", playableTrackCount: 1 }] },
+    });
+    expect(distube.play).not.toHaveBeenCalled();
+    expect(distube.handler.resolve).toHaveBeenCalledOnce();
+
+    const enqueued = await controller.handle(payload("g1", "Artist Track"));
+    expect(enqueued).toMatchObject({
+      ok: true,
+      enqueue: { position: 1, addedTracks: 1, currentTitle: "g1 Current" },
+    });
+    expect(ytDlpMocks.json).toHaveBeenCalledOnce();
+    expect(distube.play).toHaveBeenCalledOnce();
+  });
+
+  it("invalidates an obsolete panel search in one guild without affecting another guild", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const { controller, distube } = createHarness();
+    let release!: (value: unknown) => void;
+    vi.mocked(distube.handler.resolve)
+      .mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }))
+      .mockImplementation(async (query: string) => ({
+        name: query.includes("g2") ? "Guild 2" : "Newest",
+        url: query,
+        duration: 180,
+        thumbnail: null,
+        uploader: { name: "Artist" },
+        metadata: {},
+      }));
+    const obsolete = controller.handle({
+      ...payload("g1", "https://soundcloud.com/artist/old"),
+      command: "search",
+    });
+    await vi.waitFor(() => expect(distube.handler.resolve).toHaveBeenCalledOnce());
+    const [newest, otherGuild] = await Promise.all([
+      controller.handle({ ...payload("g1", "https://soundcloud.com/artist/new"), command: "search" }),
+      controller.handle({ ...payload("g2", "https://soundcloud.com/artist/g2"), command: "search" }),
+    ]);
+    release({
+      name: "Old",
+      url: "https://soundcloud.com/artist/old",
+      duration: 180,
+      thumbnail: null,
+      uploader: { name: "Artist" },
+      metadata: {},
+    });
+    expect((await obsolete).ok).toBe(false);
+    expect((await obsolete).message).toContain("remplacée");
+    expect(newest.ok).toBe(true);
+    expect(otherGuild.ok).toBe(true);
   });
 });

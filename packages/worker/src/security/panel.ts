@@ -13,7 +13,7 @@ const COSTLY: ReadonlyArray<{
 }> = [
   { method: "PATCH", pattern: /^\/api\/guilds\/\d{5,20}\/nickname$/, capability: "guild_identity", userLimit: 10, guildLimit: 50 },
   { method: "POST", pattern: /^\/api\/guilds\/\d{5,20}\/(button-roles|tickets\/panel)$/, capability: "discord_publish", userLimit: 10, guildLimit: 100 },
-  { method: "POST", pattern: /^\/api\/guilds\/\d{5,20}\/music-control$/, capability: "music_control", userLimit: 300, guildLimit: 2_000 },
+  { method: "POST", pattern: /^\/api\/guilds\/\d{5,20}\/music-(control|search|enqueue)$/, capability: "music_control", userLimit: 300, guildLimit: 2_000 },
 ];
 
 function target(pathname: string): { type: "command" | "warning" | "button_role" | null; id: string | null } {

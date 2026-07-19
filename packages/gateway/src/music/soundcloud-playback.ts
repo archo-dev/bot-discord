@@ -33,6 +33,11 @@ interface SoundcloudMetadataCarrier {
     id: string;
     playback: SoundcloudPlaybackClassification;
   }>;
+  soundcloudPlaylistSummary?: {
+    detected: number;
+    playable: number;
+    ignored: number;
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -86,11 +91,22 @@ export function withSoundcloudPlaybackMetadata<T>(
 export function withSoundcloudPlaylistPlaybackMetadata<T>(
   metadata: T | undefined,
   tracks: Array<{ id: string; playback: SoundcloudPlaybackClassification }>,
+  summary?: { detected: number; playable: number; ignored: number },
 ): T {
   return {
     ...(isRecord(metadata) ? metadata : {}),
     soundcloudPlaylistPlayback: tracks,
+    ...(summary ? { soundcloudPlaylistSummary: summary } : {}),
   } as T;
+}
+
+export function getSoundcloudPlaylistSummary(metadata: unknown): SoundcloudMetadataCarrier["soundcloudPlaylistSummary"] {
+  if (!isRecord(metadata)) return undefined;
+  const summary = (metadata as SoundcloudMetadataCarrier).soundcloudPlaylistSummary;
+  if (!summary || !Number.isInteger(summary.detected) || !Number.isInteger(summary.playable) || !Number.isInteger(summary.ignored)) {
+    return undefined;
+  }
+  return summary;
 }
 
 export function getSoundcloudPlaybackMetadata(

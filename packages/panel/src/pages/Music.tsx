@@ -9,6 +9,7 @@ import { Skeleton, SkeletonList } from "../ui/skeleton.js";
 import { useCanWrite } from "../lib/access.js";
 import { interpolateMusicElapsed, musicPollInterval, newestMusicState } from "../lib/music-state.js";
 import { MusicSeekBar } from "../components/MusicSeekBar.js";
+import { MusicSearchPanel } from "../components/MusicSearchPanel.js";
 
 function formatDuration(totalSeconds: number): string {
   const sec = Math.floor(totalSeconds % 60);
@@ -88,6 +89,14 @@ export function MusicPage() {
   return (
     // M21 : masonry 2 colonnes (lecture / file / playlists).
     <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
+      {canWrite && (
+        <Card title="Rechercher et ajouter">
+          <MusicSearchPanel
+            guildId={guildId!}
+            onQueued={() => queryClient.invalidateQueries({ queryKey: stateKey })}
+          />
+        </Card>
+      )}
       <Card
         title="Lecture en cours"
         action={
@@ -280,8 +289,8 @@ export function MusicPage() {
       </Card>
 
       <InfoCard icon={<Icon.music />} title="Astuce">
-        Lance la lecture depuis Discord avec <code>/play</code> ; les contrôles ci-dessus pilotent le bot en temps réel
-        via le Gateway. Le panel interpole localement la progression et adapte sa synchronisation à l'état réel.
+        La recherche et les contrôles utilisent le même moteur Gateway que <code>/play</code>. Le panel interpole
+        localement la progression et adapte sa synchronisation à l'état réel.
       </InfoCard>
     </div>
   );

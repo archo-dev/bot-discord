@@ -1,7 +1,12 @@
-import { signInternalRequest, type GatewayModuleRuntimeResponse, type MusicCommandPayload } from "@bot/shared";
+import {
+  signInternalRequest,
+  type GatewayModuleRuntimeResponse,
+  type MusicCommandPayload,
+  type MusicCommandResult,
+} from "@bot/shared";
 import type { Env } from "../env.js";
 
-export interface ForwardResult {
+export interface ForwardResult extends Partial<MusicCommandResult> {
   /** false when GATEWAY_ORIGIN is unset or the gateway didn't answer. */
   reachable: boolean;
   ok: boolean;
@@ -45,15 +50,22 @@ export async function forwardMusic(env: Env, payload: MusicCommandPayload): Prom
       path: "/music",
       body,
     });
+    const timeoutMs = payload.command === "play" ? 50_000 : payload.command === "search" ? 17_000 : 12_000;
     const res = await fetch(`${env.GATEWAY_ORIGIN}/music`, {
       method: "POST",
       headers: { authorization: `Bearer ${env.GATEWAY_HTTP_TOKEN}`, "content-type": "application/json", ...signature },
       body,
-      signal: AbortSignal.timeout(12_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) return { reachable: true, ok: false };
-    const responseBody = (await res.json().catch(() => ({}))) as { ok?: boolean; message?: string };
-    return { reachable: true, ok: responseBody.ok ?? true, message: responseBody.message };
+    const responseBody = (await res.json().catch(() => ({}))) as Partial<MusicCommandResult>;
+    return {
+      reachable: true,
+      ok: responseBody.ok ?? true,
+      message: responseBody.message,
+      search: responseBody.search,
+      enqueue: responseBody.enqueue,
+    };
   } catch {
     return { reachable: false, ok: false };
   }

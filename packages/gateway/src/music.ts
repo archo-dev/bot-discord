@@ -206,6 +206,11 @@ export class GatewayYtDlpPlugin extends YtDlpPlugin {
           const playback = getSoundcloudPlaybackMetadata(song.metadata);
           return playback ? [{ id: song.id, playback }] : [];
         }),
+        {
+          detected: info.entries.length,
+          playable: songs.length,
+          ignored: info.entries.length - songs.length,
+        },
       );
       return new Playlist<T>(
         {

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import {
   EMPTY_MUSIC_STATE,
   MusicControlRequestSchema,
+  MusicSearchRequestSchema,
   MusicStateSchema,
   type MusicCommandPayload,
   type MusicStateDto,
@@ -62,6 +63,48 @@ musicRouter.post("/guilds/:guildId/music-control", rateLimit({ name: "music-cont
   const result = await forwardMusic(c.env, payload);
   if (!result.reachable) return c.json({ error: "gateway_unreachable" }, 503);
   return c.json({ ok: result.ok, message: result.message });
+});
+
+musicRouter.post("/guilds/:guildId/music-search", rateLimit({ name: "music-search", limit: 12 }), async (c) => {
+  const guildId = c.req.param("guildId");
+  if (!(await isGuildModuleEnabled(c.env.DB, guildId, "music"))) {
+    return c.json({ error: "module_disabled" }, 409);
+  }
+  const parsed = MusicSearchRequestSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
+  const result = await forwardMusic(c.env, {
+    command: "search",
+    guildId,
+    userId: c.get("session").userId,
+    textChannelId: "",
+    applicationId: null,
+    token: null,
+    arg: parsed.data.query,
+    source: "panel",
+  });
+  if (!result.reachable) return c.json({ error: "gateway_unreachable" }, 503);
+  return c.json({ ok: result.ok, message: result.message, results: result.search?.results ?? [] });
+});
+
+musicRouter.post("/guilds/:guildId/music-enqueue", rateLimit({ name: "music-enqueue", limit: 12 }), async (c) => {
+  const guildId = c.req.param("guildId");
+  if (!(await isGuildModuleEnabled(c.env.DB, guildId, "music"))) {
+    return c.json({ error: "module_disabled" }, 409);
+  }
+  const parsed = MusicSearchRequestSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
+  const result = await forwardMusic(c.env, {
+    command: "play",
+    guildId,
+    userId: c.get("session").userId,
+    textChannelId: "",
+    applicationId: null,
+    token: null,
+    arg: parsed.data.query,
+    source: "panel",
+  });
+  if (!result.reachable) return c.json({ error: "gateway_unreachable" }, 503);
+  return c.json({ ok: result.ok, message: result.message, enqueue: result.enqueue });
 });
 
 musicRouter.get("/guilds/:guildId/playlists", async (c) => {

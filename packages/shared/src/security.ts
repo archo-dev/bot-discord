@@ -48,6 +48,8 @@ export const PANEL_MUTATION_POLICIES: readonly PanelMutationPolicy[] = [
   { method: "PATCH", path: "/api/guilds/:guildId/commands/:id/state", capability: "commands_write", allowed: ADMIN },
   { method: "DELETE", path: "/api/guilds/:guildId/commands/:id", capability: "commands_write", allowed: ADMIN },
   { method: "POST", path: "/api/guilds/:guildId/music-control", capability: "music_control", allowed: ADMIN },
+  { method: "POST", path: "/api/guilds/:guildId/music-search", capability: "music_control", allowed: ADMIN },
+  { method: "POST", path: "/api/guilds/:guildId/music-enqueue", capability: "music_control", allowed: ADMIN },
   { method: "PUT", path: "/api/guilds/:guildId/starboard-settings", capability: "guild_config_write", allowed: ADMIN },
   { method: "PUT", path: "/api/guilds/:guildId/tickets/settings", capability: "tickets_write", allowed: ADMIN },
   { method: "POST", path: "/api/guilds/:guildId/tickets/panel", capability: "tickets_write", allowed: ADMIN },

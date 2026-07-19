@@ -103,6 +103,46 @@ export const MusicControlRequestSchema = z.discriminatedUnion("action", [
 
 export type MusicControlRequest = z.infer<typeof MusicControlRequestSchema>;
 
+export const MusicSearchRequestSchema = z.object({
+  query: z.string().trim().min(1).max(500),
+}).strict();
+
+export type MusicSearchRequest = z.infer<typeof MusicSearchRequestSchema>;
+
+export interface MusicSearchResultDto {
+  title: string;
+  author: string | null;
+  duration: number;
+  thumbnail: string | null;
+  /** Public webpage URL only; never a media stream URL. */
+  url: string | null;
+  type: "track" | "playlist";
+  isPreview: boolean | null;
+  playableTrackCount: number;
+  ignoredTrackCount: number;
+}
+
+export interface MusicSearchResponseDto {
+  results: MusicSearchResultDto[];
+}
+
+export interface MusicPanelSearchResponse extends MusicSearchResponseDto {
+  ok: boolean;
+  message?: string;
+}
+
+export interface MusicEnqueueResultDto {
+  position: number;
+  addedTracks: number;
+  currentTitle: string | null;
+}
+
+export interface MusicPanelEnqueueResponse {
+  ok: boolean;
+  message?: string;
+  enqueue?: MusicEnqueueResultDto;
+}
+
 export interface PlaylistSummaryDto {
   name: string;
   ownerId: string;
@@ -124,7 +164,15 @@ export type MusicCommand =
   | "seek"
   | "nowplaying"
   | "playlist_save"
-  | "playlist_load";
+  | "playlist_load"
+  | "search";
+
+export interface MusicCommandResult {
+  ok: boolean;
+  message: string;
+  search?: MusicSearchResponseDto;
+  enqueue?: MusicEnqueueResultDto;
+}
 
 /** Forwarded Worker → gateway (bearer GATEWAY_HTTP_TOKEN) to run a music action. */
 export interface MusicCommandPayload {

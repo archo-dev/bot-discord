@@ -164,12 +164,78 @@ Commit : `a89b07092cb228b7599732b97f2d274c7d0a3d18` — `feat(music): expose sha
 - `packages/panel/src/pages/Music.tsx`
 - `packages/panel/test/music-seek.test.ts`
 
-Commit prévu : `feat(panel): add interactive music seeking`.
+Commit : `661e9d4f7500289c467ae8d8204dd5c196afcae6` — `feat(panel): add interactive music seeking`.
 
-## Phases suivantes
+## Phase 7 — Recherche et ajout depuis le panel
 
-- Phase 6 : validée, commit en cours.
-- Phase 7 : en attente.
+### Audit
+
+- La recherche SoundCloud textuelle du Gateway possédait déjà un classement conservateur, un cache borné et un unique appel `scsearch5`; le dupliquer dans le Worker aurait créé deux moteurs divergents.
+- DisTube 5.2.3 expose `handler.resolve()` avec les types publics `Song | Playlist`. Cette résolution de métadonnées n'appelle ni `getStreamURL()` ni ffmpeg.
+- Les URL directes et `/sets/` doivent rester hors du cache de recherche textuelle. Les playlists gardent la normalisation ESM et leur résolution de flux piste par piste reste paresseuse.
+
+### Architecture retenue
+
+- `TrackResolver` est la couche Gateway unique utilisée par `/play` et la recherche panel pour le routage YouTube/SoundCloud et la pré-résolution textuelle SoundCloud.
+- La recherche panel résout uniquement les métadonnées via DisTube, avec le timeout global existant de 15 secondes. Elle ne crée pas de queue, ne rejoint pas de salon vocal et ne pré-résout aucun stream.
+- Le Worker reste un relais de validation et de sécurité. L'ajout appelle la commande Gateway `play` existante et bénéficie donc de la même serrure FIFO par guilde, des contrôles vocaux et de la Lazy Queue.
+- Le navigateur applique un debounce de 400 ms, annule la requête précédente et ignore toute réponse obsolète. Le Gateway utilise aussi une génération scalaire par guilde pour invalider une recherche remplacée.
+- Les entrées sont strictement bornées à 500 caractères, le nombre de cartes est borné à cinq et un verrou synchrone empêche les doubles soumissions avant la mise à jour React.
+- Les réponses ne contiennent que des URL de pages ou miniatures publiques nettoyées : identifiants, query string et fragment sont supprimés. Aucune URL de flux signée n'est transportée.
+- Pour une playlist SoundCloud, les compteurs `detected`, `playable` et `ignored` proviennent de l'extraction existante; aucune nouvelle extraction individuelle n'est lancée.
+
+### Sécurité et limites
+
+- Les deux nouvelles routes POST passent par les protections centrales de session, appartenance à la guilde, niveau administrateur, inventaire de mutations, Origin/CSRF, rate limit local et quota durable.
+- Le Gateway vérifie aussi l'appartenance du membre à la guilde; l'ajout réutilise la vérification de salon vocal de `play`.
+- L'annulation navigateur ne tue pas une extraction déjà acceptée par DisTube : aucune API publique sûre de cancellation n'existe dans la version installée. Le résultat est toutefois invalidé, et l'opération reste bornée par timeout, rate limit et quota.
+- Une URL directe prévisualisée puis ajoutée peut être extraite deux fois, car les URL directes restent volontairement exclues du cache. La recherche textuelle SoundCloud réutilise en revanche le cache borné existant.
+- Le moteur de pertinence actuel retourne volontairement un seul résultat exact plutôt que plusieurs variantes approximatives; le contrat et l'interface restent bornés à cinq pour permettre une extension ultérieure sans rupture.
+
+### Tests et auto-audit
+
+- Routage commun Discord/panel, réutilisation du cache textuel, exclusion des URL directes du cache et absence d'appel `getStreamURL()` pendant la recherche.
+- Prévisualisation Song/Playlist, conservation de 200 pistes sans résolution de flux, compteurs exacts d'une playlist `/sets/` de 59 entrées dont 28 exploitables et 31 ignorées.
+- Nettoyage des paramètres signés, timeout propre, erreur sans résultat et invalidation des réponses obsolètes.
+- Debounce, annulation navigateur, limite de longueur, nettoyage au démontage et protection contre le double ajout.
+- Validation Worker stricte, module musique, relais Gateway, protection des 44 mutations et refus des profils non autorisés.
+- Tests ciblés : Gateway 47/47, panel 32/32 et Worker 17/17.
+- Suites complètes : Gateway 200/200, panel 41/41 et Worker réussie (avertissements de nettoyage Miniflare `EBUSY` non bloquants sous Windows).
+- Typechecks Gateway, Worker, panel et shared : réussis.
+- Builds Gateway et panel réussis; bundle panel initial gzip 148,6 kB / budget 180 kB.
+- Build Worker `wrangler deploy --dry-run` réussi, sans déploiement.
+- `git diff --check` réussi; lockfile, dépendances, migrations, patch yt-dlp et configuration inchangés.
+- Audit du diff : 20 fichiers, moins de 2 000 lignes nettes, aucune donnée sensible ou URL de flux signée ajoutée.
+
+### Fichiers de la phase
+
+- `packages/shared/src/api-types/music.ts`
+- `packages/shared/src/security.ts`
+- `packages/gateway/src/http.ts`
+- `packages/gateway/src/music.ts`
+- `packages/gateway/src/music/controller.ts`
+- `packages/gateway/src/music/soundcloud-playback.ts`
+- `packages/gateway/src/music/track-resolver.ts`
+- `packages/gateway/test/music-track-resolver.test.ts`
+- `packages/gateway/test/music-search-performance.test.ts`
+- `packages/gateway/test/music-soundcloud-playlist.test.ts`
+- `packages/worker/src/api/music.ts`
+- `packages/worker/src/gateway/forward.ts`
+- `packages/worker/src/security/panel.ts`
+- `packages/worker/test/music.test.ts`
+- `packages/worker/test/security-policy.test.ts`
+- `packages/panel/src/components/MusicSearchPanel.tsx`
+- `packages/panel/src/lib/music-search.ts`
+- `packages/panel/src/pages/Music.tsx`
+- `packages/panel/test/music-search.test.ts`
+- `AUTONOMOUS_MUSIC_PHASES_4_7_REPORT.md`
+
+Commit de phase : `feat(panel): add music search and queue controls` (hash consigné après création dans le commit documentaire final).
+
+## Statut de la roadmap
+
+- Phases 4, 5 et 6 : validées et commitées.
+- Phase 7 : validée; commit de phase en cours de création.
 
 ## Garanties globales
 

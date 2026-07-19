@@ -4,7 +4,7 @@ import { Playlist, Song, type ResolveOptions } from "distube";
 import { YtDlpPlugin } from "@distube/yt-dlp";
 import { GatewayYtDlpPlugin, parseSoundcloudSetOutput } from "../src/music.js";
 import { PlaylistLoader } from "../src/music/playlist-loader.js";
-import { getSoundcloudPlaybackMetadata } from "../src/music/soundcloud-playback.js";
+import { getSoundcloudPlaybackMetadata, getSoundcloudPlaylistSummary } from "../src/music/soundcloud-playback.js";
 
 const require = createRequire(import.meta.url);
 const { Playlist: CommonJsPlaylist, Song: CommonJsSong } = require("distube") as {
@@ -184,6 +184,7 @@ describe("GatewayYtDlpPlugin — ESM playlist compatibility", () => {
     const playlist = result as Playlist<{ requestId: string }>;
     expect(entries).toHaveLength(59);
     expect(playlist.songs).toHaveLength(28);
+    expect(getSoundcloudPlaylistSummary(playlist.metadata)).toEqual({ detected: 59, playable: 28, ignored: 31 });
     expect(playlist.songs.every((song) => song instanceof Song)).toBe(true);
     expect(playlist.songs.every((song) => !(song instanceof CommonJsSong))).toBe(true);
     expect(playlist.songs.every((song) => song.playlist === playlist)).toBe(true);

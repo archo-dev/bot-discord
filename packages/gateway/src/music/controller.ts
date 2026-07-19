@@ -14,8 +14,11 @@ import { AudioPlayerStatus, entersState, type AudioPlayer, type VoiceConnection 
 import { json as ytdlpJson } from "@distube/yt-dlp";
 import {
   EMPTY_MUSIC_STATE,
+  type MusicCommandResult,
   type MusicCommandPayload,
+  type MusicEnqueueResultDto,
   type MusicPlaybackStatus,
+  type MusicSearchResponseDto,
   type MusicStateDto,
 } from "@bot/shared";
 import type { WorkerApi } from "../worker-api.js";
@@ -24,7 +27,6 @@ import {
   PLAY_TIMEOUT_MS,
   UserError,
   loopLabel,
-  resolvePlayQuery,
   resolveSoundcloudSearch,
   toTrack,
   withTimeout,
@@ -53,6 +55,7 @@ import {
 } from "./search-cache.js";
 import { getSoundcloudPlaybackMetadata } from "./soundcloud-playback.js";
 import { MusicControlService } from "./control-service.js";
+import { TrackResolver } from "./track-resolver.js";
 
 interface NowPlaying {
   messageId: string;
@@ -66,6 +69,11 @@ interface GuardedStreamContext {
   correlation: MusicCorrelation;
   errorListener: (error: Error) => void;
   closeListener: () => void;
+}
+
+interface MusicExecutionReply extends MusicReply {
+  search?: MusicSearchResponseDto;
+  enqueue?: MusicEnqueueResultDto;
 }
 
 /** Maximum time after extraction for Discord's real AudioPlayer to start. */
@@ -129,6 +137,9 @@ export class MusicController {
   private readonly actionsById = new Map<string, MusicActionContext>();
   private readonly playlistLoader = new PlaylistLoader();
   private readonly controlService: MusicControlService;
+  private readonly trackResolver: TrackResolver;
+  /** Scalar generations invalidate late panel-search results per guild. */
+  private readonly searchGenerations = new Map<string, number>();
   private lastMusicStateSequence = 0;
 
   constructor(
@@ -139,6 +150,11 @@ export class MusicController {
     private readonly instrumentation = new MusicInstrumentation(),
     private readonly soundcloudSearchCache = new SoundcloudSearchCache(),
   ) {
+    this.trackResolver = new TrackResolver(
+      this.distube,
+      this.primarySource,
+      (query, action) => this.resolveSoundcloudTextSearch(query, action),
+    );
     this.controlService = new MusicControlService({
       getQueue: (guildId) => this.distube.getQueue(guildId),
       authorize: async (queue, guildId, userId) => {
@@ -174,7 +190,7 @@ export class MusicController {
   }
 
   /** Entry point for the HTTP /music route. Edits the interaction webhook itself. */
-  async handle(payload: MusicCommandPayload): Promise<{ ok: boolean; message: string }> {
+  async handle(payload: MusicCommandPayload): Promise<MusicCommandResult> {
     if (payload.command === "play" || payload.command === "playlist_load") {
       this.cancelPlaylistLoad(payload.guildId, "superseded");
     } else if (payload.command === "stop") {
@@ -184,12 +200,16 @@ export class MusicController {
     const playlistSession = payload.command === "playlist_load"
       ? this.playlistLoader.start(payload.guildId, action.actionId)
       : undefined;
-    let reply: MusicReply;
+    const searchGeneration = payload.command === "search"
+      ? (this.searchGenerations.get(payload.guildId) ?? 0) + 1
+      : undefined;
+    if (searchGeneration !== undefined) this.searchGenerations.set(payload.guildId, searchGeneration);
+    let reply: MusicExecutionReply;
     let ok = true;
     let outcome: "success" | "user_error" | "error" = "success";
     let failure: unknown;
     try {
-      reply = await this.run(payload, action, playlistSession);
+      reply = await this.run(payload, action, playlistSession, searchGeneration);
     } catch (err) {
       ok = false;
       failure = err;
@@ -209,6 +229,9 @@ export class MusicController {
       }
     } finally {
       if (playlistSession) this.playlistLoader.finish(playlistSession);
+      if (searchGeneration !== undefined && this.searchGenerations.get(payload.guildId) === searchGeneration) {
+        this.searchGenerations.delete(payload.guildId);
+      }
       this.finishAction(action, outcome, failure);
     }
     if (payload.source === "interaction" && payload.applicationId && payload.token) {
@@ -222,14 +245,20 @@ export class MusicController {
         ),
       );
     }
-    return { ok, message: reply.content ?? "OK" };
+    return {
+      ok,
+      message: reply.content ?? "OK",
+      ...(reply.search ? { search: reply.search } : {}),
+      ...(reply.enqueue ? { enqueue: reply.enqueue } : {}),
+    };
   }
 
   private async run(
     payload: MusicCommandPayload,
     action: MusicActionContext,
     playlistSession?: PlaylistLoadSession,
-  ): Promise<MusicReply> {
+    searchGeneration?: number,
+  ): Promise<MusicExecutionReply> {
     const guild = this.client.guilds.cache.get(payload.guildId) ?? (await this.client.guilds.fetch(payload.guildId));
 
     switch (payload.command) {
@@ -239,27 +268,34 @@ export class MusicController {
           const member = await guild.members.fetch(payload.userId);
           const voiceChannel = member.voice.channel;
           if (!voiceChannel) throw new UserError("⚠️ Rejoins d'abord un salon vocal.");
-          const textChannel = await this.fetchTextChannel(payload.textChannelId);
+          const textChannel = payload.textChannelId
+            ? await this.fetchTextChannel(payload.textChannelId)
+            : this.distube.getQueue(guild.id)?.textChannel;
           if (payload.command === "play") {
             const raw = payload.arg?.trim();
             if (!raw) throw new UserError("⚠️ Précise un titre ou un lien.");
             // Routes by primary source: SoundCloud search/URL vs YouTube. May reject
             // a bare playlist, or a YouTube link while SoundCloud is the stand-in.
-            const resolved = resolvePlayQuery(raw, this.primarySource);
-            // DisTube only routes http(s) URLs to the yt-dlp plugin, so a SoundCloud
-            // text search is pre-resolved here to a concrete track URL first.
-            const playQuery = resolved.soundcloudSearch
-              ? await this.resolveSoundcloudTextSearch(resolved.query, action)
-              : resolved.query;
+            const resolved = await this.trackResolver.resolveInput(raw, action);
             await this.reconcilePlayback(guild.id, action);
             const before = this.distube.getQueue(guild.id)?.songs.length ?? 0;
-            await this.playWithTimeout(voiceChannel, playQuery, { member, textChannel }, action);
+            await this.playWithTimeout(voiceChannel, resolved.playQuery, { member, textChannel }, action);
             const queue = this.distube.getQueue(guild.id);
-            if (!queue || queue.songs.length === 0) return { content: "🔎 Recherche lancée…" };
+            if (!queue || queue.songs.length === 0) {
+              throw new UserError("⚠️ La résolution n’a ajouté aucune piste exploitable.");
+            }
             const srcTag = resolved.source === "soundcloud" ? " · 🟠 via SoundCloud" : "";
-            if (before === 0) return { content: `🎵 Lecture : **${queue.songs[0]!.name}**${srcTag}` };
+            const enqueue = {
+              position: before === 0 ? 0 : before,
+              addedTracks: Math.max(0, queue.songs.length - before),
+              currentTitle: queue.songs[0]?.name ?? null,
+            };
+            if (before === 0) return { content: `🎵 Lecture : **${queue.songs[0]!.name}**${srcTag}`, enqueue };
             const added = queue.songs[queue.songs.length - 1]!;
-            return { content: `➕ Ajouté à la file : **${added.name}** (position ${queue.songs.length - 1})${srcTag}` };
+            return {
+              content: `➕ Ajouté à la file : **${added.name}** (position ${queue.songs.length - 1})${srcTag}`,
+              enqueue,
+            };
           }
           // playlist_load
           const name = payload.arg?.trim();
@@ -274,6 +310,28 @@ export class MusicController {
             playlistSession,
           );
         });
+      }
+
+      case "search": {
+        const raw = payload.arg?.trim();
+        if (!raw) throw new UserError("⚠️ Précise un titre ou un lien.");
+        if (raw.length > 500) throw new UserError("⚠️ Recherche trop longue (500 caractères maximum).");
+        await guild.members.fetch(payload.userId);
+        const preview = await this.trackResolver.search(raw, action, {
+          metadata: this.instrumentation.metadata(action),
+        });
+        if (searchGeneration === undefined || this.searchGenerations.get(guild.id) !== searchGeneration) {
+          throw new UserError("⚠️ Cette recherche a été remplacée par une requête plus récente.");
+        }
+        this.instrumentation.markResolved(
+          action,
+          preview.result.type === "playlist" ? "Playlist" : "Song",
+          preview.result.playableTrackCount,
+        );
+        return {
+          content: "🔎 Résultat trouvé.",
+          search: { results: [preview.result] },
+        };
       }
 
       case "pause":
