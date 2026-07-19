@@ -3,6 +3,7 @@
 import {
   DisTube,
   Events as DTEvents,
+  Playlist,
   RepeatMode,
   type DisTubeStream,
   type DisTubeVoice,
@@ -36,6 +37,12 @@ import {
   type MusicTraceMetadata,
   type PlaybackSnapshot,
 } from "./instrumentation.js";
+import {
+  PlaylistLoader,
+  PlaylistLoadCancelledError,
+  type LazyPlaylistBuildSummary,
+  type PlaylistLoadSession,
+} from "./playlist-loader.js";
 
 interface NowPlaying {
   messageId: string;
@@ -88,6 +95,7 @@ export class MusicController {
   /** The explicit playback action that currently owns the per-guild lock. */
   private readonly executingPlaybackActions = new Map<string, MusicActionContext>();
   private readonly actionsById = new Map<string, MusicActionContext>();
+  private readonly playlistLoader = new PlaylistLoader();
 
   constructor(
     private readonly client: Client,
@@ -99,13 +107,21 @@ export class MusicController {
 
   /** Entry point for the HTTP /music route. Edits the interaction webhook itself. */
   async handle(payload: MusicCommandPayload): Promise<{ ok: boolean; message: string }> {
+    if (payload.command === "play" || payload.command === "playlist_load") {
+      this.cancelPlaylistLoad(payload.guildId, "superseded");
+    } else if (payload.command === "stop") {
+      this.cancelPlaylistLoad(payload.guildId, "stop");
+    }
     const action = this.beginAction(payload);
+    const playlistSession = payload.command === "playlist_load"
+      ? this.playlistLoader.start(payload.guildId, action.actionId)
+      : undefined;
     let reply: MusicReply;
     let ok = true;
     let outcome: "success" | "user_error" | "error" = "success";
     let failure: unknown;
     try {
-      reply = await this.run(payload, action);
+      reply = await this.run(payload, action, playlistSession);
     } catch (err) {
       ok = false;
       failure = err;
@@ -124,6 +140,7 @@ export class MusicController {
         reply = { content: "⚠️ Une erreur est survenue avec la musique." };
       }
     } finally {
+      if (playlistSession) this.playlistLoader.finish(playlistSession);
       this.finishAction(action, outcome, failure);
     }
     if (payload.source === "interaction" && payload.applicationId && payload.token) {
@@ -140,7 +157,11 @@ export class MusicController {
     return { ok, message: reply.content ?? "OK" };
   }
 
-  private async run(payload: MusicCommandPayload, action: MusicActionContext): Promise<MusicReply> {
+  private async run(
+    payload: MusicCommandPayload,
+    action: MusicActionContext,
+    playlistSession?: PlaylistLoadSession,
+  ): Promise<MusicReply> {
     const guild = this.client.guilds.cache.get(payload.guildId) ?? (await this.client.guilds.fetch(payload.guildId));
 
     switch (payload.command) {
@@ -192,38 +213,15 @@ export class MusicController {
           // playlist_load
           const name = payload.arg?.trim();
           if (!name) throw new UserError("⚠️ Précise le nom de la playlist.");
-          const tracks = await this.api.getPlaylistTracks(guild.id, name);
-          if (!tracks || tracks.length === 0) throw new UserError(`⚠️ Playlist **${name}** introuvable ou vide.`);
-          action.detectedTracks = tracks.length;
-          await this.reconcilePlayback(guild.id, action);
-          let addedCount = 0;
-          for (const t of tracks) {
-            let trackUrl: string;
-            try {
-              trackUrl = resolvePlayQuery(t.url, this.primarySource).query;
-            } catch {
-              this.instrumentation.markFailed(action);
-              continue; // skip an un-playable saved track (bare playlist, or YT while on SoundCloud)
-            }
-            const before = this.distube.getQueue(guild.id)?.songs.length ?? 0;
-            try {
-              await this.playWithTimeout(voiceChannel, trackUrl, { member, textChannel }, action);
-              const after = this.distube.getQueue(guild.id)?.songs.length ?? 0;
-              addedCount += Math.max(0, after - before);
-            } catch (e) {
-              this.instrumentation.diagnostic(
-                "error",
-                "music_playlist_track_error",
-                guild.id,
-                { errorMessage: errMsg(e) },
-                action,
-              );
-            }
-          }
-          if (addedCount === 0) {
-            throw new UserError(`⚠️ Aucune piste de la playlist **${name}** n’a pu être ajoutée.`);
-          }
-          return { content: `📥 Playlist **${name}** chargée (${addedCount} pistes).` };
+          if (!playlistSession) throw new Error("Missing saved-playlist load session");
+          return this.loadSavedPlaylist(
+            guild.id,
+            name,
+            voiceChannel,
+            { member, textChannel },
+            action,
+            playlistSession,
+          );
         });
       }
 
@@ -411,6 +409,161 @@ export class MusicController {
     }
   }
 
+  private cancelPlaylistLoad(guildId: string, reason: string): void {
+    const correlation = this.currentAction(guildId);
+    const cancelled = this.playlistLoader.cancel(guildId, reason);
+    if (cancelled) this.instrumentation.lazyPlaylistCancelled(guildId, reason, correlation);
+  }
+
+  private async loadSavedPlaylist(
+    guildId: string,
+    name: string,
+    voiceChannel: Parameters<DisTube["play"]>[0],
+    options: NonNullable<Parameters<DisTube["play"]>[2]>,
+    action: MusicActionContext,
+    session: PlaylistLoadSession,
+  ): Promise<MusicReply> {
+    const queueAtStart = this.distube.getQueue(guildId);
+    const queueBefore = queueAtStart?.songs.length ?? 0;
+    let playlist: Playlist<MusicTraceMetadata> | null = null;
+    let buildSummary: LazyPlaylistBuildSummary = {
+      detected: 0,
+      validated: 0,
+      ignored: 0,
+      errors: 0,
+      truncated: 0,
+      buildDurationMs: 0,
+      firstError: null,
+      maxConcurrentPromises: 0,
+    };
+
+    try {
+      this.playlistLoader.assertActive(session);
+      const tracks = await this.api.getPlaylistTracks(guildId, name, session.signal);
+      this.playlistLoader.assertActive(session);
+      if (!tracks || tracks.length === 0) {
+        throw new UserError(`⚠️ Playlist **${name}** introuvable ou vide.`);
+      }
+
+      action.detectedTracks = tracks.length;
+      const built = this.playlistLoader.build(session, tracks, {
+        name,
+        primarySource: this.primarySource,
+        plugins: this.distube.plugins,
+        member: options.member,
+        metadata: this.instrumentation.metadata(action),
+      });
+      playlist = built.playlist;
+      buildSummary = built.summary;
+      this.instrumentation.markFailed(action, buildSummary.errors);
+      if (buildSummary.firstError) {
+        this.instrumentation.diagnostic(
+          "error",
+          "music_lazy_playlist_entry_error",
+          guildId,
+          { errorCount: buildSummary.errors, firstError: buildSummary.firstError },
+          action,
+        );
+      }
+      if (!playlist) {
+        throw new UserError(`⚠️ Aucune piste de la playlist **${name}** n’a pu être ajoutée.`);
+      }
+
+      if (queueAtStart && this.distube.getQueue(guildId) !== queueAtStart) {
+        this.cancelPlaylistLoad(guildId, "queue_replaced");
+        this.playlistLoader.assertActive(session);
+      }
+
+      await this.reconcilePlayback(guildId, action);
+      this.playlistLoader.assertActive(session);
+      try {
+        await this.playWithTimeout(
+          voiceChannel,
+          playlist,
+          options,
+          action,
+          () => this.rollbackLazyPlaylist(guildId, playlist!, action, "late_resolution"),
+        );
+      } catch (error) {
+        buildSummary.errors += buildSummary.validated;
+        if (buildSummary.validated > 1) this.instrumentation.markFailed(action, buildSummary.validated - 1);
+        await this.rollbackLazyPlaylist(guildId, playlist, action, "play_error");
+        throw error;
+      }
+
+      if (!this.playlistLoader.isActive(session)) {
+        await this.rollbackLazyPlaylist(guildId, playlist, action, session.cancelReason ?? "cancelled");
+        this.playlistLoader.assertActive(session);
+      }
+
+      const queue = this.distube.getQueue(guildId);
+      const addedCount = queue ? playlist.songs.filter((song) => queue.songs.includes(song)).length : 0;
+      const missingCount = Math.max(0, buildSummary.validated - addedCount);
+      if (missingCount > 0) {
+        buildSummary.errors += missingCount;
+        this.instrumentation.markFailed(action, missingCount);
+      }
+      this.instrumentation.setAdded(action, addedCount);
+      if (addedCount === 0) {
+        throw new UserError(`⚠️ Aucune piste de la playlist **${name}** n’a pu être ajoutée.`);
+      }
+      return { content: `📥 Playlist **${name}** chargée (${addedCount} pistes).` };
+    } catch (error) {
+      if (session.cancelled || error instanceof PlaylistLoadCancelledError) {
+        throw new UserError("⚠️ Le chargement de la playlist a été annulé.");
+      }
+      throw error;
+    } finally {
+      const queue = this.distube.getQueue(guildId);
+      const added = playlist ? playlist.songs.filter((song) => queue?.songs.includes(song)).length : 0;
+      this.instrumentation.setAdded(action, added);
+      this.instrumentation.lazyPlaylistSummary(action, {
+        detected: buildSummary.detected,
+        validated: buildSummary.validated,
+        added,
+        ignored: buildSummary.ignored,
+        errors: buildSummary.errors,
+        truncated: buildSummary.truncated,
+        buildDurationMs: buildSummary.buildDurationMs,
+        queueBefore,
+        queueAfter: queue?.songs.length ?? 0,
+        maxConcurrentPromises: buildSummary.maxConcurrentPromises,
+        cancelled: session.cancelled,
+        cancelReason: session.cancelReason,
+      });
+      this.playlistLoader.finish(session);
+    }
+  }
+
+  private async rollbackLazyPlaylist(
+    guildId: string,
+    playlist: Playlist,
+    action: MusicActionContext,
+    reason: string,
+  ): Promise<void> {
+    const queue = this.distube.getQueue(guildId);
+    if (!queue) return;
+    const lazySongs = new Set(playlist.songs);
+    if (!queue.songs.some((song) => lazySongs.has(song))) return;
+
+    if (lazySongs.has(queue.songs[0]!)) {
+      this.markVoiceStreamsForCleanup(queue.voice, guildId, action, `lazy_playlist_${reason}`);
+      await queue.stop().catch((error) =>
+        this.instrumentation.diagnostic(
+          "error",
+          "music_lazy_playlist_rollback_error",
+          guildId,
+          { errorMessage: errMsg(error) },
+          action,
+        ),
+      );
+      return;
+    }
+
+    queue.songs = queue.songs.filter((song) => !lazySongs.has(song));
+    this.publishPlayerState(queue, action);
+  }
+
   /**
    * Reconciles DisTube's logical Queue flag with Discord's real AudioPlayer.
    * Explicit /play and /playlist load commands resume a paused queue. A stale
@@ -526,6 +679,7 @@ export class MusicController {
 
   /** Removes a start attempt that never reached the real Playing state. */
   private async cleanupBlockedPlayback(guildId: string, correlation?: MusicCorrelation): Promise<void> {
+    this.cancelPlaylistLoad(guildId, "blocked_playback");
     const queue = this.distube.getQueue(guildId);
     const voice = this.distube.voices.get(guildId);
     if (voice) this.markVoiceStreamsForCleanup(voice, guildId, correlation, "blocked_playback");
@@ -576,19 +730,34 @@ export class MusicController {
     query: Parameters<DisTube["play"]>[1],
     options: Parameters<DisTube["play"]>[2],
     action: MusicActionContext,
+    onLateResolve?: () => Promise<void> | void,
   ): Promise<void> {
     const guildId = voiceChannel.guild.id;
     const tracedOptions = {
       ...options,
       metadata: this.instrumentation.metadata(action),
     } as Parameters<DisTube["play"]>[2];
+    const playPromise = this.distube.play(voiceChannel, query, tracedOptions);
     try {
       await withTimeout(
-        this.distube.play(voiceChannel, query, tracedOptions),
+        playPromise,
         PLAY_TIMEOUT_MS,
         () => new UserError("⏱️ La résolution du morceau a mis trop de temps. Réessaie avec un lien direct."),
       );
     } catch (error) {
+      if (onLateResolve) {
+        void playPromise
+          .then(onLateResolve, () => undefined)
+          .catch((lateError) =>
+            this.instrumentation.diagnostic(
+              "error",
+              "music_lazy_playlist_late_cleanup_error",
+              guildId,
+              { errorMessage: errMsg(lateError) },
+              action,
+            ),
+          );
+      }
       this.instrumentation.markFailed(action);
       // A failed addition must not interrupt an already Playing current song.
       // A half-created non-playing queue, however, must not survive the timeout.
@@ -636,6 +805,7 @@ export class MusicController {
       this.publishPlayerState(queue, correlation);
     });
     this.distube.on(DTEvents.FINISH, (queue) => {
+      this.cancelPlaylistLoad(queue.id, "queue_finished");
       const correlation = this.correlationFromMetadata(queue.songs[0]?.metadata, queue.id);
       this.instrumentation.queueEvent(correlation, undefined, "FINISH", { queueSize: queue.songs.length });
       this.ffmpegTails.delete(queue.id);
@@ -643,6 +813,7 @@ export class MusicController {
       this.pushEmptyState(queue.id, correlation);
     });
     this.distube.on(DTEvents.DISCONNECT, (queue) => {
+      this.cancelPlaylistLoad(queue.id, "disconnect");
       const correlation = this.correlationFromMetadata(queue.songs[0]?.metadata, queue.id);
       this.instrumentation.queueEvent(correlation, undefined, "DISCONNECT", { queueSize: queue.songs.length });
       this.ffmpegTails.delete(queue.id);
@@ -696,6 +867,7 @@ export class MusicController {
         ffmpegTail: guildId ? sanitizeMedia(this.ffmpegTails.get(guildId) ?? "", 1000) : "",
       }, correlation);
       if (guildId) {
+        this.cancelPlaylistLoad(guildId, "distube_error");
         this.instrumentation.cleanup(guildId, "distube_error", false, correlation);
         this.ffmpegTails.delete(guildId);
         this.pushEmptyState(guildId, correlation);

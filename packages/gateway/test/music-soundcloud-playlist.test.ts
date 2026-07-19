@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Playlist, Song, type ResolveOptions } from "distube";
 import { YtDlpPlugin } from "@distube/yt-dlp";
 import { GatewayYtDlpPlugin } from "../src/music.js";
+import { PlaylistLoader } from "../src/music/playlist-loader.js";
 
 const require = createRequire(import.meta.url);
 const { Playlist: CommonJsPlaylist, Song: CommonJsSong } = require("distube") as {
@@ -132,5 +133,57 @@ describe("GatewayYtDlpPlugin — ESM playlist compatibility", () => {
     expect(superResolve).toHaveBeenCalledWith(directSong.url, {});
     expect(streamResolve).not.toHaveBeenCalled();
     expect(result).toBe(directSong);
+  });
+
+  it("keeps saved-playlist ESM Songs lazily resolvable by the installed yt-dlp plugin", async () => {
+    const plugin = new GatewayYtDlpPlugin({ update: false });
+    const getStreamURL = vi
+      .spyOn(plugin, "getStreamURL")
+      .mockResolvedValue("https://media.example/lazy-first-track");
+    const loader = new PlaylistLoader();
+    const session = loader.start("g1", "lazy-soundcloud");
+    const metadata = { musicTrace: { actionId: "lazy-soundcloud" } };
+
+    const { playlist } = loader.build(
+      session,
+      [
+        {
+          title: "Ninho - Sky Priority (Jefe)",
+          url: "https://soundcloud.com/drilleurope/ninho-sky-priority-jefe",
+          duration: 153,
+          thumbnail: "https://images.example/sky-priority.jpg",
+          requestedBy: null,
+        },
+        {
+          title: "Ninho - Jefe",
+          url: "https://soundcloud.com/drilleurope/ninho-jefe",
+          duration: 177,
+          thumbnail: null,
+          requestedBy: null,
+        },
+      ],
+      {
+        name: "Album Jefe",
+        primarySource: "soundcloud",
+        plugins: [plugin],
+        metadata,
+      },
+    );
+
+    expect(playlist).toBeInstanceOf(Playlist);
+    expect(playlist!.songs.every((song) => song instanceof Song)).toBe(true);
+    expect(playlist!.songs.every((song) => song.plugin === plugin)).toBe(true);
+    expect(playlist!.songs.every((song) => song.metadata === metadata)).toBe(true);
+    expect(playlist!.songs.every((song) => song.stream.playFromSource)).toBe(true);
+    expect(playlist!.songs.every((song) => song.stream.url === undefined)).toBe(true);
+    expect(getStreamURL).not.toHaveBeenCalled();
+
+    await plugin.getStreamURL(playlist!.songs[0]!);
+
+    expect(getStreamURL).toHaveBeenCalledOnce();
+    expect(getStreamURL).toHaveBeenCalledWith(playlist!.songs[0]);
+    expect(playlist!.songs[1]!.stream.url).toBeUndefined();
+    loader.finish(session);
+    expect(loader.activeCount).toBe(0);
   });
 });

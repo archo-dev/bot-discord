@@ -49,6 +49,21 @@ export interface MusicLogSink {
   error(line: string): void;
 }
 
+export interface LazyPlaylistLogSummary {
+  detected: number;
+  validated: number;
+  added: number;
+  ignored: number;
+  errors: number;
+  truncated: number;
+  buildDurationMs: number;
+  queueBefore: number;
+  queueAfter: number;
+  maxConcurrentPromises: number;
+  cancelled: boolean;
+  cancelReason: string | null;
+}
+
 const MAX_TEXT_LENGTH = 240;
 const MAX_ARRAY_LENGTH = 20;
 const MAX_OBJECT_KEYS = 32;
@@ -211,6 +226,20 @@ export class MusicInstrumentation {
 
   markFailed(context: MusicActionContext | undefined, failedTracks = 1): void {
     if (context) context.failedTracks += Math.max(0, failedTracks);
+  }
+
+  setAdded(context: MusicActionContext, addedTracks: number): void {
+    context.addedTracks = Math.max(0, addedTracks);
+  }
+
+  lazyPlaylistSummary(context: MusicActionContext, summary: LazyPlaylistLogSummary): void {
+    this.emit(summary.cancelled ? "warn" : "info", "music_lazy_playlist_summary", context, { ...summary });
+  }
+
+  lazyPlaylistCancelled(guildId: string, reason: string, correlation?: MusicCorrelation): void {
+    this.emit("warn", "music_lazy_playlist_cancelled", correlation ?? { guildKey: this.guildKey(guildId) }, {
+      reason,
+    });
   }
 
   queueEvent(

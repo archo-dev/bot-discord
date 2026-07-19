@@ -173,7 +173,7 @@ export interface WorkerApi {
   postChannelActivity(guildId: string, entries: ChannelActivityEntry[]): Promise<void>;
   postMusicState(guildId: string, state: MusicStateDto): Promise<void>;
   savePlaylist(guildId: string, payload: { ownerId: string; name: string; tracks: MusicTrack[] }): Promise<void>;
-  getPlaylistTracks(guildId: string, name: string): Promise<MusicTrack[] | null>;
+  getPlaylistTracks(guildId: string, name: string, signal?: AbortSignal): Promise<MusicTrack[] | null>;
   /** Temp voice (M26): all registered temp channels (startup reconciliation). */
   listAllTempVoiceChannels(): Promise<TempVoiceChannelRef[]>;
   /** Temp voice (M26): current count for a guild (cap check before creating). */
@@ -210,7 +210,12 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
     } as ReliableEnvelope;
   }
 
-  async function call(method: "GET" | "POST" | "DELETE", path: string, body?: unknown): Promise<Response> {
+  async function call(
+    method: "GET" | "POST" | "DELETE",
+    path: string,
+    body?: unknown,
+    signal?: AbortSignal,
+  ): Promise<Response> {
     const requestId = crypto.randomUUID();
     try {
       const serializedBody = body !== undefined ? JSON.stringify(body) : "";
@@ -232,7 +237,7 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
           ...(body !== undefined ? { "content-type": "application/json" } : {}),
         },
         body: body !== undefined ? serializedBody : undefined,
-        signal: AbortSignal.timeout(10_000),
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000),
       });
       if (!res.ok && res.status !== 404) {
         errorsSinceLastHeartbeat++;
@@ -240,6 +245,9 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
       }
       return res;
     } catch (error) {
+      // An explicit caller cancellation is expected control flow, not a Worker
+      // outage. The playlist loader reports its own structured cancellation.
+      if (signal?.aborted) throw error;
       if (!(error instanceof Error && error.message.startsWith("worker request failed"))) errorsSinceLastHeartbeat++;
       const feature = path.split("/").filter(Boolean)[2] ?? path.split("/").filter(Boolean)[1] ?? "";
       const module =
@@ -365,8 +373,8 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
     async savePlaylist(guildId, payload) {
       await call("POST", `/internal/guilds/${guildId}/playlists`, payload);
     },
-    async getPlaylistTracks(guildId, name) {
-      const res = await call("GET", `/internal/guilds/${guildId}/playlists/${encodeURIComponent(name)}`);
+    async getPlaylistTracks(guildId, name, signal) {
+      const res = await call("GET", `/internal/guilds/${guildId}/playlists/${encodeURIComponent(name)}`, undefined, signal);
       if (res.status === 404) return null;
       return ((await res.json()) as { tracks: MusicTrack[] }).tracks;
     },
