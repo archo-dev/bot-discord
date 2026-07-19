@@ -206,6 +206,43 @@ function hasPhrase(value: string, phrase: string): boolean {
   return ` ${value} `.includes(` ${phrase} `);
 }
 
+type SoundcloudRejectionReason =
+  | "drm"
+  | "preview"
+  | "invalid_url"
+  | "unwanted_variant"
+  | "missing_query_terms"
+  | "below_threshold";
+
+interface SoundcloudRelevanceEntry {
+  index: number;
+  title: string;
+  uploader: string;
+  duration: number | null;
+  score: number | null;
+  decision: "accepted" | "rejected";
+  reasons: SoundcloudRejectionReason[];
+}
+
+interface SoundcloudRelevanceTrace {
+  query: string;
+  entriesReceived: number;
+  entries: SoundcloudRelevanceEntry[];
+  selected: { index: number; title: string; uploader: string } | null;
+  selectedScore: number | null;
+  threshold: number;
+}
+
+function sanitizeRelevanceField(value: unknown, maxLen = 120): string {
+  return sanitizeMedia(value, maxLen)
+    .replace(/\bhttps?:\/\/\S+/gi, "[redacted-url]")
+    .replace(/\b(sig|signature|token)\s*[:=]\s*\S+/gi, "$1=[redacted]");
+}
+
+function relevanceScore(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 /** First public soundcloud.com track URL of an entry (webpage_url preferred). */
 function publicSoundcloudUrl(entry: { webpage_url?: unknown; url?: unknown }): string | null {
   for (const cand of [entry.webpage_url, entry.url]) {
@@ -234,18 +271,35 @@ function isDrmLocked(entry: { drm?: unknown; has_drm?: unknown; availability?: u
  * and entries without a public soundcloud.com URL. Never bypasses DRM.
  * Throws a {@link UserError} when none qualifies.
  */
-export function pickPlayableSoundcloudUrl(info: unknown, query: string): string {
+export function pickPlayableSoundcloudUrl(info: unknown, query: string, trace?: SoundcloudRelevanceTrace): string {
   const entries = (info as { entries?: unknown } | null)?.entries;
+  if (trace) trace.entriesReceived = Array.isArray(entries) ? entries.length : 0;
   if (!Array.isArray(entries) || entries.length === 0) throw new UserError(NO_PLAYABLE_SC);
   const normalizedQuery = normalizeSoundcloudText(query);
   const queryTokens = significantTokens(normalizedQuery);
   const querySet = new Set(queryTokens);
   if (queryTokens.length === 0) throw new UserError(NO_PRECISE_SC);
 
-  let best: { score: number; url: string } | null = null;
+  let best: { score: number; url: string; diagnostic: SoundcloudRelevanceEntry } | null = null;
   let sawPlayableEntry = false;
-  for (const raw of entries.slice(0, SC_SEARCH_RESULTS)) {
-    if (!raw || typeof raw !== "object") continue; // null = skipped/DRM by yt-dlp -i
+  for (const [index, raw] of entries.slice(0, SC_SEARCH_RESULTS).entries()) {
+    const diagnostic: SoundcloudRelevanceEntry = {
+      index,
+      title: sanitizeRelevanceField((raw as { title?: unknown } | null)?.title),
+      uploader: sanitizeRelevanceField((raw as { uploader?: unknown } | null)?.uploader),
+      duration:
+        typeof (raw as { duration?: unknown } | null)?.duration === "number"
+          ? ((raw as { duration: number }).duration ?? null)
+          : null,
+      score: null,
+      decision: "rejected",
+      reasons: [],
+    };
+    if (!raw || typeof raw !== "object") {
+      diagnostic.reasons.push("invalid_url"); // null/invalid entries have no public URL
+      trace?.entries.push(diagnostic);
+      continue;
+    }
     const entry = raw as {
       title?: unknown;
       uploader?: unknown;
@@ -255,20 +309,34 @@ export function pickPlayableSoundcloudUrl(info: unknown, query: string): string 
       has_drm?: unknown;
       availability?: unknown;
     };
-    if (isDrmLocked(entry)) continue;
-    if (typeof entry.duration === "number" && entry.duration <= SC_MIN_DURATION_SEC) continue; // 30s preview
+    if (isDrmLocked(entry)) diagnostic.reasons.push("drm");
+    if (typeof entry.duration === "number" && entry.duration <= SC_MIN_DURATION_SEC) {
+      diagnostic.reasons.push("preview");
+    }
     const url = publicSoundcloudUrl(entry as { webpage_url?: unknown; url?: unknown });
-    if (!url) continue;
+    if (!url) diagnostic.reasons.push("invalid_url");
+    if (diagnostic.reasons.length > 0 || !url) {
+      trace?.entries.push(diagnostic);
+      continue;
+    }
     sawPlayableEntry = true;
 
     const title = normalizeSoundcloudText(entry.title);
     const uploader = normalizeSoundcloudText(entry.uploader);
     const uploaderId = normalizeSoundcloudText(entry.uploader_id);
-    if (!title) continue;
+    if (!title) {
+      diagnostic.reasons.push("missing_query_terms");
+      trace?.entries.push(diagnostic);
+      continue;
+    }
 
     // A requested variant is allowed, but any additional variant remains a
     // hard rejection: conservatively refuse instead of guessing a remix.
-    if (SC_VARIANTS.some((variant) => hasPhrase(title, variant) && !hasPhrase(normalizedQuery, variant))) continue;
+    if (SC_VARIANTS.some((variant) => hasPhrase(title, variant) && !hasPhrase(normalizedQuery, variant))) {
+      diagnostic.reasons.push("unwanted_variant");
+      trace?.entries.push(diagnostic);
+      continue;
+    }
 
     const titleSet = new Set(significantTokens(title));
     const uploaderSet = new Set([...significantTokens(uploader), ...significantTokens(uploaderId)]);
@@ -298,10 +366,23 @@ export function pickPlayableSoundcloudUrl(info: unknown, query: string): string 
     score -= extraTitleTokens * 30;
     if (extraTitleTokens >= 3) score -= 40;
 
-    if (!best || score > best.score) best = { score, url };
+    diagnostic.score = relevanceScore(score);
+    if (combinedCoverage < 1) diagnostic.reasons.push("missing_query_terms");
+    if (score < SC_RELEVANCE_THRESHOLD) diagnostic.reasons.push("below_threshold");
+    trace?.entries.push(diagnostic);
+    if (!best || score > best.score) best = { score, url, diagnostic };
   }
   if (!sawPlayableEntry) throw new UserError(NO_PLAYABLE_SC);
   if (!best || best.score < SC_RELEVANCE_THRESHOLD) throw new UserError(NO_PRECISE_SC);
+  best.diagnostic.decision = "accepted";
+  if (trace) {
+    trace.selected = {
+      index: best.diagnostic.index,
+      title: best.diagnostic.title,
+      uploader: best.diagnostic.uploader,
+    };
+    trace.selectedScore = relevanceScore(best.score);
+  }
   return best.url;
 }
 
@@ -332,7 +413,44 @@ export async function resolveSoundcloudSearch(
     console.error(`soundcloud search failed: ${sanitizeMedia(errMsg(err), 300)}`);
     throw new UserError(NO_SC_RESULT);
   }
-  return pickPlayableSoundcloudUrl(info, text);
+  const trace: SoundcloudRelevanceTrace = {
+    query: normalizeSoundcloudText(sanitizeRelevanceField(text, 160)),
+    entriesReceived: 0,
+    entries: [],
+    selected: null,
+    selectedScore: null,
+    threshold: SC_RELEVANCE_THRESHOLD,
+  };
+  const rankingStartedAt = performance.now();
+  try {
+    const selectedUrl = pickPlayableSoundcloudUrl(info, text, trace);
+    console.log(
+      JSON.stringify({
+        event: "soundcloud_search_relevance",
+        ...trace,
+        rankingMs: relevanceScore(performance.now() - rankingStartedAt),
+      }),
+    );
+    return selectedUrl;
+  } catch (err) {
+    console.log(
+      JSON.stringify({
+        event: "soundcloud_search_relevance",
+        ...trace,
+        rankingMs: relevanceScore(performance.now() - rankingStartedAt),
+      }),
+    );
+    if (err instanceof UserError) {
+      console.log(
+        JSON.stringify({
+          event: "soundcloud_search_relevance_user_error",
+          query: trace.query,
+          message: sanitizeRelevanceField(err.message, 200),
+        }),
+      );
+    }
+    throw err;
+  }
 }
 
 export interface MusicReply {

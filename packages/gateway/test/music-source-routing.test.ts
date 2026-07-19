@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { UserError, resolvePlayQuery } from "../src/music/format.js";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("resolvePlayQuery — SoundCloud primary source", () => {
   const SC = "soundcloud" as const;
@@ -18,10 +22,18 @@ describe("resolvePlayQuery — SoundCloud primary source", () => {
   });
 
   it("never marks a SoundCloud /sets/ URL for text-search pre-resolution", () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const url = "https://soundcloud.com/artist/sets/an-album";
     const resolved = resolvePlayQuery(url, SC);
     expect(resolved).toEqual({ query: url, source: "soundcloud" });
     expect(resolved.soundcloudSearch).toBeUndefined();
+    expect(logSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not emit relevance logs for a direct SoundCloud track URL", () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    resolvePlayQuery("https://soundcloud.com/artist/some-track", SC);
+    expect(logSpy).not.toHaveBeenCalled();
   });
 
   it("plays an m./on. soundcloud short URL directly", () => {

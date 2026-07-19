@@ -137,12 +137,92 @@ describe("resolveSoundcloudSearch — bounded pre-resolution", () => {
   });
 
   it("queries scsearch5: and resolves to the first playable track URL", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const fetchJson = vi.fn().mockResolvedValue({
       entries: [track({ title: "Réseaux", uploader: "Niska", webpage_url: scUrl("niska/reseaux") })],
     });
     await expect(resolveSoundcloudSearch("niska reseaux", fetchJson)).resolves.toBe(scUrl("niska/reseaux"));
     expect(fetchJson).toHaveBeenCalledWith("scsearch5:niska reseaux");
     expect(fetchJson).toHaveBeenCalledTimes(1);
+    expect(logSpy).toHaveBeenCalledOnce();
+  });
+
+  it("logs one structured relevance decision with every received entry", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const fetchJson = vi.fn().mockResolvedValue({
+      entries: [
+        null,
+        track({ title: "Réseaux", uploader: "Niska", drm: true, webpage_url: scUrl("drm/reseaux") }),
+        track({ title: "Réseaux", uploader: "Niska", duration: 30, webpage_url: scUrl("preview/reseaux") }),
+        track({ title: "Réseaux Remix", uploader: "Niska", webpage_url: scUrl("remix/reseaux") }),
+        track({ title: "Réseaux", uploader: "Niska", webpage_url: scUrl("niska/reseaux") }),
+      ],
+    });
+
+    await expect(resolveSoundcloudSearch("  NÍSKA — Réseaux  ", fetchJson)).resolves.toBe(scUrl("niska/reseaux"));
+
+    const payload = JSON.parse(String(logSpy.mock.calls[0]![0])) as {
+      event: string;
+      query: string;
+      entriesReceived: number;
+      entries: Array<{ index: number; score: number | null; decision: string; reasons: string[] }>;
+      selected: { index: number; title: string; uploader: string };
+      selectedScore: number;
+      threshold: number;
+      rankingMs: number;
+    };
+    expect(payload).toMatchObject({
+      event: "soundcloud_search_relevance",
+      query: "niska reseaux",
+      entriesReceived: 5,
+      selected: { index: 4, title: "Réseaux", uploader: "Niska" },
+      threshold: 180,
+    });
+    expect(payload.entries).toHaveLength(5);
+    expect(payload.entries[0]).toMatchObject({ index: 0, decision: "rejected", reasons: ["invalid_url"] });
+    expect(payload.entries[1]!.reasons).toContain("drm");
+    expect(payload.entries[2]!.reasons).toContain("preview");
+    expect(payload.entries[3]!.reasons).toContain("unwanted_variant");
+    expect(payload.entries[4]).toMatchObject({ index: 4, decision: "accepted", reasons: [] });
+    expect(payload.selectedScore).toBeGreaterThanOrEqual(payload.threshold);
+    expect(payload.rankingMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("logs an explicit structured event when relevance returns a UserError", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const fetchJson = vi.fn().mockResolvedValue({
+      entries: [track({ title: "Jefe", uploader: "Ninho", webpage_url: scUrl("ninho/jefe") })],
+    });
+
+    await expect(resolveSoundcloudSearch("niska reseaux", fetchJson)).rejects.toThrow(/précisément/i);
+
+    const events = logSpy.mock.calls.map(([line]) => JSON.parse(String(line)) as { event: string });
+    expect(events.map((event) => event.event)).toEqual([
+      "soundcloud_search_relevance",
+      "soundcloud_search_relevance_user_error",
+    ]);
+  });
+
+  it("never logs a full URL, signature, token or cookie value", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const fetchJson = vi.fn().mockResolvedValue({
+      entries: [
+        track({
+          title: "Réseaux https://media.example/private/audio?sig=SIGNATURE_SECRET",
+          uploader: "Niska Cookie: COOKIE_SECRET",
+          webpage_url: scUrl("niska/reseaux"),
+        }),
+      ],
+    });
+
+    await expect(resolveSoundcloudSearch("niska reseaux token=TOKEN_SECRET", fetchJson)).rejects.toThrow(UserError);
+
+    const logged = logSpy.mock.calls.map(([line]) => String(line)).join("\n");
+    expect(logged).not.toContain("https://media.example/private/audio");
+    expect(logged).not.toContain("SIGNATURE_SECRET");
+    expect(logged).not.toContain("COOKIE_SECRET");
+    expect(logged).not.toContain("TOKEN_SECRET");
+    expect(logged).not.toMatch(/sig=/i);
   });
 
   it("throws 'complet et lisible' when every result is a preview/DRM", async () => {
