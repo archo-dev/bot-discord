@@ -74,20 +74,26 @@ describe("music state", () => {
     expect(res.status).toBe(200);
     const state = (await res.json()) as MusicStateDto;
     expect(state.connected).toBe(false);
+    expect(state.status).toBe("idle");
+    expect(state.seekable).toBe(false);
+    expect(state.sequence).toBe(0);
     expect(state.current).toBeNull();
     expect(state.queue).toEqual([]);
   });
 
   it("returns the gateway-published state", async () => {
     const published: MusicStateDto = {
+      status: "playing",
       connected: true,
       paused: false,
+      seekable: true,
       current: { title: "Now", url: "https://x/n", duration: 210, thumbnail: null, requestedBy: "1" },
       elapsed: 42,
       queue: [{ title: "Next", url: "https://x/2", duration: 100, thumbnail: null, requestedBy: "1" }],
       loop: "song",
       volume: 80,
       voiceChannelId: "9",
+      sequence: Date.now(),
       updatedAt: Date.now(),
     };
     expect((await internal(`/internal/guilds/${G}/music-state`, "POST", published)).status).toBe(200);
@@ -98,6 +104,46 @@ describe("music state", () => {
     expect(state.current?.title).toBe("Now");
     expect(state.elapsed).toBe(42);
     expect(state.loop).toBe("song");
+    expect(state.status).toBe("playing");
+    expect(state.seekable).toBe(true);
+  });
+
+  it("normalizes legacy snapshots and rejects delayed KV overwrites", async () => {
+    const baseSequence = Date.now() + 1_000;
+    const legacy = {
+      connected: true,
+      paused: true,
+      current: { title: "Legacy", url: "https://x/legacy", duration: 120, thumbnail: null, requestedBy: null },
+      elapsed: 12,
+      queue: [],
+      loop: "off",
+      volume: 50,
+      voiceChannelId: "9",
+      updatedAt: baseSequence,
+    };
+    expect((await internal(`/internal/guilds/${G}/music-state`, "POST", legacy)).status).toBe(200);
+
+    const recent = {
+      ...legacy,
+      status: "playing" as const,
+      paused: false,
+      seekable: true,
+      sequence: baseSequence + 2,
+      updatedAt: baseSequence + 2,
+    };
+    const stale = {
+      ...recent,
+      status: "buffering" as const,
+      sequence: baseSequence + 1,
+      updatedAt: baseSequence + 1,
+    };
+    expect((await internal(`/internal/guilds/${G}/music-state`, "POST", recent)).status).toBe(200);
+    const ignored = await internal(`/internal/guilds/${G}/music-state`, "POST", stale);
+    expect(await ignored.json()).toEqual({ ok: true, ignored: "stale_sequence" });
+
+    const sid = await makeSession("850000000000000005");
+    const result = (await (await panel(`/api/guilds/${G}/music-state`, sid)).json()) as MusicStateDto;
+    expect(result).toMatchObject({ status: "playing", paused: false, sequence: baseSequence + 2 });
   });
 
   it("503s panel controls when the gateway is unreachable (GATEWAY_ORIGIN unset)", async () => {

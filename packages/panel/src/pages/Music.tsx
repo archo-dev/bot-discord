@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MusicStateDto, PlaylistSummaryDto } from "@bot/shared";
@@ -6,6 +7,7 @@ import { Badge, Button, Card, EmptyState, ErrorCard, InfoCard } from "../ui/kit.
 import { Icon } from "../ui/icons.js";
 import { Skeleton, SkeletonList } from "../ui/skeleton.js";
 import { useCanWrite } from "../lib/access.js";
+import { interpolateMusicElapsed, musicPollInterval, newestMusicState } from "../lib/music-state.js";
 
 function formatDuration(totalSeconds: number): string {
   const sec = Math.floor(totalSeconds % 60);
@@ -22,15 +24,30 @@ const LOOP_LABELS: Record<MusicStateDto["loop"], string> = {
   queue: "🔁 Répète la file",
 };
 
+const STATUS_LABELS: Record<MusicStateDto["status"], string> = {
+  idle: "Inactif",
+  buffering: "Chargement…",
+  playing: "En lecture",
+  paused: "En pause",
+  stopped: "Arrêté",
+  error: "Erreur",
+};
+
 export function MusicPage() {
   const { guildId } = useParams<{ guildId: string }>();
   const queryClient = useQueryClient();
   const canWrite = useCanWrite();
 
-  const state = useQuery({
-    queryKey: ["music-state", guildId],
-    queryFn: () => api<MusicStateDto>(`/api/guilds/${guildId}/music-state`),
-    refetchInterval: 4000,
+  const stateKey = ["music-state", guildId] as const;
+  const state = useQuery<MusicStateDto>({
+    queryKey: stateKey,
+    queryFn: async () => {
+      const incoming = await api<MusicStateDto>(`/api/guilds/${guildId}/music-state`);
+      return newestMusicState(queryClient.getQueryData<MusicStateDto>(stateKey), incoming);
+    },
+    refetchInterval: (query) => musicPollInterval(query.state.data, query.state.fetchFailureCount),
+    refetchIntervalInBackground: false,
+    refetchOnReconnect: true,
   });
   const playlists = useQuery({
     queryKey: ["playlists", guildId],
@@ -41,12 +58,27 @@ export function MusicPage() {
     mutationFn: (action: "pause" | "resume" | "skip" | "stop") =>
       api(`/api/guilds/${guildId}/music-control`, { method: "POST", body: JSON.stringify({ action }) }),
     meta: { errorMessage: "Contrôle indisponible — gateway hors ligne ?" },
-    onSuccess: () => setTimeout(() => void queryClient.invalidateQueries({ queryKey: ["music-state", guildId] }), 500),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: stateKey }),
   });
 
   const s = state.data;
   const current = s?.current ?? null;
-  const progress = current && current.duration > 0 ? Math.min(100, (s!.elapsed / current.duration) * 100) : 0;
+  const receipt = useRef({ sequence: -1, at: performance.now() });
+  if (s && receipt.current.sequence !== s.sequence) {
+    receipt.current = { sequence: s.sequence, at: performance.now() };
+  }
+  const [, renderClock] = useState(0);
+  useEffect(() => {
+    if (s?.status !== "playing") return;
+    const timer = window.setInterval(() => renderClock((value) => value + 1), 250);
+    return () => window.clearInterval(timer);
+  }, [s?.status, s?.sequence]);
+  const displayedElapsed = s
+    ? interpolateMusicElapsed(s, performance.now() - receipt.current.at)
+    : 0;
+  const progress = current && current.duration > 0
+    ? Math.min(100, (displayedElapsed / current.duration) * 100)
+    : 0;
 
   return (
     // M21 : masonry 2 colonnes (lecture / file / playlists).
@@ -55,8 +87,18 @@ export function MusicPage() {
         title="Lecture en cours"
         action={
           s ? (
-            <Badge tone={s.connected ? (s.paused ? "warning" : "success") : "neutral"}>
-              {s.connected ? (s.paused ? "En pause" : "En lecture") : "Inactif"}
+            <Badge
+              tone={
+                s.status === "error"
+                  ? "danger"
+                  : s.status === "paused" || s.status === "buffering"
+                    ? "warning"
+                    : s.status === "playing"
+                      ? "success"
+                      : "neutral"
+              }
+            >
+              {STATUS_LABELS[s.status]}
             </Badge>
           ) : undefined
         }
@@ -70,7 +112,7 @@ export function MusicPage() {
               <Skeleton className="mt-4 h-1.5 w-full rounded-full" />
             </div>
           </div>
-        ) : state.isError ? (
+        ) : state.isError && !s ? (
           <ErrorCard message="Impossible de charger l'état de lecture." onRetry={() => void state.refetch()} />
         ) : current ? (
           <div>
@@ -98,7 +140,7 @@ export function MusicPage() {
                 <div className="h-1.5 rounded-full bg-indigo-600" style={{ width: `${progress}%` }} />
               </div>
               <div className="mt-1 flex justify-between text-xs text-zinc-500">
-                <span>{formatDuration(s!.elapsed)}</span>
+                <span>{formatDuration(displayedElapsed)}</span>
                 <span>{current.duration > 0 ? formatDuration(current.duration) : "live"}</span>
               </div>
             </div>
@@ -179,7 +221,7 @@ export function MusicPage() {
 
       <InfoCard icon={<Icon.music />} title="Astuce">
         Lance la lecture depuis Discord avec <code>/play</code> ; les contrôles ci-dessus pilotent le bot en temps réel
-        via le Gateway. L'état se rafraîchit automatiquement toutes les 4 s.
+        via le Gateway. Le panel interpole localement la progression et adapte sa synchronisation à l'état réel.
       </InfoCard>
     </div>
   );

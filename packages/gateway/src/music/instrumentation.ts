@@ -387,6 +387,8 @@ export class MusicInstrumentation {
       elapsed: number;
       queueSize: number;
       playerState: string;
+      playbackStatus?: string;
+      sequence?: number;
     },
     correlation?: MusicCorrelation,
     error?: unknown,

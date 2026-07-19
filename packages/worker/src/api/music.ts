@@ -1,6 +1,12 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { EMPTY_MUSIC_STATE, type MusicCommandPayload, type MusicStateDto, type PlaylistSummaryDto } from "@bot/shared";
+import {
+  EMPTY_MUSIC_STATE,
+  MusicStateSchema,
+  type MusicCommandPayload,
+  type MusicStateDto,
+  type PlaylistSummaryDto,
+} from "@bot/shared";
 import { isGuildModuleEnabled, listPlaylists } from "../db/queries.js";
 import { forwardMusic } from "../gateway/forward.js";
 import type { AppContext } from "../auth/guard.js";
@@ -9,9 +15,20 @@ import { rateLimit } from "../ratelimit.js";
 // Session + guild-access middlewares are applied once, centrally, in index.ts.
 export const musicRouter = new Hono<AppContext>();
 
+function cachedMusicState(raw: string | null): MusicStateDto | null {
+  if (!raw) return null;
+  try {
+    const parsed = MusicStateSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
 musicRouter.get("/guilds/:guildId/music-state", async (c) => {
   const cached = await c.env.KV.get(`music:${c.req.param("guildId")}`);
-  const state: MusicStateDto = cached ? (JSON.parse(cached) as MusicStateDto) : EMPTY_MUSIC_STATE;
+  const state = cachedMusicState(cached) ?? EMPTY_MUSIC_STATE;
+  c.header("cache-control", "no-store");
   return c.json(state);
 });
 

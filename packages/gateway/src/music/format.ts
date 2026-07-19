@@ -3,6 +3,7 @@
 import { RepeatMode, type Song } from "distube";
 import type { MusicStateDto, MusicTrack } from "@bot/shared";
 import { sanitizeMedia } from "./log-sanitize.js";
+import { getSoundcloudPlaybackMetadata } from "./soundcloud-playback.js";
 import { errMsg } from "../util.js";
 
 /** User-facing error whose message is shown as-is (not logged as a crash). */
@@ -495,12 +496,16 @@ export function progressBar(elapsed: number, total: number, width = 18): string 
 }
 
 export function toTrack(song: Song): MusicTrack {
+  const playback = getSoundcloudPlaybackMetadata(song.metadata, song.id);
   return {
     title: song.name ?? "Titre inconnu",
     url: song.url ?? "",
     duration: song.duration ?? 0,
     thumbnail: song.thumbnail ?? null,
     requestedBy: song.user?.id ?? null,
+    isPreview: playback?.isPreview ?? null,
+    previewReason: playback?.previewReason ?? null,
+    isLive: Boolean(song.isLive),
   };
 }
 

@@ -657,7 +657,7 @@ describe("MusicController — real AudioPlayer state", () => {
     );
   });
 
-  it("preserves the last dashboard snapshot through Idle and Buffering between two tracks", async () => {
+  it("publishes Buffering then Playing without an empty snapshot between two tracks", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const first = song("First");
     const second = song("Second");
@@ -674,23 +674,36 @@ describe("MusicController — real AudioPlayer state", () => {
     distube.emit(DTEvents.FINISH_SONG, getQueue(), first);
     getQueue()!.songs.shift();
     getQueue()!.currentTime = 0;
+    expect(api.postMusicState).not.toHaveBeenCalled();
+
     player.transition(AudioPlayerStatus.Buffering);
     distube.emit(DTEvents.PLAY_SONG, getQueue(), second);
 
-    expect(api.postMusicState).not.toHaveBeenCalled();
+    expect(api.postMusicState).toHaveBeenCalledOnce();
+    expect(api.postMusicState).toHaveBeenLastCalledWith(
+      "g1",
+      expect.objectContaining({
+        status: "buffering",
+        connected: true,
+        paused: false,
+        current: expect.objectContaining({ title: "Second" }),
+      }),
+    );
 
     player.transition(AudioPlayerStatus.Playing);
-    await vi.waitFor(() => expect(api.postMusicState).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(api.postMusicState).toHaveBeenCalledTimes(2));
 
     const states = api.postMusicState.mock.calls.map(([, state]) => state);
     expect(states).not.toContainEqual(expect.objectContaining({ connected: false }));
     expect(states).not.toContainEqual(expect.objectContaining({ current: null, queue: [] }));
     expect(states.at(-1)).toMatchObject({
+      status: "playing",
       connected: true,
       paused: false,
       current: expect.objectContaining({ title: "Second" }),
       queue: [],
     });
+    expect(states[1]!.sequence).toBeGreaterThan(states[0]!.sequence);
     const transitions = log.mock.calls
       .map(([line]) => JSON.parse(String(line)) as Record<string, unknown>)
       .filter((event) => event.event === "music_player_transition");
@@ -720,7 +733,7 @@ describe("MusicController — real AudioPlayer state", () => {
     distube.emit(DTEvents.FINISH, getQueue());
     expect(api.postMusicState).toHaveBeenLastCalledWith(
       "g1",
-      expect.objectContaining({ connected: false, current: null, queue: [] }),
+      expect.objectContaining({ status: "idle", connected: false, current: null, queue: [] }),
     );
 
     api.postMusicState.mockClear();
@@ -728,7 +741,7 @@ describe("MusicController — real AudioPlayer state", () => {
     distube.emit(DTEvents.ERROR, new Error("fatal stream failure"), getQueue(), current);
     expect(api.postMusicState).toHaveBeenLastCalledWith(
       "g1",
-      expect.objectContaining({ connected: false, current: null, queue: [] }),
+      expect.objectContaining({ status: "error", connected: false, current: null, queue: [] }),
     );
     expect(errorLog.mock.calls.some(([line]) => String(line).includes("fatal stream failure"))).toBe(true);
   });
@@ -758,10 +771,10 @@ describe("MusicController — real AudioPlayer state", () => {
     firstGuild.distube.emit(DTEvents.PLAY_SONG, firstGuild.getQueue(), firstGuild.getQueue()!.songs[0]!);
     firstGuild.player.transition(AudioPlayerStatus.Playing);
 
-    await vi.waitFor(() => expect(firstGuild.api.postMusicState).toHaveBeenCalledOnce());
-    expect(firstGuild.api.postMusicState).toHaveBeenCalledWith(
+    await vi.waitFor(() => expect(firstGuild.api.postMusicState).toHaveBeenCalledTimes(2));
+    expect(firstGuild.api.postMusicState).toHaveBeenLastCalledWith(
       "g1",
-      expect.objectContaining({ current: expect.objectContaining({ title: "Second A" }) }),
+      expect.objectContaining({ status: "playing", current: expect.objectContaining({ title: "Second A" }) }),
     );
     expect(secondGuild.api.postMusicState).not.toHaveBeenCalled();
     expect(firstGuild.player.listenerCount("stateChange")).toBe(1);
@@ -847,7 +860,7 @@ describe("MusicController — real AudioPlayer state", () => {
         availability: null,
       },
     };
-    const { distube, getQueue } = createHarness({
+    const { distube, api, player, getQueue } = createHarness({
       status: AudioPlayerStatus.Playing,
       queuePaused: false,
       initialSongs: [preview],
@@ -855,6 +868,15 @@ describe("MusicController — real AudioPlayer state", () => {
     getQueue()!.currentTime = 30;
 
     distube.emit(DTEvents.PLAY_SONG, getQueue(), preview);
+    player.transition(AudioPlayerStatus.Buffering);
+    expect(api.postMusicState).toHaveBeenLastCalledWith(
+      "g1",
+      expect.objectContaining({
+        status: "buffering",
+        seekable: false,
+        current: expect.objectContaining({ isPreview: true, previewReason: "selected_format_id" }),
+      }),
+    );
     distube.emit(DTEvents.FINISH_SONG, getQueue(), preview);
 
     const events = log.mock.calls.map(([line]) => JSON.parse(String(line)) as Record<string, unknown>);
@@ -899,20 +921,32 @@ describe("MusicController — real AudioPlayer state", () => {
       queuePaused: false,
       initialSongs: [current, next],
     });
+    distube.emit(DTEvents.PLAY_SONG, getQueue(), current);
+    api.postMusicState.mockClear();
 
     expect((await controller.handle({ ...playPayload, command: "pause", arg: null })).ok).toBe(true);
     expect(player.state.status).toBe(AudioPlayerStatus.Paused);
+    expect(api.postMusicState).toHaveBeenLastCalledWith("g1", expect.objectContaining({ status: "paused" }));
     expect((await controller.handle({ ...playPayload, command: "resume", arg: null })).ok).toBe(true);
+    expect(api.postMusicState).toHaveBeenLastCalledWith("g1", expect.objectContaining({ status: "buffering" }));
     player.transition(AudioPlayerStatus.Playing);
+    expect(api.postMusicState).toHaveBeenLastCalledWith("g1", expect.objectContaining({ status: "playing" }));
     expect(getQueue()!.resume).toHaveBeenCalledOnce();
     expect((await controller.handle({ ...playPayload, command: "skip", arg: null })).ok).toBe(true);
     expect(getQueue()!.skip).toHaveBeenCalledOnce();
 
     distube.emit(DTEvents.DISCONNECT, getQueue());
-    expect(api.postMusicState).toHaveBeenCalledWith("g1", expect.objectContaining({ connected: false }));
+    expect(api.postMusicState).toHaveBeenCalledWith(
+      "g1",
+      expect.objectContaining({ status: "stopped", connected: false }),
+    );
 
     getQueue()!.songs = [current];
     expect((await controller.handle({ ...playPayload, command: "stop", arg: null })).ok).toBe(true);
+    expect(api.postMusicState).toHaveBeenLastCalledWith(
+      "g1",
+      expect.objectContaining({ status: "stopped", connected: false }),
+    );
     expect(getStreamURL).not.toHaveBeenCalled();
   });
 });

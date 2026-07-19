@@ -13,7 +13,12 @@ import {
 import { type Client, type GuildTextBasedChannel } from "discord.js";
 import { AudioPlayerStatus, entersState, type AudioPlayer, type VoiceConnection } from "@discordjs/voice";
 import { json as ytdlpJson } from "@distube/yt-dlp";
-import { EMPTY_MUSIC_STATE, type MusicCommandPayload, type MusicStateDto } from "@bot/shared";
+import {
+  EMPTY_MUSIC_STATE,
+  type MusicCommandPayload,
+  type MusicPlaybackStatus,
+  type MusicStateDto,
+} from "@bot/shared";
 import type { WorkerApi } from "../worker-api.js";
 import { errMsg } from "../util.js";
 import {
@@ -72,6 +77,13 @@ function isPausedPlayerStatus(status: AudioPlayerStatus): boolean {
   return status === AudioPlayerStatus.Paused || status === AudioPlayerStatus.AutoPaused;
 }
 
+function playbackStatus(status: AudioPlayerStatus | undefined): MusicPlaybackStatus {
+  if (status === AudioPlayerStatus.Playing) return "playing";
+  if (status === AudioPlayerStatus.Buffering) return "buffering";
+  if (status && isPausedPlayerStatus(status)) return "paused";
+  return "idle";
+}
+
 function streamErrorCode(error: unknown): string | undefined {
   return error && typeof error === "object" && "code" in error && typeof error.code === "string"
     ? error.code
@@ -119,6 +131,7 @@ export class MusicController {
   private readonly executingPlaybackActions = new Map<string, MusicActionContext>();
   private readonly actionsById = new Map<string, MusicActionContext>();
   private readonly playlistLoader = new PlaylistLoader();
+  private lastMusicStateSequence = 0;
 
   constructor(
     private readonly client: Client,
@@ -255,7 +268,7 @@ export class MusicController {
         if (queue.songs.length <= 1) {
           await queue.stop();
           this.clearNowPlaying(guild.id);
-          this.pushEmptyState(guild.id);
+          this.pushEmptyState(guild.id, undefined, "stopped");
           return { content: "⏭️ Dernière piste — lecture arrêtée." };
         }
         await queue.skip();
@@ -267,7 +280,7 @@ export class MusicController {
         this.markVoiceStreamsForCleanup(queue.voice, guild.id, action, "stop");
         await queue.stop();
         this.clearNowPlaying(guild.id);
-        this.pushEmptyState(guild.id);
+        this.pushEmptyState(guild.id, undefined, "stopped");
         return { content: "⏹️ Lecture arrêtée." };
       }
 
@@ -776,7 +789,7 @@ export class MusicController {
     );
     if (this.distube.voices.get(guildId)) this.distube.voices.leave(guildId);
     this.clearNowPlaying(guildId);
-    this.pushEmptyState(guildId);
+    this.pushEmptyState(guildId, correlation, "error");
   }
 
   /** Waits for Discord's actual AudioPlayer, shared by playSong and the command. */
@@ -903,7 +916,7 @@ export class MusicController {
       this.instrumentation.queueEvent(correlation, undefined, "FINISH", { queueSize: queue.songs.length });
       this.ffmpegTails.delete(queue.id);
       this.clearNowPlaying(queue.id);
-      this.pushEmptyState(queue.id, correlation);
+      this.pushEmptyState(queue.id, correlation, "idle");
     });
     this.distube.on(DTEvents.DISCONNECT, (queue) => {
       this.cancelPlaylistLoad(queue.id, "disconnect");
@@ -911,7 +924,7 @@ export class MusicController {
       this.instrumentation.queueEvent(correlation, undefined, "DISCONNECT", { queueSize: queue.songs.length });
       this.ffmpegTails.delete(queue.id);
       this.clearNowPlaying(queue.id);
-      this.pushEmptyState(queue.id, correlation);
+      this.pushEmptyState(queue.id, correlation, "stopped");
     });
     // DisTube prefixes ffmpeg diagnostics with [guildId]. Spawn commands are
     // deliberately never retained because they contain the signed input URL.
@@ -973,7 +986,7 @@ export class MusicController {
         this.cancelPlaylistLoad(guildId, "distube_error");
         this.instrumentation.cleanup(guildId, "distube_error", false, correlation);
         this.ffmpegTails.delete(guildId);
-        this.pushEmptyState(guildId, correlation);
+        this.pushEmptyState(guildId, correlation, "error");
       }
     });
   }
@@ -1004,20 +1017,23 @@ export class MusicController {
           this.instrumentation.markPerformanceStage(action, "playing");
         }
         const queue = this.distube.getQueue(guildId);
-        if (newState.status === AudioPlayerStatus.Playing || isPausedPlayerStatus(newState.status)) {
+        if (
+          newState.status === AudioPlayerStatus.Playing ||
+          newState.status === AudioPlayerStatus.Buffering ||
+          isPausedPlayerStatus(newState.status)
+        ) {
           if (queue) this.pushState(queue, correlation);
         }
-        // Buffering and Idle are part of DisTube's normal track transition.
-        // Keep the last stable dashboard snapshot until Playing identifies the
-        // next song. FINISH, DISCONNECT, stop and fatal errors still publish an
-        // empty state explicitly through their dedicated lifecycle handlers.
+        // Idle is the brief gap in DisTube's normal track transition, so it
+        // keeps the last stable snapshot. Buffering above publishes the next
+        // known song without claiming Playing. Terminal handlers own empties.
       });
       player.on("error", (err) => {
         const correlation = this.currentAction(guildId);
         this.instrumentation.diagnostic("error", "music_player_error", guildId, {
           errorMessage: sanitizeMedia(errMsg(err), 500),
         }, correlation);
-        this.pushEmptyState(guildId, correlation);
+        this.pushEmptyState(guildId, correlation, "error");
       });
     }
 
@@ -1030,7 +1046,7 @@ export class MusicController {
           this.instrumentation.voiceTransition(guildId, oldState.status, newState.status, correlation);
         }
         if (newState.status === "disconnected" || newState.status === "destroyed") {
-          this.pushEmptyState(guildId, correlation);
+          this.pushEmptyState(guildId, correlation, "stopped");
         }
       });
       connection.on("error", (err) => {
@@ -1038,7 +1054,7 @@ export class MusicController {
         this.instrumentation.diagnostic("error", "music_voice_error", guildId, {
           errorMessage: sanitizeMedia(errMsg(err), 500),
         }, correlation);
-        this.pushEmptyState(guildId, correlation);
+        this.pushEmptyState(guildId, correlation, "error");
       });
     }
   }
@@ -1105,15 +1121,22 @@ export class MusicController {
   private buildState(queue: Queue): MusicStateDto {
     const [current, ...rest] = queue.songs;
     const playerStatus = this.distube.voices.get(queue.id)?.audioPlayer.state.status;
+    const currentTrack = current ? toTrack(current) : null;
+    const status = playbackStatus(playerStatus);
     return {
+      status,
       connected: true,
-      paused: playerStatus !== AudioPlayerStatus.Playing,
-      current: current ? toTrack(current) : null,
+      paused: status === "paused",
+      seekable: Boolean(
+        currentTrack && currentTrack.duration > 0 && !currentTrack.isLive && currentTrack.isPreview !== true,
+      ),
+      current: currentTrack,
       elapsed: Math.floor(queue.currentTime),
       queue: rest.map(toTrack),
       loop: loopLabel(queue.repeatMode),
       volume: queue.volume,
       voiceChannelId: queue.voiceChannel?.id ?? null,
+      sequence: this.nextMusicStateSequence(),
       updatedAt: Date.now(),
     };
   }
@@ -1135,6 +1158,8 @@ export class MusicController {
         elapsed: state.elapsed,
         queueSize: state.queue.length,
         playerState,
+        playbackStatus: state.status,
+        sequence: state.sequence,
       }, resolvedCorrelation),
       (error) => this.instrumentation.dashboard(queue.id, "error", {
         connected: state.connected,
@@ -1143,20 +1168,35 @@ export class MusicController {
         elapsed: state.elapsed,
         queueSize: state.queue.length,
         playerState,
+        playbackStatus: state.status,
+        sequence: state.sequence,
       }, resolvedCorrelation, error),
     );
   }
 
-  /** Publishes only states that the current dashboard DTO can represent safely. */
+  /** Publishes only states backed by the current AudioPlayer state. */
   private publishPlayerState(queue: Queue, correlation?: MusicCorrelation): void {
     const status = this.distube.voices.get(queue.id)?.audioPlayer.state.status;
-    if (status === AudioPlayerStatus.Playing || isPausedPlayerStatus(status as AudioPlayerStatus)) {
+    if (
+      status === AudioPlayerStatus.Playing ||
+      status === AudioPlayerStatus.Buffering ||
+      isPausedPlayerStatus(status as AudioPlayerStatus)
+    ) {
       this.pushState(queue, correlation);
     }
   }
 
-  private pushEmptyState(guildId: string, correlation?: MusicCorrelation): void {
-    const state = { ...EMPTY_MUSIC_STATE, updatedAt: Date.now() };
+  private pushEmptyState(
+    guildId: string,
+    correlation?: MusicCorrelation,
+    status: Extract<MusicPlaybackStatus, "idle" | "stopped" | "error"> = "idle",
+  ): void {
+    const state: MusicStateDto = {
+      ...EMPTY_MUSIC_STATE,
+      status,
+      sequence: this.nextMusicStateSequence(),
+      updatedAt: Date.now(),
+    };
     const playerState = this.distube.voices.get(guildId)?.audioPlayer.state.status ?? "none";
     const resolvedCorrelation = correlation ?? this.currentAction(guildId) ?? {
       guildKey: this.instrumentation.guildKey(guildId),
@@ -1169,6 +1209,8 @@ export class MusicController {
         elapsed: 0,
         queueSize: 0,
         playerState,
+        playbackStatus: state.status,
+        sequence: state.sequence,
       }, resolvedCorrelation),
       (error) => this.instrumentation.dashboard(guildId, "error", {
         connected: false,
@@ -1177,8 +1219,15 @@ export class MusicController {
         elapsed: 0,
         queueSize: 0,
         playerState,
+        playbackStatus: state.status,
+        sequence: state.sequence,
       }, resolvedCorrelation, error),
     );
+  }
+
+  private nextMusicStateSequence(): number {
+    this.lastMusicStateSequence = Math.max(Date.now(), this.lastMusicStateSequence + 1);
+    return this.lastMusicStateSequence;
   }
 
   // --- Helpers --------------------------------------------------------------

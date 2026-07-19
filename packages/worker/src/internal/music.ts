@@ -2,6 +2,7 @@
 
 import { Hono } from "hono";
 import { z } from "zod";
+import { MusicStateSchema } from "@bot/shared";
 import type { Env } from "../env.js";
 import { getPlaylist, upsertPlaylist } from "../db/queries.js";
 import { requireInternalModule } from "./module-guard.js";
@@ -10,13 +11,29 @@ export const internalMusicRouter = new Hono<{ Bindings: Env }>();
 internalMusicRouter.use("/internal/guilds/:guildId/music-state", requireInternalModule("music"));
 internalMusicRouter.use("/internal/guilds/:guildId/playlists", requireInternalModule("music"));
 
+function cachedMusicSequence(raw: string | null): number | null {
+  if (!raw) return null;
+  try {
+    const parsed = MusicStateSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data.sequence : null;
+  } catch {
+    return null;
+  }
+}
+
 // Music playback snapshot from the gateway → KV (short TTL) for the panel.
 internalMusicRouter.post("/internal/guilds/:guildId/music-state", async (c) => {
-  const body = await c.req.json().catch(() => null);
-  if (typeof body !== "object" || body === null) return c.json({ error: "invalid_body" }, 400);
+  const parsed = MusicStateSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
+  const key = `music:${c.req.param("guildId")}`;
+  const cached = await c.env.KV.get(key);
+  const currentSequence = cachedMusicSequence(cached);
+  if (currentSequence !== null && currentSequence >= parsed.data.sequence) {
+    return c.json({ ok: true, ignored: "stale_sequence" });
+  }
   // 60 s = KV minimum TTL; the gateway refreshes every 15 s while playing, so a
   // stale key clears within a minute of the gateway going silent.
-  await c.env.KV.put(`music:${c.req.param("guildId")}`, JSON.stringify(body), { expirationTtl: 60 });
+  await c.env.KV.put(key, JSON.stringify(parsed.data), { expirationTtl: 60 });
   return c.json({ ok: true });
 });
 
