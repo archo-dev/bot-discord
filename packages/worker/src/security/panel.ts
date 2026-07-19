@@ -10,11 +10,19 @@ const COSTLY: ReadonlyArray<{
   capability: DurableQuotaCapability;
   userLimit: number;
   guildLimit: number;
+  /** Separates counters without adding a new D1 capability/schema value. */
+  namespace?: string;
 }> = [
   { method: "PATCH", pattern: /^\/api\/guilds\/\d{5,20}\/nickname$/, capability: "guild_identity", userLimit: 10, guildLimit: 50 },
   { method: "POST", pattern: /^\/api\/guilds\/\d{5,20}\/(button-roles|tickets\/panel)$/, capability: "discord_publish", userLimit: 10, guildLimit: 100 },
-  { method: "POST", pattern: /^\/api\/guilds\/\d{5,20}\/music-(control|search|enqueue)$/, capability: "music_control", userLimit: 300, guildLimit: 2_000 },
+  { method: "POST", pattern: /^\/api\/guilds\/\d{5,20}\/music-(control|enqueue)$/, capability: "music_control", userLimit: 300, guildLimit: 2_000 },
+  { method: "POST", pattern: /^\/api\/guilds\/\d{5,20}\/music-search$/, capability: "music_control", userLimit: 300, guildLimit: 2_000, namespace: "music-search" },
 ];
+
+export function durableQuotaNamespace(method: string, pathname: string): string | null {
+  const rule = COSTLY.find((candidate) => candidate.method === method && candidate.pattern.test(pathname));
+  return rule ? (rule.namespace ?? rule.capability) : null;
+}
 
 function target(pathname: string): { type: "command" | "warning" | "button_role" | null; id: string | null } {
   const command = pathname.match(/\/commands\/(\d+)(?:\/state)?$/);
@@ -35,10 +43,11 @@ export const durablePanelQuota: MiddlewareHandler<AppContext> = async (c, next) 
   }
   const guildId = c.req.param("guildId")!;
   const actorId = c.get("session").userId;
+  const purposeSuffix = rule.namespace ? `:${rule.namespace}` : "";
   const [guildKey, guildScopeKey, userScopeKey] = await Promise.all([
-    securityPseudonym(c.env.SESSION_SECRET, "quota-guild", guildId, guildId),
-    securityPseudonym(c.env.SESSION_SECRET, "quota-scope", guildId, "guild"),
-    securityPseudonym(c.env.SESSION_SECRET, "quota-user", guildId, actorId),
+    securityPseudonym(c.env.SESSION_SECRET, `quota-guild${purposeSuffix}`, guildId, guildId),
+    securityPseudonym(c.env.SESSION_SECRET, `quota-scope${purposeSuffix}`, guildId, "guild"),
+    securityPseudonym(c.env.SESSION_SECRET, `quota-user${purposeSuffix}`, guildId, actorId),
   ]);
   const allowed = await consumeDurableQuota(c.env.DB, {
     day: new Date().toISOString().slice(0, 10), guildKey, guildScopeKey, userScopeKey,

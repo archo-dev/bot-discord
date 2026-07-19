@@ -10,8 +10,10 @@ import {
   isAbortError,
   MUSIC_SEARCH_DEBOUNCE_MS,
   MUSIC_SEARCH_MAX_LENGTH,
+  MUSIC_SEARCH_MIN_LENGTH,
   MusicSearchCoordinator,
   MusicSubmissionGuard,
+  musicSearchErrorMessage,
 } from "../lib/music-search.js";
 import { Badge, Button, Input } from "../ui/kit.js";
 
@@ -70,39 +72,37 @@ export function MusicSearchPanel({ guildId, onQueued }: { guildId: string; onQue
 
   useEffect(() => {
     const query = input.trim();
-    coordinator.current.cancel();
     setLoading(false);
     setNotice(null);
     setResults([]);
     setResolvedQuery("");
-    if (!query) {
+    if (query.length < MUSIC_SEARCH_MIN_LENGTH) {
+      coordinator.current.schedule(query, guildId, () => undefined);
       setError(null);
       return;
     }
-    const timer = window.setTimeout(() => {
-      const request = coordinator.current.begin();
+    coordinator.current.schedule(query, guildId, (normalizedQuery, request) => {
       setLoading(true);
       setError(null);
       void api<MusicPanelSearchResponse>(`/api/guilds/${guildId}/music-search`, {
         method: "POST",
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query: normalizedQuery }),
         signal: request.signal,
       }).then((response) => {
         if (!request.isCurrent()) return;
         if (!response.ok) throw new Error(response.message ?? "Aucun résultat exploitable.");
         setResults(response.results.slice(0, 5));
-        setResolvedQuery(query);
+        setResolvedQuery(normalizedQuery);
         if (response.results.length === 0) setError(response.message ?? "Aucun résultat exploitable.");
       }).catch((reason: unknown) => {
         if (!request.isCurrent() || isAbortError(reason)) return;
         setResults([]);
         setResolvedQuery("");
-        setError(reason instanceof Error ? reason.message : "Recherche indisponible.");
+        setError(musicSearchErrorMessage(reason));
       }).finally(() => {
         if (request.isCurrent()) setLoading(false);
       });
-    }, MUSIC_SEARCH_DEBOUNCE_MS);
-    return () => window.clearTimeout(timer);
+    });
   }, [guildId, input]);
 
   useEffect(() => () => coordinator.current.cancel(), []);
@@ -138,7 +138,9 @@ export function MusicSearchPanel({ guildId, onQueued }: { guildId: string; onQue
         placeholder="Niska Réseaux ou https://soundcloud.com/…"
         onChange={(event) => setInput(event.target.value)}
       />
-      <p className="mt-1 text-xs text-zinc-500">Recherche automatique après {MUSIC_SEARCH_DEBOUNCE_MS / 1000} s.</p>
+      <p className="mt-1 text-xs text-zinc-500">
+        {MUSIC_SEARCH_MIN_LENGTH} caractères minimum · recherche après {MUSIC_SEARCH_DEBOUNCE_MS / 1000} s.
+      </p>
       {loading && <p className="mt-3 text-sm text-indigo-300" aria-live="polite">Recherche en cours…</p>}
       {!loading && results.map((result, index) => (
         <ResultCard

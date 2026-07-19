@@ -4,6 +4,8 @@ export class ApiError extends Error {
     public readonly code: string,
     /** Erreurs zod par champ renvoyées par le Worker sur `invalid_body` (plan E5). */
     public readonly fields?: Record<string, string[] | undefined>,
+    /** Bounded server delay for 429 responses, in seconds. */
+    public readonly retryAfterSeconds?: number,
   ) {
     super(`${status}: ${code}`);
     this.name = "ApiError";
@@ -41,15 +43,27 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     let code = "error";
     let fields: Record<string, string[] | undefined> | undefined;
+    let retryAfterSeconds: number | undefined;
     try {
-      const body = (await res.json()) as { error?: string; fields?: Record<string, string[] | undefined> };
+      const body = (await res.json()) as {
+        error?: string;
+        fields?: Record<string, string[] | undefined>;
+        retryAfterSeconds?: number;
+      };
       code = body.error ?? "error";
       fields = body.fields;
+      if (Number.isFinite(body.retryAfterSeconds) && body.retryAfterSeconds! > 0) {
+        retryAfterSeconds = Math.ceil(body.retryAfterSeconds!);
+      }
     } catch {
       // non-JSON error body
     }
+    const retryAfterHeader = Number(res.headers.get("retry-after"));
+    if (retryAfterSeconds === undefined && Number.isFinite(retryAfterHeader) && retryAfterHeader > 0) {
+      retryAfterSeconds = Math.ceil(retryAfterHeader);
+    }
     if (res.status === 401 && path !== "/api/me") window.dispatchEvent(new Event("panel:session-expired"));
-    throw new ApiError(res.status, code, fields);
+    throw new ApiError(res.status, code, fields, retryAfterSeconds);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;

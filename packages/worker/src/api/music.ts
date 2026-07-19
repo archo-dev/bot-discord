@@ -65,7 +65,12 @@ musicRouter.post("/guilds/:guildId/music-control", rateLimit({ name: "music-cont
   return c.json({ ok: result.ok, message: result.message });
 });
 
-musicRouter.post("/guilds/:guildId/music-search", rateLimit({ name: "music-search", limit: 12 }), async (c) => {
+musicRouter.post("/guilds/:guildId/music-search", rateLimit({
+  name: "music-search-preview",
+  limit: 30,
+  scope: "user-guild",
+  exactRetryAfter: true,
+}), async (c) => {
   const guildId = c.req.param("guildId");
   if (!(await isGuildModuleEnabled(c.env.DB, guildId, "music"))) {
     return c.json({ error: "module_disabled" }, 409);

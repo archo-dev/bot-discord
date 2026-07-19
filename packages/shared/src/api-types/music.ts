@@ -103,8 +103,11 @@ export const MusicControlRequestSchema = z.discriminatedUnion("action", [
 
 export type MusicControlRequest = z.infer<typeof MusicControlRequestSchema>;
 
+export const MUSIC_SEARCH_MIN_LENGTH = 3;
+export const MUSIC_SEARCH_MAX_LENGTH = 500;
+
 export const MusicSearchRequestSchema = z.object({
-  query: z.string().trim().min(1).max(500),
+  query: z.string().trim().min(MUSIC_SEARCH_MIN_LENGTH).max(MUSIC_SEARCH_MAX_LENGTH),
 }).strict();
 
 export type MusicSearchRequest = z.infer<typeof MusicSearchRequestSchema>;

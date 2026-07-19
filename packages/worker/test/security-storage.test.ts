@@ -44,6 +44,40 @@ describe("M02 atomic security storage", () => {
     ]);
   });
 
+  it("keeps search preview quota independent from music mutations", async () => {
+    const common = {
+      day: "2026-07-19",
+      guildLimit: 1,
+      userLimit: 1,
+      capability: "music_control" as const,
+    };
+    const search = {
+      ...common,
+      guildKey: "1".repeat(32),
+      guildScopeKey: "2".repeat(32),
+      userScopeKey: "3".repeat(32),
+    };
+    const controls = {
+      ...common,
+      guildKey: "4".repeat(32),
+      guildScopeKey: "5".repeat(32),
+      userScopeKey: "6".repeat(32),
+    };
+    expect(await consumeDurableQuota(env.DB, search)).toBe(true);
+    expect(await consumeDurableQuota(env.DB, search)).toBe(false);
+    expect(await consumeDurableQuota(env.DB, controls)).toBe(true);
+    const rows = await env.DB.prepare(
+      `SELECT guild_key, scope_type, count FROM security_quota_usage
+       WHERE day = ?1 AND guild_key IN (?2, ?3) ORDER BY guild_key, scope_type`,
+    ).bind(common.day, search.guildKey, controls.guildKey).all<{ guild_key: string; scope_type: string; count: number }>();
+    expect(rows.results).toEqual([
+      { guild_key: search.guildKey, scope_type: "guild", count: 1 },
+      { guild_key: search.guildKey, scope_type: "user", count: 1 },
+      { guild_key: controls.guildKey, scope_type: "guild", count: 1 },
+      { guild_key: controls.guildKey, scope_type: "user", count: 1 },
+    ]);
+  });
+
   it("purges expired nonces, quotas and audit rows", async () => {
     await env.DB.batch([
       env.DB.prepare(`INSERT INTO internal_request_nonces VALUES ('gateway-to-worker', ?1, datetime('now','-1 day'), datetime('now','-1 day'))`).bind("d".repeat(64)),

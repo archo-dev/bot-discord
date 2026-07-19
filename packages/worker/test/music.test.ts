@@ -190,13 +190,46 @@ describe("music state", () => {
         method: "POST",
         body: JSON.stringify({ query: "Niska Réseaux" }),
       })).status).toBe(503);
-      for (const body of [{ query: "" }, { query: "x".repeat(501) }, { query: "ok", extra: true }]) {
+      for (const body of [
+        { query: "" },
+        { query: "x" },
+        { query: "xx" },
+        { query: "x".repeat(501) },
+        { query: "valid", extra: true },
+      ]) {
         expect((await panel(`/api/guilds/${G}/${route}`, sid, {
           method: "POST",
           body: JSON.stringify(body),
         })).status).toBe(400);
       }
     }
+  });
+
+  it("limits search previews independently without consuming control or enqueue bursts", async () => {
+    const sid = await makeSession("850000000000000007");
+    for (let index = 0; index < 30; index++) {
+      const response = await panel(`/api/guilds/${G}/music-search`, sid, {
+        method: "POST",
+        body: JSON.stringify({ query: `search ${index}` }),
+      });
+      expect(response.status, `preview ${index}`).toBe(503);
+    }
+    const limited = await panel(`/api/guilds/${G}/music-search`, sid, {
+      method: "POST",
+      body: JSON.stringify({ query: "search limited" }),
+    });
+    expect(limited.status).toBe(429);
+    expect(Number(limited.headers.get("retry-after"))).toBeGreaterThan(0);
+    expect(await limited.json()).toMatchObject({ error: "rate_limited" });
+
+    expect((await panel(`/api/guilds/${G}/music-control`, sid, {
+      method: "POST",
+      body: JSON.stringify({ action: "pause" }),
+    })).status).toBe(503);
+    expect((await panel(`/api/guilds/${G}/music-enqueue`, sid, {
+      method: "POST",
+      body: JSON.stringify({ query: "still allowed" }),
+    })).status).toBe(503);
   });
 });
 

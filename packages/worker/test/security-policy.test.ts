@@ -4,6 +4,7 @@ import { PANEL_MUTATION_POLICIES, isPanelMutationAllowed, matchPanelMutationPoli
 import app from "../src/index.js";
 import { createSession } from "../src/auth/session.js";
 import { replacePanelAccess, upsertGuild } from "../src/db/queries.js";
+import { durableQuotaNamespace } from "../src/security/panel.js";
 
 const GUILD_A = "970000000000000001";
 const GUILD_B = "970000000000000002";
@@ -55,6 +56,12 @@ describe("M02 panel mutation policy", () => {
       const concrete = policy.path.replace(":guildId", "910000000000000001").replace(":warnId", "1").replace(":id", "1");
       expect(matchPanelMutationPolicy(policy.method, concrete)).toEqual(policy);
     }
+  });
+
+  it("keeps music search quota separate from control and enqueue quotas", () => {
+    expect(durableQuotaNamespace("POST", "/api/guilds/910000000000000001/music-search")).toBe("music-search");
+    expect(durableQuotaNamespace("POST", "/api/guilds/910000000000000001/music-control")).toBe("music_control");
+    expect(durableQuotaNamespace("POST", "/api/guilds/910000000000000001/music-enqueue")).toBe("music_control");
   });
 
   it("denies unknown mutations and grants only classified access levels", () => {
