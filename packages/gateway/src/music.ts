@@ -10,6 +10,13 @@ import type { Client } from "discord.js";
 import type { WorkerApi } from "./worker-api.js";
 import { MusicController } from "./music/controller.js";
 import { MusicInstrumentation } from "./music/instrumentation.js";
+import {
+  classifySoundcloudPlayback,
+  getSoundcloudPlaybackMetadata,
+  withSoundcloudPlaybackMetadata,
+  withSoundcloudPlaylistPlaybackMetadata,
+  type SoundcloudFormatMetadata,
+} from "./music/soundcloud-playback.js";
 
 export { MusicController } from "./music/controller.js";
 export { UserError, type PrimarySource } from "./music/format.js";
@@ -49,6 +56,14 @@ interface YtDlpTrackInfo {
   dislike_count?: number;
   repost_count?: number;
   age_limit?: number;
+  availability?: string;
+  protocol?: string;
+  format_id?: string;
+  format_note?: string;
+  acodec?: string;
+  abr?: number;
+  ext?: string;
+  formats?: SoundcloudFormatMetadata[];
 }
 
 export type SoundcloudSetJsonResolver = (url: string) => Promise<unknown>;
@@ -137,6 +152,10 @@ function normalizedYtDlpSong<T>(plugin: GatewayYtDlpPlugin, info: YtDlpTrackInfo
   const name = info.title || info.fulltitle;
   const url = info.webpage_url || info.original_url;
   if (!id || !name || !url) return null;
+  const metadata = withSoundcloudPlaybackMetadata(
+    options.metadata,
+    classifySoundcloudPlayback(info),
+  );
   return new Song<T>(
     {
       plugin,
@@ -155,7 +174,7 @@ function normalizedYtDlpSong<T>(plugin: GatewayYtDlpPlugin, info: YtDlpTrackInfo
       reposts: info.repost_count,
       ageRestricted: (info.age_limit ?? 0) >= 18,
     },
-    options,
+    { ...options, metadata },
   );
 }
 
@@ -181,6 +200,13 @@ export class GatewayYtDlpPlugin extends YtDlpPlugin {
         .map((entry) => normalizedYtDlpSong(this, entry, options))
         .filter((song): song is Song<T> => song !== null);
       if (songs.length === 0) throw new DisTubeError("YTDLP_ERROR", "The playlist has no playable entries");
+      const metadata = withSoundcloudPlaylistPlaybackMetadata(
+        options.metadata,
+        songs.flatMap((song) => {
+          const playback = getSoundcloudPlaybackMetadata(song.metadata);
+          return playback ? [{ id: song.id, playback }] : [];
+        }),
+      );
       return new Playlist<T>(
         {
           source: info.extractor ?? "soundcloud",
@@ -190,7 +216,7 @@ export class GatewayYtDlpPlugin extends YtDlpPlugin {
           url: info.webpage_url ?? url,
           thumbnail: info.thumbnail || info.thumbnails?.[0]?.url,
         },
-        options,
+        { ...options, metadata },
       );
     }
 

@@ -48,6 +48,7 @@ import {
   SoundcloudSearchCacheClearedError,
   SoundcloudSearchCapacityError,
 } from "./search-cache.js";
+import { getSoundcloudPlaybackMetadata } from "./soundcloud-playback.js";
 
 interface NowPlaying {
   messageId: string;
@@ -75,6 +76,22 @@ function streamErrorCode(error: unknown): string | undefined {
   return error && typeof error === "object" && "code" in error && typeof error.code === "string"
     ? error.code
     : undefined;
+}
+
+function soundcloudPlaybackFields(song: Song): Record<string, unknown> {
+  const playback = getSoundcloudPlaybackMetadata(song.metadata, song.id);
+  return {
+    previewClassification: playback?.classification ?? "unknown",
+    isPreview: playback?.isPreview ?? null,
+    previewReason: playback?.previewReason ?? null,
+    sourceFormat: playback?.formatId ?? null,
+    sourceProtocol: playback?.protocol ?? null,
+    sourceCodec: playback?.acodec ?? null,
+    sourceAbr: playback?.abr ?? null,
+    sourceExt: playback?.ext ?? null,
+    sourceExtractor: playback?.extractor ?? song.source ?? null,
+    sourceAvailability: playback?.availability ?? null,
+  };
 }
 
 export class MusicController {
@@ -867,6 +884,16 @@ export class MusicController {
         detectedTracks: playlist.songs.length,
         queueSize: queue.songs.length,
         firstTitle: playlist.songs[0]?.name ?? null,
+        previewTracks: playlist.songs.filter(
+          (song) => getSoundcloudPlaybackMetadata(song.metadata, song.id)?.isPreview,
+        ).length,
+        fullTracks: playlist.songs.filter(
+          (song) => getSoundcloudPlaybackMetadata(song.metadata, song.id)?.classification === "full",
+        ).length,
+        unknownPreviewTracks: playlist.songs.filter(
+          (song) => !getSoundcloudPlaybackMetadata(song.metadata, song.id) ||
+            getSoundcloudPlaybackMetadata(song.metadata, song.id)?.classification === "unknown",
+        ).length,
       });
       this.publishPlayerState(queue, correlation);
     });
@@ -917,7 +944,11 @@ export class MusicController {
       this.instrumentation.queueEvent(correlation, undefined, "FINISH_SONG", {
         title: song.name,
         duration: song.duration,
+        announcedDuration: song.duration,
+        playedDuration: Math.round(queue.currentTime * 1_000) / 1_000,
+        completion: "normal",
         queueSize: queue.songs.length,
+        ...soundcloudPlaybackFields(song),
       });
     });
     // NB: DisTube v5.2.3 has no `empty` event — the closest lifecycle signals
@@ -1031,6 +1062,7 @@ export class MusicController {
       serverMute: me?.serverMute ?? null,
       serverDeaf: me?.serverDeaf ?? null,
       selfMute: me?.selfMute ?? null,
+      ...soundcloudPlaybackFields(song),
     });
     this.clearNowPlaying(queue.id);
     try {

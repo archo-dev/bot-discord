@@ -4,6 +4,7 @@ import { Playlist, Song, type ResolveOptions } from "distube";
 import { YtDlpPlugin } from "@distube/yt-dlp";
 import { GatewayYtDlpPlugin, parseSoundcloudSetOutput } from "../src/music.js";
 import { PlaylistLoader } from "../src/music/playlist-loader.js";
+import { getSoundcloudPlaybackMetadata } from "../src/music/soundcloud-playback.js";
 
 const require = createRequire(import.meta.url);
 const { Playlist: CommonJsPlaylist, Song: CommonJsSong } = require("distube") as {
@@ -120,7 +121,32 @@ describe("GatewayYtDlpPlugin — ESM playlist compatibility", () => {
       id: String(2_127_940_821 + index),
       title: index === 0 ? "KAT (feat. La Rvfleuze)" : `Playable track ${index + 1}`,
       webpage_url: `https://soundcloud.com/mathis-miot/playable-track-${index + 1}`,
-      duration: index === 0 ? 30 : 180 + index,
+      duration: index <= 1 ? 30 : 180 + index,
+      format_id: index === 0 ? "http_mp3_1_0_preview" : index === 1 ? "http_mp3_1_0" : "hls_aac_160k",
+      protocol: index <= 1 ? "http" : "m3u8_native",
+      acodec: index <= 1 ? "mp3" : "mp4a.40.2",
+      abr: index <= 1 ? 128 : 160,
+      ext: index <= 1 ? "mp3" : "m4a",
+      formats: index === 0
+        ? [
+            {
+              format_id: "hls_mp3_1_0_preview",
+              protocol: "m3u8_native",
+              acodec: "mp3",
+              abr: 128,
+              ext: "mp3",
+              url: "https://media.example/preview?signature=SECRET",
+            },
+            {
+              format_id: "http_mp3_1_0_preview",
+              protocol: "http",
+              acodec: "mp3",
+              abr: 128,
+              ext: "mp3",
+              url: "https://media.example/preview?token=SECRET",
+            },
+          ]
+        : [{ format_id: index === 1 ? "http_mp3_1_0" : "hls_aac_160k" }],
       thumbnail: `https://images.example/playable-track-${index + 1}.jpg`,
       uploader: "Mathis Miot",
       uploader_url: "https://soundcloud.com/mathis-miot",
@@ -162,7 +188,9 @@ describe("GatewayYtDlpPlugin — ESM playlist compatibility", () => {
     expect(playlist.songs.every((song) => !(song instanceof CommonJsSong))).toBe(true);
     expect(playlist.songs.every((song) => song.playlist === playlist)).toBe(true);
     expect(playlist.songs.every((song) => song.plugin === plugin)).toBe(true);
-    expect(playlist.songs.every((song) => song.metadata === resolveOptions.metadata)).toBe(true);
+    expect(playlist.metadata).not.toBe(resolveOptions.metadata);
+    expect(playlist.songs.every((song) => song.metadata === playlist.metadata)).toBe(true);
+    expect(playlist.songs.every((song) => (song.metadata as { requestId?: string }).requestId === "playlist-test")).toBe(true);
     expect(playlist.songs.every((song) => song.stream.playFromSource)).toBe(true);
     expect(playlist.songs.every((song) => song.stream.url === undefined)).toBe(true);
     expect(playlist.name).toBe("Nouveauté Rap Francais 2026 (Nouvelle Music du Rap Francais 2026)");
@@ -173,6 +201,30 @@ describe("GatewayYtDlpPlugin — ESM playlist compatibility", () => {
       url: "https://soundcloud.com/mathis-miot/playable-track-1",
       duration: 30,
     });
+    expect(getSoundcloudPlaybackMetadata(playlist.songs[0]!.metadata, playlist.songs[0]!.id)).toMatchObject({
+      classification: "preview",
+      isPreview: true,
+      previewReason: "selected_format_id",
+      formatId: "http_mp3_1_0_preview",
+      protocol: "http",
+      acodec: "mp3",
+      abr: 128,
+      ext: "mp3",
+    });
+    expect(getSoundcloudPlaybackMetadata(playlist.songs[1]!.metadata, playlist.songs[1]!.id)).toMatchObject({
+      classification: "full",
+      isPreview: false,
+      previewReason: null,
+      formatId: "http_mp3_1_0",
+    });
+    expect(playlist.songs[1]!.duration).toBe(30);
+    expect(getSoundcloudPlaybackMetadata(playlist.songs[2]!.metadata, playlist.songs[2]!.id)).toMatchObject({
+      classification: "full",
+      isPreview: false,
+      formatId: "hls_aac_160k",
+    });
+    expect(JSON.stringify(playlist.songs[0]!.metadata)).not.toContain("media.example");
+    expect(JSON.stringify(playlist.songs[0]!.metadata)).not.toContain("SECRET");
     expect(playlist.songs.map((song) => song.id)).toEqual(playableEntries.map((entry) => entry.id));
     expect(streamResolve).not.toHaveBeenCalled();
 

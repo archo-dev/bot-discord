@@ -715,6 +715,57 @@ describe("MusicController — real AudioPlayer state", () => {
     expect(output).not.toContain("TOKEN_SECRET");
   });
 
+  it("logs explicit SoundCloud preview classification and normal played duration without stream URLs", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const preview = song("KAT (feat. La Rvfleuze)");
+    preview.duration = 30;
+    preview.metadata = {
+      soundcloudPlayback: {
+        classification: "preview",
+        isPreview: true,
+        previewReason: "selected_format_id",
+        formatId: "http_mp3_1_0_preview",
+        protocol: "http",
+        formatNote: null,
+        acodec: "mp3",
+        abr: 128,
+        ext: "mp3",
+        extractor: "soundcloud",
+        availability: null,
+      },
+    };
+    const { distube, getQueue } = createHarness({
+      status: AudioPlayerStatus.Playing,
+      queuePaused: false,
+      initialSongs: [preview],
+    });
+    getQueue()!.currentTime = 30;
+
+    distube.emit(DTEvents.PLAY_SONG, getQueue(), preview);
+    distube.emit(DTEvents.FINISH_SONG, getQueue(), preview);
+
+    const events = log.mock.calls.map(([line]) => JSON.parse(String(line)) as Record<string, unknown>);
+    expect(events).toContainEqual(expect.objectContaining({
+      event: "music_queue_event",
+      eventType: "PLAY_SONG",
+      title: "KAT (feat. La Rvfleuze)",
+      isPreview: true,
+      previewReason: "selected_format_id",
+      sourceFormat: "http_mp3_1_0_preview",
+      sourceProtocol: "http",
+    }));
+    expect(events).toContainEqual(expect.objectContaining({
+      event: "music_queue_event",
+      eventType: "FINISH_SONG",
+      announcedDuration: 30,
+      playedDuration: 30,
+      completion: "normal",
+      isPreview: true,
+    }));
+    expect(JSON.stringify(events)).not.toContain("signature=");
+    expect(JSON.stringify(events)).not.toContain("token=");
+  });
+
   it("ignores DisTube's [test] ffmpeg bootstrap label instead of resolving it as a guild", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const { distube } = createHarness();
