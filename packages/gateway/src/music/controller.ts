@@ -3,6 +3,7 @@
 import { DisTube, Events as DTEvents, RepeatMode, type Queue, type Song } from "distube";
 import { type Client, type GuildTextBasedChannel } from "discord.js";
 import type { AudioPlayer, VoiceConnection } from "@discordjs/voice";
+import { json as ytdlpJson } from "@distube/yt-dlp";
 import { EMPTY_MUSIC_STATE, type MusicCommandPayload, type MusicStateDto } from "@bot/shared";
 import type { WorkerApi } from "../worker-api.js";
 import { errMsg } from "../util.js";
@@ -12,6 +13,7 @@ import {
   formatDuration,
   loopLabel,
   resolvePlayQuery,
+  resolveSoundcloudSearch,
   toTrack,
   withTimeout,
   type MusicReply,
@@ -83,9 +85,16 @@ export class MusicController {
           // Routes by primary source: SoundCloud search/URL vs YouTube. May reject
           // a bare playlist, or a YouTube link while SoundCloud is the stand-in.
           const resolved = resolvePlayQuery(raw, this.primarySource);
+          // DisTube only routes http(s) URLs to the yt-dlp plugin, so a SoundCloud
+          // text search is pre-resolved here to a concrete track URL first.
+          const playQuery = resolved.soundcloudSearch
+            ? await resolveSoundcloudSearch(resolved.query, (q) =>
+                ytdlpJson(q, { dumpSingleJson: true, noWarnings: true, skipDownload: true, simulate: true }),
+              )
+            : resolved.query;
           const before = this.distube.getQueue(guild.id)?.songs.length ?? 0;
           try {
-            await this.playWithTimeout(voiceChannel, resolved.query, { member, textChannel });
+            await this.playWithTimeout(voiceChannel, playQuery, { member, textChannel });
             // Hook voice/player state as early as the connection exists, so we
             // capture the signalling → ready transition (not just from playSong).
             this.instrumentVoice(guild.id);

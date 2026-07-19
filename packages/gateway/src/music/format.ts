@@ -2,6 +2,8 @@
 
 import { RepeatMode, type Song } from "distube";
 import type { MusicStateDto, MusicTrack } from "@bot/shared";
+import { sanitizeMedia } from "./log-sanitize.js";
+import { errMsg } from "../util.js";
 
 /** User-facing error whose message is shown as-is (not logged as a crash). */
 export class UserError extends Error {}
@@ -59,10 +61,14 @@ export function normalizeQuery(query: string): string {
 export type PrimarySource = "youtube" | "soundcloud";
 
 export interface ResolvedQuery {
-  /** The concrete query handed to `distube.play()`. */
+  /** The concrete query handed to `distube.play()`, or — when
+   *  {@link ResolvedQuery.soundcloudSearch} is set — the raw search text. */
   query: string;
   /** Origin of the resulting track, for user-facing labelling. */
   source: "youtube" | "soundcloud" | "url";
+  /** When true, `query` is a SoundCloud search TEXT to pre-resolve to a track
+   *  URL via {@link resolveSoundcloudSearch} before handing it to DisTube. */
+  soundcloudSearch?: boolean;
 }
 
 /**
@@ -107,7 +113,7 @@ export function resolvePlayQuery(raw: string, primary: PrimarySource): ResolvedQ
   }
 
   // Plain text search.
-  if (primary === "soundcloud") return { query: `scsearch1:${trimmed}`, source: "soundcloud" };
+  if (primary === "soundcloud") return { query: trimmed, source: "soundcloud", soundcloudSearch: true };
   return { query: trimmed, source: "youtube" };
 }
 
@@ -122,6 +128,57 @@ export function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () =>
 
 /** Extraction timeout (ms) for a single `distube.play()` call. */
 export const PLAY_TIMEOUT_MS = 40_000;
+
+/** Bound for the SoundCloud search pre-resolution (yt-dlp `scsearch1:`). */
+export const SC_SEARCH_TIMEOUT_MS = 15_000;
+
+const NO_SC_RESULT = "⚠️ Aucun résultat SoundCloud trouvé pour cette recherche.";
+
+/**
+ * Extracts a playable SoundCloud track URL from a `scsearch1:` dump-single-json
+ * result (a playlist with entries). Prefers `webpage_url`, else any http(s) URL.
+ * Throws a {@link UserError} on an empty/invalid/unexpected shape.
+ */
+export function pickSoundcloudTrackUrl(info: unknown): string {
+  const entries = (info as { entries?: unknown } | null)?.entries;
+  if (!Array.isArray(entries) || entries.length === 0) throw new UserError(NO_SC_RESULT);
+  const first = entries[0] as { webpage_url?: unknown; url?: unknown } | null;
+  const url = [first?.webpage_url, first?.url].find(
+    (u): u is string => typeof u === "string" && /^https?:\/\//i.test(u),
+  );
+  if (!url) throw new UserError(NO_SC_RESULT);
+  return url;
+}
+
+/** Function that runs a yt-dlp query and resolves its parsed JSON (injected for tests). */
+export type YtDlpJsonFn = (query: string) => Promise<unknown>;
+
+/**
+ * Pre-resolves a SoundCloud text search to a concrete track URL. DisTube only
+ * routes http(s) URLs to the yt-dlp plugin, so a bare `scsearch1:` search must
+ * be resolved here first, then the resulting URL handed to `distube.play()`.
+ * Bounded by `timeoutMs`; any yt-dlp failure is logged sanitised (never cookies
+ * or signed URLs) and surfaced as a clean UserError.
+ */
+export async function resolveSoundcloudSearch(
+  text: string,
+  fetchJson: YtDlpJsonFn,
+  timeoutMs: number = SC_SEARCH_TIMEOUT_MS,
+): Promise<string> {
+  let info: unknown;
+  try {
+    info = await withTimeout(
+      fetchJson(`scsearch1:${text}`),
+      timeoutMs,
+      () => new UserError("⏱️ La recherche SoundCloud a mis trop de temps. Réessaie."),
+    );
+  } catch (err) {
+    if (err instanceof UserError) throw err; // timeout → shown to the user as-is
+    console.error(`soundcloud search failed: ${sanitizeMedia(errMsg(err), 300)}`);
+    throw new UserError(NO_SC_RESULT);
+  }
+  return pickSoundcloudTrackUrl(info);
+}
 
 export interface MusicReply {
   content?: string;

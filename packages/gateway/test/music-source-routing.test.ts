@@ -4,10 +4,11 @@ import { UserError, resolvePlayQuery } from "../src/music/format.js";
 describe("resolvePlayQuery — SoundCloud primary source", () => {
   const SC = "soundcloud" as const;
 
-  it("turns a plain text search into a SoundCloud search (scsearch1:)", () => {
+  it("flags a plain text search for SoundCloud pre-resolution (raw text kept)", () => {
     expect(resolvePlayQuery("niska reseaux", SC)).toEqual({
-      query: "scsearch1:niska reseaux",
+      query: "niska reseaux",
       source: "soundcloud",
+      soundcloudSearch: true,
     });
   });
 
