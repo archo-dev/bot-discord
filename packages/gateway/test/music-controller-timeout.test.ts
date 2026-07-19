@@ -7,7 +7,7 @@ import type { WorkerApi } from "../src/worker-api.js";
 
 /** Builds a controller whose distube.play() never resolves (stuck extraction). */
 function stuckController() {
-  const member = { voice: { channel: { id: "vc1" } } };
+  const member = { voice: { channel: { id: "vc1", guild: { id: "g1" } } } };
   const guild = { id: "g1", members: { fetch: vi.fn().mockResolvedValue(member) } };
   const textChannel = { id: "t1", isTextBased: () => true, isDMBased: () => false };
   const client = {
@@ -17,8 +17,9 @@ function stuckController() {
   const distube = {
     play: vi.fn(() => new Promise<void>(() => {})), // never settles
     getQueue: vi.fn(() => undefined),
+    voices: { get: vi.fn(() => undefined), leave: vi.fn() },
   } as unknown as DisTube;
-  const api = {} as WorkerApi;
+  const api = { postMusicState: vi.fn().mockResolvedValue(undefined) } as unknown as WorkerApi;
   return { controller: new MusicController(client, distube, api), distube };
 }
 

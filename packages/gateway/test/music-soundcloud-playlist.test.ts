@@ -112,9 +112,9 @@ describe("GatewayYtDlpPlugin — ESM playlist compatibility", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("returns a direct Song by identity and still calls super.resolve exactly once", async () => {
+  it("returns a direct CommonJS Song by identity and still calls super.resolve exactly once", async () => {
     const plugin = new GatewayYtDlpPlugin({ update: false });
-    const directSong = new Song({
+    const directSong = new CommonJsSong({
       plugin,
       source: "soundcloud",
       playFromSource: true,
