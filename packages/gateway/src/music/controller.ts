@@ -89,7 +89,15 @@ export class MusicController {
           // text search is pre-resolved here to a concrete track URL first.
           const playQuery = resolved.soundcloudSearch
             ? await resolveSoundcloudSearch(resolved.query, (q) =>
-                ytdlpJson(q, { dumpSingleJson: true, noWarnings: true, skipDownload: true, simulate: true }),
+                ytdlpJson(q, {
+                  dumpSingleJson: true,
+                  noWarnings: true,
+                  skipDownload: true,
+                  simulate: true,
+                  // Skip DRM/unavailable entries instead of aborting the whole
+                  // scsearch5 — the selector then picks the first playable one.
+                  ignoreErrors: true,
+                }),
               )
             : resolved.query;
           const before = this.distube.getQueue(guild.id)?.songs.length ?? 0;

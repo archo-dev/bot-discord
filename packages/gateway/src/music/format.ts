@@ -129,25 +129,56 @@ export function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () =>
 /** Extraction timeout (ms) for a single `distube.play()` call. */
 export const PLAY_TIMEOUT_MS = 40_000;
 
-/** Bound for the SoundCloud search pre-resolution (yt-dlp `scsearch1:`). */
+/** Bound for the SoundCloud search pre-resolution (yt-dlp `scsearchN:`). */
 export const SC_SEARCH_TIMEOUT_MS = 15_000;
+/** How many search results to scan for a usable (non-DRM, full) track. */
+export const SC_SEARCH_RESULTS = 5;
+/** Tracks at/under this many seconds are treated as Go+ previews and skipped. */
+export const SC_MIN_DURATION_SEC = 40;
 
 const NO_SC_RESULT = "⚠️ Aucun résultat SoundCloud trouvé pour cette recherche.";
+const NO_PLAYABLE_SC = "⚠️ Aucun morceau SoundCloud complet et lisible n’a été trouvé.";
+
+/** First public soundcloud.com track URL of an entry (webpage_url preferred). */
+function publicSoundcloudUrl(entry: { webpage_url?: unknown; url?: unknown }): string | null {
+  for (const cand of [entry.webpage_url, entry.url]) {
+    if (typeof cand !== "string" || !/^https?:\/\//i.test(cand)) continue;
+    try {
+      const host = new URL(cand).hostname.replace(/^www\./, "").toLowerCase();
+      if (host === "soundcloud.com" || host.endsWith(".soundcloud.com")) return cand;
+    } catch {
+      /* not a URL */
+    }
+  }
+  return null;
+}
+
+/** Whether yt-dlp flagged this entry as DRM/subscription-locked. */
+function isDrmLocked(entry: { drm?: unknown; has_drm?: unknown; availability?: unknown }): boolean {
+  if (entry.drm === true || entry.has_drm === true) return true;
+  const avail = typeof entry.availability === "string" ? entry.availability.toLowerCase() : "";
+  return ["needs_auth", "premium_only", "subscriber_only"].includes(avail);
+}
 
 /**
- * Extracts a playable SoundCloud track URL from a `scsearch1:` dump-single-json
- * result (a playlist with entries). Prefers `webpage_url`, else any http(s) URL.
- * Throws a {@link UserError} on an empty/invalid/unexpected shape.
+ * Scans up to {@link SC_SEARCH_RESULTS} entries of a `scsearchN:` result and
+ * returns the first genuinely playable SoundCloud track URL — skipping DRM
+ * entries (also nulled out by yt-dlp's `--ignore-errors`), ≤40s Go+ previews,
+ * and entries without a public soundcloud.com URL. Never bypasses DRM.
+ * Throws a {@link UserError} when none qualifies.
  */
-export function pickSoundcloudTrackUrl(info: unknown): string {
+export function pickPlayableSoundcloudUrl(info: unknown): string {
   const entries = (info as { entries?: unknown } | null)?.entries;
-  if (!Array.isArray(entries) || entries.length === 0) throw new UserError(NO_SC_RESULT);
-  const first = entries[0] as { webpage_url?: unknown; url?: unknown } | null;
-  const url = [first?.webpage_url, first?.url].find(
-    (u): u is string => typeof u === "string" && /^https?:\/\//i.test(u),
-  );
-  if (!url) throw new UserError(NO_SC_RESULT);
-  return url;
+  if (!Array.isArray(entries) || entries.length === 0) throw new UserError(NO_PLAYABLE_SC);
+  for (const raw of entries.slice(0, SC_SEARCH_RESULTS)) {
+    if (!raw || typeof raw !== "object") continue; // null = skipped/DRM by yt-dlp -i
+    const entry = raw as { duration?: unknown; drm?: unknown; has_drm?: unknown; availability?: unknown };
+    if (isDrmLocked(entry)) continue;
+    if (typeof entry.duration === "number" && entry.duration <= SC_MIN_DURATION_SEC) continue; // 30s preview
+    const url = publicSoundcloudUrl(entry as { webpage_url?: unknown; url?: unknown });
+    if (url) return url;
+  }
+  throw new UserError(NO_PLAYABLE_SC);
 }
 
 /** Function that runs a yt-dlp query and resolves its parsed JSON (injected for tests). */
@@ -168,7 +199,7 @@ export async function resolveSoundcloudSearch(
   let info: unknown;
   try {
     info = await withTimeout(
-      fetchJson(`scsearch1:${text}`),
+      fetchJson(`scsearch${SC_SEARCH_RESULTS}:${text}`),
       timeoutMs,
       () => new UserError("⏱️ La recherche SoundCloud a mis trop de temps. Réessaie."),
     );
@@ -177,7 +208,7 @@ export async function resolveSoundcloudSearch(
     console.error(`soundcloud search failed: ${sanitizeMedia(errMsg(err), 300)}`);
     throw new UserError(NO_SC_RESULT);
   }
-  return pickSoundcloudTrackUrl(info);
+  return pickPlayableSoundcloudUrl(info);
 }
 
 export interface MusicReply {
