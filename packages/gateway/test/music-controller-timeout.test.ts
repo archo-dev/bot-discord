@@ -14,13 +14,14 @@ function stuckController() {
     guilds: { cache: { get: () => guild }, fetch: vi.fn().mockResolvedValue(guild) },
     channels: { cache: { get: () => textChannel }, fetch: vi.fn().mockResolvedValue(textChannel) },
   } as unknown as Client;
+  const otherQueue = { stop: vi.fn() };
   const distube = {
     play: vi.fn(() => new Promise<void>(() => {})), // never settles
-    getQueue: vi.fn(() => undefined),
+    getQueue: vi.fn((guildId: string) => (guildId === "g2" ? otherQueue : undefined)),
     voices: { get: vi.fn(() => undefined), leave: vi.fn() },
   } as unknown as DisTube;
   const api = { postMusicState: vi.fn().mockResolvedValue(undefined) } as unknown as WorkerApi;
-  return { controller: new MusicController(client, distube, api), distube };
+  return { controller: new MusicController(client, distube, api), distube, otherQueue };
 }
 
 const basePayload: MusicCommandPayload = {
@@ -37,15 +38,17 @@ const basePayload: MusicCommandPayload = {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("MusicController — extraction timeout", () => {
   it("resolves handle() with a user-facing message and edits the interaction (no pending promise)", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const fetchMock = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal("fetch", fetchMock);
     vi.useFakeTimers();
 
-    const { controller, distube } = stuckController();
+    const { controller, distube, otherQueue } = stuckController();
     const handled = controller.handle(basePayload);
 
     // Let the awaits before play() flush, then trip the 40s timeout.
@@ -53,6 +56,7 @@ describe("MusicController — extraction timeout", () => {
     const result = await handled;
 
     expect(distube.play).toHaveBeenCalledOnce();
+    expect(otherQueue.stop).not.toHaveBeenCalled();
     expect(result.ok).toBe(false);
     expect(result.message).toMatch(/trop de temps/i);
     // The interaction webhook was edited → Discord no longer stuck on "thinking".
@@ -60,5 +64,14 @@ describe("MusicController — extraction timeout", () => {
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(String(url)).toContain("/webhooks/app/tok/messages/@original");
     expect(init).toMatchObject({ method: "PATCH" });
+
+    const events = log.mock.calls.map(([line]) => JSON.parse(String(line)) as Record<string, unknown>);
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        event: "music_cleanup",
+        reason: "blocked_playback",
+        intentional: true,
+      }),
+    );
   });
 });

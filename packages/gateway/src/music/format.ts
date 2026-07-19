@@ -389,6 +389,23 @@ export function pickPlayableSoundcloudUrl(info: unknown, query: string, trace?: 
 /** Function that runs a yt-dlp query and resolves its parsed JSON (injected for tests). */
 export type YtDlpJsonFn = (query: string) => Promise<unknown>;
 
+export interface SoundcloudSearchLogContext {
+  actionId: string;
+  action: string;
+  source: "discord" | "panel";
+  guildKey: string;
+}
+
+function safeSearchLogContext(context: SoundcloudSearchLogContext | undefined): Record<string, string> {
+  if (!context) return {};
+  return {
+    actionId: sanitizeRelevanceField(context.actionId, 80),
+    action: sanitizeRelevanceField(context.action, 40),
+    source: context.source,
+    guildKey: sanitizeRelevanceField(context.guildKey, 80),
+  };
+}
+
 /**
  * Pre-resolves a SoundCloud text search to a concrete track URL. DisTube only
  * routes http(s) URLs to the yt-dlp plugin, so a bare `scsearch1:` search must
@@ -400,6 +417,7 @@ export async function resolveSoundcloudSearch(
   text: string,
   fetchJson: YtDlpJsonFn,
   timeoutMs: number = SC_SEARCH_TIMEOUT_MS,
+  logContext?: SoundcloudSearchLogContext,
 ): Promise<string> {
   let info: unknown;
   try {
@@ -427,6 +445,7 @@ export async function resolveSoundcloudSearch(
     console.log(
       JSON.stringify({
         event: "soundcloud_search_relevance",
+        ...safeSearchLogContext(logContext),
         ...trace,
         rankingMs: relevanceScore(performance.now() - rankingStartedAt),
       }),
@@ -436,6 +455,7 @@ export async function resolveSoundcloudSearch(
     console.log(
       JSON.stringify({
         event: "soundcloud_search_relevance",
+        ...safeSearchLogContext(logContext),
         ...trace,
         rankingMs: relevanceScore(performance.now() - rankingStartedAt),
       }),
@@ -444,6 +464,7 @@ export async function resolveSoundcloudSearch(
       console.log(
         JSON.stringify({
           event: "soundcloud_search_relevance_user_error",
+          ...safeSearchLogContext(logContext),
           query: trace.query,
           message: sanitizeRelevanceField(err.message, 200),
         }),

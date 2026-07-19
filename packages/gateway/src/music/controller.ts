@@ -29,12 +29,26 @@ import {
 } from "./format.js";
 import { sanitizeMedia } from "./log-sanitize.js";
 import { nowPlayingEmbed, queueEmbed } from "./embeds.js";
+import {
+  MusicInstrumentation,
+  type MusicActionContext,
+  type MusicCorrelation,
+  type MusicTraceMetadata,
+  type PlaybackSnapshot,
+} from "./instrumentation.js";
 
 interface NowPlaying {
   messageId: string;
   channelId: string;
   songUrl: string;
   interval: NodeJS.Timeout;
+}
+
+interface GuardedStreamContext {
+  guildId: string;
+  correlation: MusicCorrelation;
+  errorListener: (error: Error) => void;
+  closeListener: () => void;
 }
 
 /** Maximum time after extraction for Discord's real AudioPlayer to start. */
@@ -54,8 +68,8 @@ export class MusicController {
   private readonly nowPlaying = new Map<string, NowPlaying>();
 
   // --- Diagnostics (M: instrumentation ffmpeg/voice) ------------------------
-  /** Rolling tail of ffmpeg stderr (sanitised only when dumped on error). */
-  private ffmpegTail = "";
+  /** Rolling ffmpeg stderr tails, isolated and bounded per active guild. */
+  private readonly ffmpegTails = new Map<string, string>();
   /** Voice objects whose state we've already hooked (avoids duplicate listeners). */
   private readonly instrumentedPlayers = new WeakSet<AudioPlayer>();
   private readonly instrumentedConnections = new WeakSet<VoiceConnection>();
@@ -63,48 +77,76 @@ export class MusicController {
   private readonly guardedStreams = new WeakSet<DisTubeStream>();
   /** Premature closes are expected only for streams deliberately cleaned up. */
   private readonly expectedStreamClosures = new WeakSet<DisTubeStream>();
+  /** Weak lifecycle records: values never outlive their stream keys. */
+  private readonly streamContexts = new WeakMap<DisTubeStream, GuardedStreamContext>();
   /** One explicit /play or /playlist load start sequence per guild at a time. */
   private readonly playbackLocks = new Map<string, Promise<void>>();
   /** Shared confirmation for playSong and the command awaiting real playback. */
   private readonly playingConfirmations = new Map<string, Promise<void>>();
+  /** Active scalar-only action contexts used to correlate synchronous events. */
+  private readonly activeActions = new Map<string, MusicActionContext[]>();
+  /** The explicit playback action that currently owns the per-guild lock. */
+  private readonly executingPlaybackActions = new Map<string, MusicActionContext>();
+  private readonly actionsById = new Map<string, MusicActionContext>();
 
   constructor(
     private readonly client: Client,
     private readonly distube: DisTube,
     private readonly api: WorkerApi,
     private readonly primarySource: PrimarySource = "youtube",
+    private readonly instrumentation = new MusicInstrumentation(),
   ) {}
 
   /** Entry point for the HTTP /music route. Edits the interaction webhook itself. */
   async handle(payload: MusicCommandPayload): Promise<{ ok: boolean; message: string }> {
+    const action = this.beginAction(payload);
     let reply: MusicReply;
     let ok = true;
+    let outcome: "success" | "user_error" | "error" = "success";
+    let failure: unknown;
     try {
-      reply = await this.run(payload);
+      reply = await this.run(payload, action);
     } catch (err) {
       ok = false;
+      failure = err;
       if (err instanceof UserError) {
+        outcome = "user_error";
         reply = { content: err.message };
       } else {
-        console.error(`music ${payload.command} failed:`, errMsg(err));
+        outcome = "error";
+        this.instrumentation.diagnostic(
+          "error",
+          "music_action_error",
+          payload.guildId,
+          { errorMessage: errMsg(err) },
+          action,
+        );
         reply = { content: "⚠️ Une erreur est survenue avec la musique." };
       }
+    } finally {
+      this.finishAction(action, outcome, failure);
     }
     if (payload.source === "interaction" && payload.applicationId && payload.token) {
       await this.editInteraction(payload.applicationId, payload.token, reply).catch((e) =>
-        console.error("music webhook edit failed:", errMsg(e)),
+        this.instrumentation.diagnostic(
+          "error",
+          "music_webhook_edit_error",
+          payload.guildId,
+          { errorMessage: errMsg(e) },
+          action,
+        ),
       );
     }
     return { ok, message: reply.content ?? "OK" };
   }
 
-  private async run(payload: MusicCommandPayload): Promise<MusicReply> {
+  private async run(payload: MusicCommandPayload, action: MusicActionContext): Promise<MusicReply> {
     const guild = this.client.guilds.cache.get(payload.guildId) ?? (await this.client.guilds.fetch(payload.guildId));
 
     switch (payload.command) {
       case "play":
       case "playlist_load": {
-        return this.withPlaybackLock(guild.id, async () => {
+        return this.withPlaybackLock(guild.id, action, async () => {
           const member = await guild.members.fetch(payload.userId);
           const voiceChannel = member.voice.channel;
           if (!voiceChannel) throw new UserError("⚠️ Rejoins d'abord un salon vocal.");
@@ -128,11 +170,18 @@ export class MusicController {
                     // scsearch5 — the selector then picks the first playable one.
                     ignoreErrors: true,
                   }),
-                )
+                undefined,
+                {
+                  actionId: action.actionId,
+                  action: action.action,
+                  source: action.source,
+                  guildKey: action.guildKey,
+                },
+              )
               : resolved.query;
-            await this.reconcilePlayback(guild.id);
+            await this.reconcilePlayback(guild.id, action);
             const before = this.distube.getQueue(guild.id)?.songs.length ?? 0;
-            await this.playWithTimeout(voiceChannel, playQuery, { member, textChannel });
+            await this.playWithTimeout(voiceChannel, playQuery, { member, textChannel }, action);
             const queue = this.distube.getQueue(guild.id);
             if (!queue || queue.songs.length === 0) return { content: "🔎 Recherche lancée…" };
             const srcTag = resolved.source === "soundcloud" ? " · 🟠 via SoundCloud" : "";
@@ -145,22 +194,30 @@ export class MusicController {
           if (!name) throw new UserError("⚠️ Précise le nom de la playlist.");
           const tracks = await this.api.getPlaylistTracks(guild.id, name);
           if (!tracks || tracks.length === 0) throw new UserError(`⚠️ Playlist **${name}** introuvable ou vide.`);
-          await this.reconcilePlayback(guild.id);
+          action.detectedTracks = tracks.length;
+          await this.reconcilePlayback(guild.id, action);
           let addedCount = 0;
           for (const t of tracks) {
             let trackUrl: string;
             try {
               trackUrl = resolvePlayQuery(t.url, this.primarySource).query;
             } catch {
+              this.instrumentation.markFailed(action);
               continue; // skip an un-playable saved track (bare playlist, or YT while on SoundCloud)
             }
             const before = this.distube.getQueue(guild.id)?.songs.length ?? 0;
             try {
-              await this.playWithTimeout(voiceChannel, trackUrl, { member, textChannel });
+              await this.playWithTimeout(voiceChannel, trackUrl, { member, textChannel }, action);
               const after = this.distube.getQueue(guild.id)?.songs.length ?? 0;
               addedCount += Math.max(0, after - before);
             } catch (e) {
-              console.error("playlist track failed:", errMsg(e));
+              this.instrumentation.diagnostic(
+                "error",
+                "music_playlist_track_error",
+                guild.id,
+                { errorMessage: errMsg(e) },
+                action,
+              );
             }
           }
           if (addedCount === 0) {
@@ -181,6 +238,7 @@ export class MusicController {
       case "resume": {
         const queue = this.requireQueue(guild.id);
         if (!queue.paused) return { content: "▶️ Déjà en lecture." };
+        this.guardStream(queue.voice.pausingStream, true, guild.id, action);
         queue.resume();
         this.pushState(queue);
         return { content: "▶️ Reprise de la lecture." };
@@ -188,6 +246,7 @@ export class MusicController {
 
       case "skip": {
         const queue = this.requireQueue(guild.id);
+        this.markVoiceStreamsForCleanup(queue.voice, guild.id, action, "skip");
         if (queue.songs.length <= 1) {
           await queue.stop();
           this.clearNowPlaying(guild.id);
@@ -200,6 +259,7 @@ export class MusicController {
 
       case "stop": {
         const queue = this.requireQueue(guild.id);
+        this.markVoiceStreamsForCleanup(queue.voice, guild.id, action, "stop");
         await queue.stop();
         this.clearNowPlaying(guild.id);
         this.pushEmptyState(guild.id);
@@ -244,6 +304,7 @@ export class MusicController {
         const queue = this.requireQueue(guild.id);
         const n = Number(payload.arg);
         if (!Number.isFinite(n) || n < 0) throw new UserError("⚠️ Position invalide.");
+        this.markVoiceStreamsForCleanup(queue.voice, guild.id, action, "seek");
         queue.seek(n);
         this.pushState(queue);
         return { content: `⏩ Position : ${formatDuration(n)}` };
@@ -279,8 +340,57 @@ export class MusicController {
     }
   }
 
+  private playbackSnapshot(guildId: string): PlaybackSnapshot {
+    const queue = this.distube.getQueue(guildId);
+    return {
+      queueSize: queue?.songs.length ?? 0,
+      currentTitle: queue?.songs[0]?.name ?? null,
+      playerState: this.distube.voices.get(guildId)?.audioPlayer.state.status ?? "none",
+    };
+  }
+
+  private beginAction(payload: MusicCommandPayload): MusicActionContext {
+    const action = this.instrumentation.beginAction(payload, this.playbackSnapshot(payload.guildId));
+    const stack = this.activeActions.get(payload.guildId) ?? [];
+    stack.push(action);
+    this.activeActions.set(payload.guildId, stack);
+    this.actionsById.set(action.actionId, action);
+    return action;
+  }
+
+  private finishAction(
+    action: MusicActionContext,
+    outcome: "success" | "user_error" | "error",
+    error?: unknown,
+  ): void {
+    this.instrumentation.endAction(action, this.playbackSnapshot(action.guildId), outcome, error);
+    this.actionsById.delete(action.actionId);
+    const stack = this.activeActions.get(action.guildId);
+    if (!stack) return;
+    const index = stack.lastIndexOf(action);
+    if (index >= 0) stack.splice(index, 1);
+    if (stack.length === 0) this.activeActions.delete(action.guildId);
+  }
+
+  private currentAction(guildId: string): MusicActionContext | undefined {
+    return this.executingPlaybackActions.get(guildId) ?? this.activeActions.get(guildId)?.at(-1);
+  }
+
+  private actionFromMetadata(metadata: unknown): MusicActionContext | undefined {
+    const actionId = (metadata as Partial<MusicTraceMetadata> | null)?.musicTrace?.actionId;
+    return typeof actionId === "string" ? this.actionsById.get(actionId) : undefined;
+  }
+
+  private correlationFromMetadata(metadata: unknown, guildId: string): MusicCorrelation {
+    return this.instrumentation.correlationFromMetadata(metadata, guildId);
+  }
+
   /** Serialises explicit playback intentions before DisTube's own queue exists. */
-  private async withPlaybackLock<T>(guildId: string, task: () => Promise<T>): Promise<T> {
+  private async withPlaybackLock<T>(
+    guildId: string,
+    action: MusicActionContext,
+    task: () => Promise<T>,
+  ): Promise<T> {
     const previous = this.playbackLocks.get(guildId) ?? Promise.resolve();
     let release!: () => void;
     const gate = new Promise<void>((resolve) => {
@@ -289,9 +399,13 @@ export class MusicController {
     const tail = previous.then(() => gate);
     this.playbackLocks.set(guildId, tail);
     await previous;
+    this.executingPlaybackActions.set(guildId, action);
     try {
       return await task();
     } finally {
+      if (this.executingPlaybackActions.get(guildId) === action) {
+        this.executingPlaybackActions.delete(guildId);
+      }
       release();
       if (this.playbackLocks.get(guildId) === tail) this.playbackLocks.delete(guildId);
     }
@@ -303,21 +417,21 @@ export class MusicController {
    * paused voice without a queue is destroyed so the next play gets a fresh
    * AudioPlayer instead of replacing streams on an orphaned paused player.
    */
-  private async reconcilePlayback(guildId: string): Promise<void> {
+  private async reconcilePlayback(guildId: string, action: MusicActionContext): Promise<void> {
     const queue = this.distube.getQueue(guildId);
     const voice = this.distube.voices.get(guildId);
     if (!voice) return;
-    this.guardVoiceStreams(voice);
+    this.guardVoiceStreams(voice, guildId, action);
 
     const playerStatus = voice.audioPlayer.state.status;
     if (queue) {
       if (queue.paused) {
-        this.guardStream(voice.pausingStream, true);
+        this.guardStream(voice.pausingStream, true, guildId, action);
         await queue.resume();
       } else if (isPausedPlayerStatus(playerStatus)) {
         // queue.resume() rejects when queue.paused is already false. The public
         // DisTubeVoice API is the narrowest safe repair for this desync.
-        this.guardStream(voice.pausingStream, true);
+        this.guardStream(voice.pausingStream, true, guildId, action);
         voice.unpause();
         if (isPausedPlayerStatus(voice.audioPlayer.state.status)) voice.audioPlayer.unpause();
       }
@@ -325,44 +439,105 @@ export class MusicController {
     }
 
     if (isPausedPlayerStatus(playerStatus)) {
-      this.markVoiceStreamsForCleanup(voice);
+      this.markVoiceStreamsForCleanup(voice, guildId, action, "stale_paused_voice");
       this.distube.voices.leave(guildId);
     }
   }
 
-  /** Keeps a targeted error listener attached even if DisTube replaces its own. */
-  private guardStream(stream: DisTubeStream | undefined, expectedClose = false): void {
+  /** Keeps a targeted error listener attached until the underlying stream closes. */
+  private guardStream(
+    stream: DisTubeStream | undefined,
+    expectedClose = false,
+    guildId?: string,
+    correlation?: MusicCorrelation,
+  ): void {
     if (!stream) return;
+    const resolvedGuildId = guildId;
+    if (!resolvedGuildId) return;
+    const resolvedCorrelation = correlation ?? this.currentAction(resolvedGuildId) ?? {
+      guildKey: this.instrumentation.guildKey(resolvedGuildId),
+    };
     if (expectedClose) this.expectedStreamClosures.add(stream);
-    if (this.guardedStreams.has(stream)) return;
+
+    const existing = this.streamContexts.get(stream);
+    if (existing) {
+      if (expectedClose) existing.correlation = resolvedCorrelation;
+      return;
+    }
+
     this.guardedStreams.add(stream);
-    stream.on("error", (error) => {
+    let closed = false;
+    const closeListener = () => {
+      if (closed) return;
+      closed = true;
+      const intentional = this.expectedStreamClosures.has(stream);
+      const eventCorrelation = this.streamContexts.get(stream)?.correlation ?? resolvedCorrelation;
+      stream.off("error", errorListener);
+      stream.stream.off("close", closeListener);
+      this.instrumentation.streamEvent("info", resolvedGuildId, "closed", eventCorrelation, { intentional });
+      this.expectedStreamClosures.delete(stream);
+      this.guardedStreams.delete(stream);
+      this.streamContexts.delete(stream);
+    };
+    const errorListener = (error: Error) => {
       const code = streamErrorCode(error);
-      if (code === "ERR_STREAM_PREMATURE_CLOSE" && this.expectedStreamClosures.has(stream)) {
-        console.warn("music: stream closed during intentional cleanup (ERR_STREAM_PREMATURE_CLOSE)");
+      const intentional = this.expectedStreamClosures.has(stream);
+      const eventCorrelation = this.streamContexts.get(stream)?.correlation ?? resolvedCorrelation;
+      if (code === "ERR_STREAM_PREMATURE_CLOSE" && intentional) {
+        this.instrumentation.streamEvent("warn", resolvedGuildId, "error", eventCorrelation, {
+          errorCode: code,
+          intentional: true,
+          absorbed: true,
+        });
         return;
       }
-      console.error(`music: guarded stream error${code ? ` (${code})` : ""}: ${sanitizeMedia(errMsg(error), 500)}`);
+      this.instrumentation.streamEvent("error", resolvedGuildId, "error", eventCorrelation, {
+        errorCode: code ?? "stream_error",
+        errorMessage: errMsg(error),
+        intentional,
+        absorbed: false,
+      });
+    };
+    this.streamContexts.set(stream, { guildId: resolvedGuildId, correlation: resolvedCorrelation, errorListener, closeListener });
+    stream.on("error", errorListener);
+    stream.stream.once("close", closeListener);
+    this.instrumentation.streamEvent("info", resolvedGuildId, "created", resolvedCorrelation, {
+      intentionalCleanupPending: expectedClose,
+      seekTime: stream.seekTime,
     });
+    if (stream.stream.destroyed) closeListener();
   }
 
-  private guardVoiceStreams(voice: DisTubeVoice): void {
-    this.guardStream(voice.stream);
-    this.guardStream(voice.pausingStream);
+  private guardVoiceStreams(voice: DisTubeVoice, guildId: string, correlation?: MusicCorrelation): void {
+    this.guardStream(voice.stream, false, guildId, correlation);
+    this.guardStream(voice.pausingStream, false, guildId, correlation);
   }
 
-  private markVoiceStreamsForCleanup(voice: DisTubeVoice): void {
-    this.guardStream(voice.stream, true);
-    this.guardStream(voice.pausingStream, true);
+  private markVoiceStreamsForCleanup(
+    voice: DisTubeVoice,
+    guildId: string,
+    correlation: MusicCorrelation | undefined,
+    reason: string,
+  ): void {
+    this.instrumentation.cleanup(guildId, reason, true, correlation);
+    this.guardStream(voice.stream, true, guildId, correlation);
+    this.guardStream(voice.pausingStream, true, guildId, correlation);
   }
 
   /** Removes a start attempt that never reached the real Playing state. */
-  private async cleanupBlockedPlayback(guildId: string): Promise<void> {
+  private async cleanupBlockedPlayback(guildId: string, correlation?: MusicCorrelation): Promise<void> {
     const queue = this.distube.getQueue(guildId);
     const voice = this.distube.voices.get(guildId);
-    if (voice) this.markVoiceStreamsForCleanup(voice);
+    if (voice) this.markVoiceStreamsForCleanup(voice, guildId, correlation, "blocked_playback");
+    else this.instrumentation.cleanup(guildId, "blocked_playback", true, correlation);
     await queue?.stop().catch((error) =>
-      console.error(`music: blocked queue cleanup failed: ${sanitizeMedia(errMsg(error), 300)}`),
+      this.instrumentation.diagnostic(
+        "error",
+        "music_cleanup_error",
+        guildId,
+        { errorMessage: sanitizeMedia(errMsg(error), 300) },
+        correlation,
+      ),
     );
     if (this.distube.voices.get(guildId)) this.distube.voices.leave(guildId);
     this.clearNowPlaying(guildId);
@@ -376,13 +551,14 @@ export class MusicController {
     const confirmation = (async () => {
       const voice = this.distube.voices.get(guildId);
       if (!voice) throw new UserError("⚠️ La connexion vocale n’a pas pu être créée.");
-      this.guardVoiceStreams(voice);
+      const action = this.currentAction(guildId);
+      this.guardVoiceStreams(voice, guildId, action);
       try {
         await entersState(voice.audioPlayer, AudioPlayerStatus.Playing, PLAYER_START_TIMEOUT_MS);
       } catch {
         const status = voice.audioPlayer.state.status;
-        console.error(`music: player start timeout (guild ${guildId}, status=${status})`);
-        await this.cleanupBlockedPlayback(guildId);
+        this.instrumentation.timeout(guildId, status, action);
+        await this.cleanupBlockedPlayback(guildId, action);
         throw new UserError("⏱️ Le flux audio n’a pas démarré. Réessaie dans quelques instants.");
       }
     })().finally(() => {
@@ -399,24 +575,30 @@ export class MusicController {
     voiceChannel: Parameters<DisTube["play"]>[0],
     query: Parameters<DisTube["play"]>[1],
     options: Parameters<DisTube["play"]>[2],
+    action: MusicActionContext,
   ): Promise<void> {
     const guildId = voiceChannel.guild.id;
+    const tracedOptions = {
+      ...options,
+      metadata: this.instrumentation.metadata(action),
+    } as Parameters<DisTube["play"]>[2];
     try {
       await withTimeout(
-        this.distube.play(voiceChannel, query, options),
+        this.distube.play(voiceChannel, query, tracedOptions),
         PLAY_TIMEOUT_MS,
         () => new UserError("⏱️ La résolution du morceau a mis trop de temps. Réessaie avec un lien direct."),
       );
     } catch (error) {
+      this.instrumentation.markFailed(action);
       // A failed addition must not interrupt an already Playing current song.
       // A half-created non-playing queue, however, must not survive the timeout.
       const status = this.distube.voices.get(guildId)?.audioPlayer.state.status;
-      if (status !== AudioPlayerStatus.Playing) await this.cleanupBlockedPlayback(guildId);
+      if (status !== AudioPlayerStatus.Playing) await this.cleanupBlockedPlayback(guildId, action);
       throw error;
     }
     this.instrumentVoice(guildId);
     const voice = this.distube.voices.get(guildId);
-    if (voice) this.guardVoiceStreams(voice);
+    if (voice) this.guardVoiceStreams(voice, guildId, action);
     await this.confirmPlaying(guildId);
   }
 
@@ -424,37 +606,100 @@ export class MusicController {
 
   registerEvents(): void {
     this.distube.on(DTEvents.PLAY_SONG, (queue, song) => void this.onPlaySong(queue, song));
-    this.distube.on(DTEvents.ADD_SONG, (queue) => this.publishPlayerState(queue));
-    this.distube.on(DTEvents.ADD_LIST, (queue) => this.publishPlayerState(queue));
+    this.distube.on(DTEvents.ADD_SONG, (queue, song) => {
+      const action = this.actionFromMetadata(song.metadata) ?? this.currentAction(queue.id);
+      const correlation = action ?? this.correlationFromMetadata(song.metadata, queue.id);
+      if (action) {
+        this.instrumentation.markResolved(action, "Song", 1);
+        this.instrumentation.markAdded(action, 1);
+      }
+      this.instrumentation.queueEvent(correlation, action, "ADD_SONG", {
+        title: song.name,
+        duration: song.duration,
+        queueSize: queue.songs.length,
+      });
+      this.publishPlayerState(queue, correlation);
+    });
+    this.distube.on(DTEvents.ADD_LIST, (queue, playlist) => {
+      const action = this.actionFromMetadata(playlist.metadata) ?? this.currentAction(queue.id);
+      const correlation = action ?? this.correlationFromMetadata(playlist.metadata, queue.id);
+      if (action) {
+        this.instrumentation.markResolved(action, "Playlist", playlist.songs.length);
+        this.instrumentation.markAdded(action, playlist.songs.length);
+      }
+      this.instrumentation.queueEvent(correlation, action, "ADD_LIST", {
+        title: playlist.name,
+        detectedTracks: playlist.songs.length,
+        queueSize: queue.songs.length,
+        firstTitle: playlist.songs[0]?.name ?? null,
+      });
+      this.publishPlayerState(queue, correlation);
+    });
     this.distube.on(DTEvents.FINISH, (queue) => {
+      const correlation = this.correlationFromMetadata(queue.songs[0]?.metadata, queue.id);
+      this.instrumentation.queueEvent(correlation, undefined, "FINISH", { queueSize: queue.songs.length });
+      this.ffmpegTails.delete(queue.id);
       this.clearNowPlaying(queue.id);
-      this.pushEmptyState(queue.id);
+      this.pushEmptyState(queue.id, correlation);
     });
     this.distube.on(DTEvents.DISCONNECT, (queue) => {
-      console.log(`music: disconnect (guild ${queue.id})`);
+      const correlation = this.correlationFromMetadata(queue.songs[0]?.metadata, queue.id);
+      this.instrumentation.queueEvent(correlation, undefined, "DISCONNECT", { queueSize: queue.songs.length });
+      this.ffmpegTails.delete(queue.id);
       this.clearNowPlaying(queue.id);
-      this.pushEmptyState(queue.id);
+      this.pushEmptyState(queue.id, correlation);
     });
-    // ffmpeg stderr streams here (no guild attached); keep a bounded rolling
-    // tail and only dump it — sanitised — when a DisTube error fires.
+    // DisTube prefixes ffmpeg diagnostics with [guildId]. Spawn commands are
+    // deliberately never retained because they contain the signed input URL.
     this.distube.on(DTEvents.FFMPEG_DEBUG, (debug) => {
-      this.ffmpegTail = `${this.ffmpegTail}\n${debug}`.slice(-4000);
+      const matched = /^\[([^\]]+)]\s*(.*)$/s.exec(debug);
+      if (!matched) return;
+      const guildId = matched[1]!;
+      const detail = matched[2]!;
+      const current = this.distube.getQueue(guildId)?.songs[0];
+      const correlation = current
+        ? this.correlationFromMetadata(current.metadata, guildId)
+        : this.currentAction(guildId);
+      if (detail.startsWith("[process] spawn:")) {
+        this.instrumentation.streamEvent("info", guildId, "spawned", correlation, {});
+        return;
+      }
+      if (!this.ffmpegTails.has(guildId) && this.ffmpegTails.size >= 100) {
+        this.ffmpegTails.delete(this.ffmpegTails.keys().next().value!);
+      }
+      this.ffmpegTails.set(guildId, `${this.ffmpegTails.get(guildId) ?? ""}\n${detail}`.slice(-4000));
     });
     this.distube.on(DTEvents.FINISH_SONG, (queue, song) => {
-      console.log(`music: finishSong (guild ${queue.id}) "${song.name}"`);
+      const correlation = this.correlationFromMetadata(song.metadata, queue.id);
+      this.instrumentation.queueEvent(correlation, undefined, "FINISH_SONG", {
+        title: song.name,
+        duration: song.duration,
+        queueSize: queue.songs.length,
+      });
     });
     // NB: DisTube v5.2.3 has no `empty` event — the closest lifecycle signals
     // are DISCONNECT (above) and FINISH.
     this.distube.on(DTEvents.ERROR, (error, queue, song) => {
       const message = errMsg(error);
-      console.error(`distube error (guild ${queue?.id ?? "?"}):`, message);
+      const guildId = queue?.id;
+      const correlation = guildId
+        ? this.correlationFromMetadata(song?.metadata ?? queue?.songs[0]?.metadata, guildId)
+        : undefined;
       const code = /code (\d+)/.exec(String(message))?.[1];
-      if (code) console.error(`  ↳ ffmpeg exit code=${code}`);
-      if (song) console.error(`  ↳ song "${song.name}" (${formatDuration(song.duration ?? 0)})`);
-      if (this.ffmpegTail) {
-        console.error(`  ↳ ffmpeg stderr tail: ${sanitizeMedia(this.ffmpegTail, 1000)}`);
+      const action = song ? this.actionFromMetadata(song.metadata) : guildId ? this.currentAction(guildId) : undefined;
+      this.instrumentation.markFailed(action);
+      this.instrumentation.diagnostic("error", "music_distube_error", guildId, {
+        errorMessage: message,
+        ffmpegExitCode: code ?? null,
+        title: song?.name ?? null,
+        duration: song?.duration ?? null,
+        ffmpegTail: guildId ? sanitizeMedia(this.ffmpegTails.get(guildId) ?? "", 1000) : "",
+      }, correlation);
+      if (guildId) {
+        this.instrumentation.cleanup(guildId, "distube_error", false, correlation);
+        this.ffmpegTails.delete(guildId);
+        this.pushEmptyState(guildId, correlation);
       }
-      if (queue) this.pushEmptyState(queue.id);
     });
   }
 
@@ -471,22 +716,28 @@ export class MusicController {
     if (player && !this.instrumentedPlayers.has(player)) {
       this.instrumentedPlayers.add(player);
       player.on("stateChange", (oldState, newState) => {
+        const current = this.distube.getQueue(guildId)?.songs[0];
+        const correlation = this.currentAction(guildId) ??
+          (current ? this.correlationFromMetadata(current.metadata, guildId) : undefined);
         if (oldState.status !== newState.status) {
-          console.log(`music: player ${oldState.status} → ${newState.status} (guild ${guildId})`);
+          this.instrumentation.playerTransition(guildId, oldState.status, newState.status, correlation);
         }
         const queue = this.distube.getQueue(guildId);
         if (newState.status === AudioPlayerStatus.Playing || isPausedPlayerStatus(newState.status)) {
-          if (queue) this.pushState(queue);
+          if (queue) this.pushState(queue, correlation);
         } else if (newState.status === AudioPlayerStatus.Buffering || newState.status === AudioPlayerStatus.Idle) {
           // The current DTO cannot represent "loading". Publishing an empty
           // state is safer than claiming playback at 0:00; Playing republishes
           // the full queue as soon as the player is genuinely ready.
-          this.pushEmptyState(guildId);
+          this.pushEmptyState(guildId, correlation);
         }
       });
       player.on("error", (err) => {
-        console.error(`music: player error (guild ${guildId}): ${sanitizeMedia(errMsg(err), 500)}`);
-        this.pushEmptyState(guildId);
+        const correlation = this.currentAction(guildId);
+        this.instrumentation.diagnostic("error", "music_player_error", guildId, {
+          errorMessage: sanitizeMedia(errMsg(err), 500),
+        }, correlation);
+        this.pushEmptyState(guildId, correlation);
       });
     }
 
@@ -494,14 +745,20 @@ export class MusicController {
     if (connection && !this.instrumentedConnections.has(connection)) {
       this.instrumentedConnections.add(connection);
       connection.on("stateChange", (oldState, newState) => {
+        const correlation = this.currentAction(guildId);
         if (oldState.status !== newState.status) {
-          console.log(`music: voice ${oldState.status} → ${newState.status} (guild ${guildId})`);
+          this.instrumentation.voiceTransition(guildId, oldState.status, newState.status, correlation);
         }
-        if (newState.status === "disconnected" || newState.status === "destroyed") this.pushEmptyState(guildId);
+        if (newState.status === "disconnected" || newState.status === "destroyed") {
+          this.pushEmptyState(guildId, correlation);
+        }
       });
       connection.on("error", (err) => {
-        console.error(`music: voice error (guild ${guildId}): ${sanitizeMedia(errMsg(err), 500)}`);
-        this.pushEmptyState(guildId);
+        const correlation = this.currentAction(guildId);
+        this.instrumentation.diagnostic("error", "music_voice_error", guildId, {
+          errorMessage: sanitizeMedia(errMsg(err), 500),
+        }, correlation);
+        this.pushEmptyState(guildId, correlation);
       });
     }
   }
@@ -509,11 +766,18 @@ export class MusicController {
   private async onPlaySong(queue: Queue, song: Song): Promise<void> {
     this.instrumentVoice(queue.id);
     const me = this.client.guilds.cache.get(queue.id)?.members.me?.voice;
-    console.log(
-      `music: playSong (guild ${queue.id}) "${song.name}" dur=${formatDuration(song.duration ?? 0)} ` +
-        `channel=${me?.channelId ?? "none"} serverMute=${me?.serverMute ?? "?"} serverDeaf=${me?.serverDeaf ?? "?"} ` +
-        `selfMute=${me?.selfMute ?? "?"}`,
-    );
+    const action = this.actionFromMetadata(song.metadata) ?? this.currentAction(queue.id);
+    const correlation = action ?? this.correlationFromMetadata(song.metadata, queue.id);
+    this.instrumentation.queueEvent(correlation, action, "PLAY_SONG", {
+      title: song.name,
+      duration: song.duration,
+      queueSize: queue.songs.length,
+      playerState: this.distube.voices.get(queue.id)?.audioPlayer.state.status ?? "none",
+      voiceChannelPresent: Boolean(me?.channelId),
+      serverMute: me?.serverMute ?? null,
+      serverDeaf: me?.serverDeaf ?? null,
+      selfMute: me?.selfMute ?? null,
+    });
     this.clearNowPlaying(queue.id);
     try {
       await this.confirmPlaying(queue.id);
@@ -531,13 +795,15 @@ export class MusicController {
           this.clearNowPlaying(queue.id);
           return;
         }
-        this.pushState(q);
+        this.pushState(q, correlation, false);
         void msg.edit({ embeds: [nowPlayingEmbed(q).toJSON()] }).catch(() => {});
       }, 15_000);
       interval.unref();
       this.nowPlaying.set(queue.id, { messageId: msg.id, channelId: channel.id, songUrl: song.url ?? "", interval });
     } catch (err) {
-      console.error("now-playing message failed:", errMsg(err));
+      this.instrumentation.diagnostic("error", "music_now_playing_message_error", queue.id, {
+        errorMessage: errMsg(err),
+      }, correlation);
     }
   }
 
@@ -567,22 +833,67 @@ export class MusicController {
     };
   }
 
-  private pushState(queue: Queue): void {
-    this.api.postMusicState(queue.id, this.buildState(queue)).catch((e) =>
-      console.error("push music state failed:", errMsg(e)),
+  private pushState(queue: Queue, correlation?: MusicCorrelation, logPublication = true): void {
+    const state = this.buildState(queue);
+    const playerState = this.distube.voices.get(queue.id)?.audioPlayer.state.status ?? "none";
+    const resolvedCorrelation = correlation ?? this.currentAction(queue.id) ??
+      this.correlationFromMetadata(queue.songs[0]?.metadata, queue.id);
+    if (!logPublication) {
+      void this.api.postMusicState(queue.id, state).catch(() => {});
+      return;
+    }
+    this.api.postMusicState(queue.id, state).then(
+      () => this.instrumentation.dashboard(queue.id, "sent", {
+        connected: state.connected,
+        paused: state.paused,
+        currentTitle: state.current?.title ?? null,
+        elapsed: state.elapsed,
+        queueSize: state.queue.length,
+        playerState,
+      }, resolvedCorrelation),
+      (error) => this.instrumentation.dashboard(queue.id, "error", {
+        connected: state.connected,
+        paused: state.paused,
+        currentTitle: state.current?.title ?? null,
+        elapsed: state.elapsed,
+        queueSize: state.queue.length,
+        playerState,
+      }, resolvedCorrelation, error),
     );
   }
 
   /** Publishes only states that the current dashboard DTO can represent safely. */
-  private publishPlayerState(queue: Queue): void {
+  private publishPlayerState(queue: Queue, correlation?: MusicCorrelation): void {
     const status = this.distube.voices.get(queue.id)?.audioPlayer.state.status;
     if (status === AudioPlayerStatus.Playing || isPausedPlayerStatus(status as AudioPlayerStatus)) {
-      this.pushState(queue);
+      this.pushState(queue, correlation);
     }
   }
 
-  private pushEmptyState(guildId: string): void {
-    this.api.postMusicState(guildId, { ...EMPTY_MUSIC_STATE, updatedAt: Date.now() }).catch(() => {});
+  private pushEmptyState(guildId: string, correlation?: MusicCorrelation): void {
+    const state = { ...EMPTY_MUSIC_STATE, updatedAt: Date.now() };
+    const playerState = this.distube.voices.get(guildId)?.audioPlayer.state.status ?? "none";
+    const resolvedCorrelation = correlation ?? this.currentAction(guildId) ?? {
+      guildKey: this.instrumentation.guildKey(guildId),
+    };
+    this.api.postMusicState(guildId, state).then(
+      () => this.instrumentation.dashboard(guildId, "sent", {
+        connected: false,
+        paused: false,
+        currentTitle: null,
+        elapsed: 0,
+        queueSize: 0,
+        playerState,
+      }, resolvedCorrelation),
+      (error) => this.instrumentation.dashboard(guildId, "error", {
+        connected: false,
+        paused: false,
+        currentTitle: null,
+        elapsed: 0,
+        queueSize: 0,
+        playerState,
+      }, resolvedCorrelation, error),
+    );
   }
 
   // --- Helpers --------------------------------------------------------------

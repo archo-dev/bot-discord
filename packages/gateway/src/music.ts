@@ -6,6 +6,7 @@ import { SpotifyPlugin } from "@distube/spotify";
 import type { Client } from "discord.js";
 import type { WorkerApi } from "./worker-api.js";
 import { MusicController } from "./music/controller.js";
+import { MusicInstrumentation } from "./music/instrumentation.js";
 
 export { MusicController } from "./music/controller.js";
 export { UserError, type PrimarySource } from "./music/format.js";
@@ -64,7 +65,12 @@ export class GatewayYtDlpPlugin extends YtDlpPlugin {
   }
 }
 
-export function registerMusic(client: Client, api: WorkerApi, primarySource: PrimarySource = "youtube"): MusicController {
+export function registerMusic(
+  client: Client,
+  api: WorkerApi,
+  primarySource: PrimarySource = "youtube",
+  instrumentationSecret?: string,
+): MusicController {
   const distube = new DisTube(client, {
     // YtDlpPlugin is the fallback extractor and must be LAST: SpotifyPlugin
     // rewrites Spotify links into searches that yt-dlp then resolves. yt-dlp
@@ -73,7 +79,13 @@ export function registerMusic(client: Client, api: WorkerApi, primarySource: Pri
     emitNewSongOnly: true,
     savePreviousSongs: false,
   });
-  const controller = new MusicController(client, distube, api, primarySource);
+  const controller = new MusicController(
+    client,
+    distube,
+    api,
+    primarySource,
+    new MusicInstrumentation(instrumentationSecret),
+  );
   controller.registerEvents();
   return controller;
 }

@@ -141,10 +141,23 @@ describe("resolveSoundcloudSearch — bounded pre-resolution", () => {
     const fetchJson = vi.fn().mockResolvedValue({
       entries: [track({ title: "Réseaux", uploader: "Niska", webpage_url: scUrl("niska/reseaux") })],
     });
-    await expect(resolveSoundcloudSearch("niska reseaux", fetchJson)).resolves.toBe(scUrl("niska/reseaux"));
+    await expect(
+      resolveSoundcloudSearch("niska reseaux", fetchJson, undefined, {
+        actionId: "11111111-1111-4111-8111-111111111111",
+        action: "play",
+        source: "discord",
+        guildKey: "0123456789abcdef0123456789abcdef",
+      }),
+    ).resolves.toBe(scUrl("niska/reseaux"));
     expect(fetchJson).toHaveBeenCalledWith("scsearch5:niska reseaux");
     expect(fetchJson).toHaveBeenCalledTimes(1);
     expect(logSpy).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(logSpy.mock.calls[0]![0]))).toMatchObject({
+      actionId: "11111111-1111-4111-8111-111111111111",
+      action: "play",
+      source: "discord",
+      guildKey: "0123456789abcdef0123456789abcdef",
+    });
   });
 
   it("logs one structured relevance decision with every received entry", async () => {
