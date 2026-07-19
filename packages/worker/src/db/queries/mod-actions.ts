@@ -70,10 +70,15 @@ export async function insertModAction(
   return row!.id;
 }
 
+/** Escapes LIKE wildcards so a text search matches the term literally. */
+function escapeLike(term: string): string {
+  return term.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
 export async function listModActions(
   db: D1Database,
   guildId: string,
-  opts: { page: number; pageSize: number; action?: string; targetId?: string; moderatorId?: string; status?: string; from?: string; to?: string },
+  opts: { page: number; pageSize: number; action?: string; targetId?: string; moderatorId?: string; status?: string; source?: string; q?: string; from?: string; to?: string },
 ): Promise<{ rows: ModActionRow[]; total: number }> {
   const where: string[] = ["guild_id = ?1"];
   const binds: unknown[] = [guildId];
@@ -86,6 +91,8 @@ export async function listModActions(
     where.push(`target_id = ?${binds.length}`);
   }
   if (opts.moderatorId) { binds.push(opts.moderatorId); where.push(`moderator_id = ?${binds.length}`); }
+  if (opts.source) { binds.push(opts.source); where.push(`source = ?${binds.length}`); }
+  if (opts.q) { binds.push(`%${escapeLike(opts.q)}%`); where.push(`reason LIKE ?${binds.length} ESCAPE '\\'`); }
   if (opts.status) {
     binds.push(opts.status);
     where.push(`(CASE WHEN status = 'active' AND expires_at IS NOT NULL AND julianday(expires_at) <= julianday('now') THEN 'expired' ELSE status END) = ?${binds.length}`);

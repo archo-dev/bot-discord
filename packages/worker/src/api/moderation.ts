@@ -29,6 +29,7 @@ export const moderationRouter = new Hono<AppContext>();
 const SNOWFLAKE = /^\d{5,20}$/;
 const STATUS = new Set(["active", "expired", "revoked", "failed"]);
 const ACTIONS = new Set(["ban", "unban", "kick", "timeout", "auto_timeout", "warn", "unwarn", "clear"]);
+const SOURCES = new Set(["interaction", "panel", "gateway"]);
 
 function parseMetadata(value: string | null): Record<string, unknown> | null {
   if (!value) return null;
@@ -52,13 +53,16 @@ moderationRouter.get("/guilds/:guildId/mod-actions", async (c) => {
   const targetId = c.req.query("target") || undefined;
   const moderatorId = c.req.query("moderator") || undefined;
   const status = c.req.query("status") || undefined;
+  const source = c.req.query("source") || undefined;
+  const q = (c.req.query("q") ?? "").trim().slice(0, 100) || undefined;
   const from = c.req.query("from") || undefined;
   const to = c.req.query("to") || undefined;
   if (action && !ACTIONS.has(action)) return c.json({ error: "invalid_action" }, 400);
   if ((targetId && !SNOWFLAKE.test(targetId)) || (moderatorId && !SNOWFLAKE.test(moderatorId))) return c.json({ error: "invalid_member_id" }, 400);
   if (status && !STATUS.has(status)) return c.json({ error: "invalid_status" }, 400);
+  if (source && !SOURCES.has(source)) return c.json({ error: "invalid_source" }, 400);
   if ((from && Number.isNaN(Date.parse(from))) || (to && Number.isNaN(Date.parse(to)))) return c.json({ error: "invalid_period" }, 400);
-  const result = await listModActions(c.env.DB, c.req.param("guildId"), { page, pageSize: 25, action, targetId, moderatorId, status, from, to });
+  const result = await listModActions(c.env.DB, c.req.param("guildId"), { page, pageSize: 25, action, targetId, moderatorId, status, source, q, from, to });
   const body: Paginated<ModActionDto> = { items: result.rows.map((row) => toDto(row)), total: result.total, page, pageSize: 25 };
   return c.json(body);
 });

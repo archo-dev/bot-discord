@@ -103,6 +103,35 @@ describe("mod actions", () => {
     expect(bansOnly.total).toBe(1);
     expect(bansOnly.rows[0]?.metadata).toBe(JSON.stringify({ deleteDays: 1 }));
   });
+
+  it("filters the unified history by source and escaped reason search", async () => {
+    await upsertGuild(env.DB, G, "Test Guild", null);
+    await insertModAction(env.DB, { guildId: G, action: "kick", targetId: "800000000000000009", moderatorId: "700000000000000001", reason: "Spam avancé", source: "panel" });
+    await insertModAction(env.DB, { guildId: G, action: "auto_timeout", targetId: "800000000000000009", moderatorId: "automation", reason: "Filtre anti-spam", source: "gateway" });
+    await insertModAction(env.DB, { guildId: G, action: "warn", targetId: "800000000000000009", moderatorId: "700000000000000001", reason: "Autre raison", source: "interaction" });
+
+    const panelOnly = await listModActions(env.DB, G, { page: 1, pageSize: 25, source: "panel" });
+    expect(panelOnly.total).toBe(1);
+    expect(panelOnly.rows[0]?.action).toBe("kick");
+
+    const gatewayOnly = await listModActions(env.DB, G, { page: 1, pageSize: 25, source: "gateway" });
+    expect(gatewayOnly.rows.every((r) => r.source === "gateway")).toBe(true);
+    expect(gatewayOnly.total).toBe(1);
+
+    // Case-insensitive substring match across both spam-related reasons.
+    const spam = await listModActions(env.DB, G, { page: 1, pageSize: 25, q: "spam" });
+    expect(spam.total).toBe(2);
+
+    // A LIKE wildcard in the query must be escaped, not treated as match-any:
+    // no reason contains a literal underscore, so this returns nothing.
+    const underscore = await listModActions(env.DB, G, { page: 1, pageSize: 25, q: "_" });
+    expect(underscore.total).toBe(0);
+
+    // Source and search combine (AND), still server-side.
+    const combined = await listModActions(env.DB, G, { page: 1, pageSize: 25, source: "gateway", q: "spam" });
+    expect(combined.total).toBe(1);
+    expect(combined.rows[0]?.action).toBe("auto_timeout");
+  });
 });
 
 describe("custom commands", () => {

@@ -25,8 +25,8 @@ const CommandsPage = lazy(() => import("./pages/Commands.js").then((m) => ({ def
 const CommandEditorPage = lazy(() => import("./pages/CommandEditor.js").then((m) => ({ default: m.CommandEditorPage })));
 const AutomationsPage = lazy(() => import("./pages/Automations.js").then((m) => ({ default: m.AutomationsPage })));
 const AutomationEditorPage = lazy(() => import("./pages/AutomationEditor.js").then((m) => ({ default: m.AutomationEditorPage })));
-const ModLogPage = lazy(() => import("./pages/ModLog.js").then((m) => ({ default: m.ModLogPage })));
-const SanctionsPage = lazy(() => import("./pages/Sanctions.js").then((m) => ({ default: m.SanctionsPage })));
+const ModerationHistoryPage = lazy(() => import("./pages/Sanctions.js").then((m) => ({ default: m.ModerationHistoryPage })));
+const ApplySanctionPage = lazy(() => import("./pages/Sanctions.js").then((m) => ({ default: m.ApplySanctionPage })));
 const VoiceLogPage = lazy(() => import("./pages/VoiceLog.js").then((m) => ({ default: m.VoiceLogPage })));
 const StatsPage = lazy(() => import("./pages/Stats.js").then((m) => ({ default: m.StatsPage })));
 const PanelAccessPage = lazy(() => import("./pages/PanelAccess.js").then((m) => ({ default: m.PanelAccessPage })));
@@ -113,8 +113,10 @@ export function App() {
         <Route path="starboard" element={<StarboardPage />} />
         <Route path="tempvoice" element={<TempVoicePage />} />
         <Route path="music" element={<MusicPage />} />
-        <Route path="modlog" element={<ModLogPage />} />
-        <Route path="sanctions" element={<SanctionsPage />} />
+        {/* Legacy Mod-log route folded into the unified history (keeps old links alive). */}
+        <Route path="modlog" element={<Navigate to="../sanctions" replace />} />
+        <Route path="sanctions" element={<ModerationHistoryPage />} />
+        <Route path="apply" element={<ApplySanctionPage />} />
         <Route path="voicelog" element={<VoiceLogPage />} />
         <Route path="access" element={<PanelAccessPage />} />
       </Route>

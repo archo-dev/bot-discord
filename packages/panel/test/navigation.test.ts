@@ -19,6 +19,7 @@ const routes = [
   "tempvoice",
   "automod",
   "sanctions",
+  "apply",
   "modlog",
   "voicelog",
   "tickets",
