@@ -157,6 +157,7 @@ describe("music state", () => {
       { action: "volume", value: 75 },
       { action: "repeat", mode: "queue" },
       { action: "remove", position: 1 },
+      { action: "seek", position: 90 },
     ];
     for (const body of valid) {
       const res = await panel(`/api/guilds/${G}/music-control`, sid, {
@@ -170,6 +171,7 @@ describe("music state", () => {
       { action: "volume", value: 151 },
       { action: "repeat", mode: "invalid" },
       { action: "remove", position: 0 },
+      { action: "seek", position: -1 },
       { action: "reorder", from: 1, to: 2 },
       { action: "pause", unexpected: true },
     ]) {

@@ -114,6 +114,10 @@ function createHarness(options: HarnessOptions = {}) {
         return q;
       }),
       skip: vi.fn(async () => q.songs[1]!),
+      seek: vi.fn(async (position: number) => {
+        q.currentTime = position;
+        return q;
+      }),
       stop: vi.fn(async () => {
         q.stopped = true;
         q.songs = [];
@@ -971,4 +975,44 @@ describe("MusicController — real AudioPlayer state", () => {
       expect(getQueue()!.pause).not.toHaveBeenCalled();
     },
   );
+
+  it("awaits a panel seek, preserves Paused and publishes the authoritative position", async () => {
+    const current = song("Current");
+    const { controller, api, getQueue } = createHarness({
+      initialSongs: [current],
+      queuePaused: true,
+      status: AudioPlayerStatus.Paused,
+    });
+    const result = await controller.handle({ ...playPayload, command: "seek", arg: "90" });
+    expect(result).toEqual({ ok: true, message: "⏩ Position : 90 s" });
+    expect(getQueue()!.seek).toHaveBeenCalledWith(90);
+    expect(getQueue()!.paused).toBe(true);
+    expect(api.postMusicState).toHaveBeenLastCalledWith(
+      "g1",
+      expect.objectContaining({ status: "paused", elapsed: 90 }),
+    );
+  });
+
+  it.each([
+    { label: "live", current: { ...song("Live"), duration: 0, isLive: true } as Song },
+    {
+      label: "preview",
+      current: {
+        ...song("Preview"),
+        metadata: {
+          soundcloudPlayback: {
+            classification: "preview",
+            isPreview: true,
+            previewReason: "selected_format_id",
+          },
+        },
+      } as Song,
+    },
+  ])("rejects seek for $label tracks before touching DisTube", async ({ current }) => {
+    const { controller, getQueue } = createHarness({ initialSongs: [current] });
+    const result = await controller.handle({ ...playPayload, command: "seek", arg: "10" });
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("ne permet pas");
+    expect(getQueue()!.seek).not.toHaveBeenCalled();
+  });
 });

@@ -98,6 +98,7 @@ export const MusicControlRequestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("volume"), value: z.number().int().min(0).max(150) }).strict(),
   z.object({ action: z.literal("repeat"), mode: z.enum(["off", "song", "queue"]).nullable() }).strict(),
   z.object({ action: z.literal("remove"), position: z.number().int().min(1).max(200) }).strict(),
+  z.object({ action: z.literal("seek"), position: z.number().finite().nonnegative() }).strict(),
 ]);
 
 export type MusicControlRequest = z.infer<typeof MusicControlRequestSchema>;

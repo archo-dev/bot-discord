@@ -6,6 +6,7 @@ import type { MusicActionContext, MusicCorrelation } from "./instrumentation.js"
 export interface MusicControlHooks {
   getQueue(guildId: string): Queue | undefined;
   authorize(queue: Queue, guildId: string, userId: string): Promise<void>;
+  seekTarget(queue: Queue): { duration: number; seekable: boolean };
   enter(guildId: string, action: MusicActionContext): void;
   leave(guildId: string, action: MusicActionContext): void;
   prepareStreamCleanup(queue: Queue, guildId: string, action: MusicCorrelation, reason: string): void;
@@ -18,6 +19,7 @@ export interface MusicControlHooks {
 /** One bounded mutation lane per guild, shared by Discord and panel actions. */
 export class MusicControlService {
   private readonly guildLocks = new Map<string, Promise<void>>();
+  private readonly activeSeeks = new Set<string>();
 
   constructor(private readonly hooks: MusicControlHooks) {}
 
@@ -46,7 +48,13 @@ export class MusicControlService {
     request: MusicControlRequest,
     action: MusicActionContext,
   ): Promise<MusicReply> {
-    return this.withGuildLock(guildId, action, async () => {
+    if (request.action === "seek") {
+      if (this.activeSeeks.has(guildId)) {
+        return Promise.reject(new UserError("⚠️ Un déplacement est déjà en cours."));
+      }
+      this.activeSeeks.add(guildId);
+    }
+    const result = this.withGuildLock(guildId, action, async () => {
       const queue = this.hooks.getQueue(guildId);
       if (!queue) throw new UserError("⚠️ Aucune musique en cours.");
       await this.hooks.authorize(queue, guildId, userId);
@@ -117,7 +125,28 @@ export class MusicControlService {
           this.hooks.publish(queue, action);
           return { content: `🗑️ Retiré : **${removed?.name ?? "?"}**` };
         }
+
+        case "seek": {
+          const target = this.hooks.seekTarget(queue);
+          if (!target.seekable || target.duration <= 0) {
+            throw new UserError("⚠️ Cette piste ne permet pas de changer la position.");
+          }
+          if (request.position > target.duration) {
+            throw new UserError(`⚠️ Position attendue entre 0 et ${Math.floor(target.duration)} secondes.`);
+          }
+          const expectedSong = queue.songs[0];
+          this.hooks.prepareStreamCleanup(queue, guildId, action, "seek");
+          await queue.seek(request.position);
+          if (this.hooks.getQueue(guildId) !== queue || queue.songs[0] !== expectedSong) {
+            throw new UserError("⚠️ La piste a changé pendant le déplacement.");
+          }
+          this.hooks.publish(queue, action);
+          return { content: `⏩ Position : ${Math.floor(request.position)} s` };
+        }
       }
     });
+    return request.action === "seek"
+      ? result.finally(() => this.activeSeeks.delete(guildId))
+      : result;
   }
 }

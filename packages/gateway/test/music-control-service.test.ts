@@ -5,7 +5,7 @@ import { MusicControlService, type MusicControlHooks } from "../src/music/contro
 import type { MusicActionContext } from "../src/music/instrumentation.js";
 
 function song(name: string): Song {
-  return { name } as Song;
+  return { name, duration: 180, isLive: false } as Song;
 }
 
 function queue(id = "guild-1", names = ["Current", "Next", "Third"]): Queue {
@@ -15,6 +15,7 @@ function queue(id = "guild-1", names = ["Current", "Next", "Third"]): Queue {
     paused: false,
     repeatMode: RepeatMode.DISABLED,
     volume: 50,
+    currentTime: 0,
     voice: {},
     pause: vi.fn(async () => {
       value.paused = true;
@@ -29,6 +30,10 @@ function queue(id = "guild-1", names = ["Current", "Next", "Third"]): Queue {
       value.songs = [];
     }),
     shuffle: vi.fn(async () => value),
+    seek: vi.fn(async (position: number) => {
+      value.currentTime = position;
+      return value;
+    }),
     setVolume: vi.fn((level: number) => {
       value.volume = level;
       return value;
@@ -66,6 +71,7 @@ function harness(queues = new Map<string, Queue>([["guild-1", queue()]])) {
   const hooks: MusicControlHooks = {
     getQueue: (guildId) => queues.get(guildId),
     authorize: vi.fn().mockResolvedValue(undefined),
+    seekTarget: vi.fn((current: Queue) => ({ duration: current.songs[0]?.duration ?? 0, seekable: true })),
     enter: vi.fn(),
     leave: vi.fn(),
     prepareStreamCleanup: vi.fn(),
@@ -87,6 +93,7 @@ describe("MusicControlService", () => {
     { action: "volume", value: 72 },
     { action: "repeat", mode: "queue" },
     { action: "remove", position: 1 },
+    { action: "seek", position: 90 },
   ];
 
   it.each(requests)("applies $action identically for Discord and panel", async (request) => {
@@ -157,5 +164,61 @@ describe("MusicControlService", () => {
     await service.execute(q.id, "user-1", { action: "shuffle" }, action("panel"));
     await service.execute(q.id, "user-1", { action: "remove", position: 1 }, action("panel"));
     expect(q.songs[0]).toBe(first);
+  });
+
+  it.each([false, true])("seeks playing and paused queues without changing paused=%s", async (paused) => {
+    const q = queue();
+    q.paused = paused;
+    const { service, hooks } = harness(new Map([[q.id, q]]));
+    await service.execute(q.id, "user-1", { action: "seek", position: 0 }, action("panel"));
+    await service.execute(q.id, "user-1", { action: "seek", position: 180 }, action("panel"));
+    expect(q.seek).toHaveBeenNthCalledWith(1, 0);
+    expect(q.seek).toHaveBeenNthCalledWith(2, 180);
+    expect(q.paused).toBe(paused);
+    expect(hooks.publish).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects unknown duration, live/preview targets and positions beyond the track", async () => {
+    const q = queue();
+    const current = harness(new Map([[q.id, q]]));
+    vi.mocked(current.hooks.seekTarget)
+      .mockReturnValueOnce({ duration: 0, seekable: false })
+      .mockReturnValueOnce({ duration: 180, seekable: false })
+      .mockReturnValue({ duration: 180, seekable: true });
+    await expect(current.service.execute(q.id, "user-1", { action: "seek", position: 1 }, action("panel"))).rejects.toThrow("ne permet pas");
+    await expect(current.service.execute(q.id, "user-1", { action: "seek", position: 1 }, action("panel"))).rejects.toThrow("ne permet pas");
+    await expect(current.service.execute(q.id, "user-1", { action: "seek", position: 181 }, action("panel"))).rejects.toThrow("entre 0 et 180");
+    expect(q.seek).not.toHaveBeenCalled();
+  });
+
+  it("rejects a concurrent seek and serializes a following stop", async () => {
+    const q = queue();
+    const current = harness(new Map([[q.id, q]]));
+    let release!: () => void;
+    vi.mocked(q.seek).mockImplementationOnce(() => new Promise<Queue>((resolve) => {
+      release = () => resolve(q);
+    }));
+    const first = current.service.execute(q.id, "user-1", { action: "seek", position: 30 }, action("panel"));
+    await vi.waitFor(() => expect(q.seek).toHaveBeenCalledOnce());
+    await expect(current.service.execute(q.id, "user-1", { action: "seek", position: 40 }, action("panel"))).rejects.toThrow("déjà en cours");
+    const stop = current.service.execute(q.id, "user-1", { action: "stop" }, action("discord"));
+    expect(q.stop).not.toHaveBeenCalled();
+    release();
+    await first;
+    await stop;
+    expect(q.stop).toHaveBeenCalledOnce();
+  });
+
+  it("reports DisTube failures and a track change instead of publishing a false seek success", async () => {
+    const q = queue();
+    const current = harness(new Map([[q.id, q]]));
+    vi.mocked(q.seek).mockRejectedValueOnce(new Error("ffmpeg seek failed"));
+    await expect(current.service.execute(q.id, "user-1", { action: "seek", position: 20 }, action("panel"))).rejects.toThrow("ffmpeg seek failed");
+    vi.mocked(q.seek).mockImplementationOnce(async () => {
+      q.songs[0] = song("Replacement");
+      return q;
+    });
+    await expect(current.service.execute(q.id, "user-1", { action: "seek", position: 20 }, action("panel"))).rejects.toThrow("piste a changé");
+    expect(current.hooks.publish).not.toHaveBeenCalled();
   });
 });

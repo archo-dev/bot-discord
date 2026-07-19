@@ -8,6 +8,7 @@ import { Icon } from "../ui/icons.js";
 import { Skeleton, SkeletonList } from "../ui/skeleton.js";
 import { useCanWrite } from "../lib/access.js";
 import { interpolateMusicElapsed, musicPollInterval, newestMusicState } from "../lib/music-state.js";
+import { MusicSeekBar } from "../components/MusicSeekBar.js";
 
 function formatDuration(totalSeconds: number): string {
   const sec = Math.floor(totalSeconds % 60);
@@ -59,7 +60,7 @@ export function MusicPage() {
     mutationFn: (request: MusicControlRequest) =>
       api(`/api/guilds/${guildId}/music-control`, { method: "POST", body: JSON.stringify(request) }),
     meta: { errorMessage: "Contrôle indisponible — gateway hors ligne ?" },
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: stateKey }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: stateKey }),
   });
 
   const s = state.data;
@@ -139,15 +140,25 @@ export function MusicPage() {
               </div>
             </div>
 
-            <div className="mt-4">
-              <div className="h-1.5 w-full rounded-full bg-zinc-800">
-                <div className="h-1.5 rounded-full bg-indigo-600" style={{ width: `${progress}%` }} />
+            {canWrite ? (
+              <MusicSeekBar
+                value={displayedElapsed}
+                duration={current.duration}
+                sequence={s!.sequence}
+                disabled={!s!.seekable || s!.status === "error" || control.isPending}
+                onSeek={(position) => control.mutateAsync({ action: "seek", position }).then(() => undefined)}
+              />
+            ) : (
+              <div className="mt-4">
+                <div className="h-1.5 w-full rounded-full bg-zinc-800">
+                  <div className="h-1.5 rounded-full bg-indigo-600" style={{ width: `${progress}%` }} />
+                </div>
+                <div className="mt-1 flex justify-between text-xs text-zinc-500">
+                  <span>{formatDuration(displayedElapsed)}</span>
+                  <span>{current.duration > 0 ? formatDuration(current.duration) : "live"}</span>
+                </div>
               </div>
-              <div className="mt-1 flex justify-between text-xs text-zinc-500">
-                <span>{formatDuration(displayedElapsed)}</span>
-                <span>{current.duration > 0 ? formatDuration(current.duration) : "live"}</span>
-              </div>
-            </div>
+            )}
 
             {/* Contrôles masqués en lecture seule (M15) : modérateur = consultation uniquement. */}
             {canWrite && (

@@ -23,7 +23,6 @@ import { errMsg } from "../util.js";
 import {
   PLAY_TIMEOUT_MS,
   UserError,
-  formatDuration,
   loopLabel,
   resolvePlayQuery,
   resolveSoundcloudSearch,
@@ -151,6 +150,15 @@ export class MusicController {
         if (queueVoiceId && queueVoiceId !== memberVoiceId) {
           throw new UserError("⚠️ Rejoins le salon vocal du bot pour utiliser ce contrôle.");
         }
+      },
+      seekTarget: (queue) => {
+        const current = queue.songs[0];
+        const playback = current ? getSoundcloudPlaybackMetadata(current.metadata, current.id) : undefined;
+        const duration = current?.duration ?? 0;
+        return {
+          duration,
+          seekable: Boolean(current && duration > 0 && !current.isLive && playback?.isPreview !== true),
+        };
       },
       enter: (guildId, action) => this.executingPlaybackActions.set(guildId, action),
       leave: (guildId, action) => {
@@ -297,15 +305,9 @@ export class MusicController {
       }
 
       case "seek": {
-        return this.controlService.withGuildLock(guild.id, action, async () => {
-          const queue = this.requireQueue(guild.id);
-          const n = Number(payload.arg);
-          if (!Number.isFinite(n) || n < 0) throw new UserError("⚠️ Position invalide.");
-          this.markVoiceStreamsForCleanup(queue.voice, guild.id, action, "seek");
-          await queue.seek(n);
-          this.pushState(queue, action);
-          return { content: `⏩ Position : ${formatDuration(n)}` };
-        });
+        const position = Number(payload.arg);
+        if (!Number.isFinite(position) || position < 0) throw new UserError("⚠️ Position invalide.");
+        return this.controlService.execute(guild.id, payload.userId, { action: "seek", position }, action);
       }
 
       case "remove": {

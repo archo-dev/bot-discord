@@ -46,6 +46,8 @@ musicRouter.post("/guilds/:guildId/music-control", rateLimit({ name: "music-cont
       ? parsed.data.mode
       : action === "remove"
         ? String(parsed.data.position)
+        : action === "seek"
+          ? String(parsed.data.position)
         : null;
   const payload: MusicCommandPayload = {
     command,
