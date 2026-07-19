@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Playlist, Song, type ResolveOptions } from "distube";
 import { YtDlpPlugin } from "@distube/yt-dlp";
-import { GatewayYtDlpPlugin } from "../src/music.js";
+import { GatewayYtDlpPlugin, parseSoundcloudSetOutput } from "../src/music.js";
 import { PlaylistLoader } from "../src/music/playlist-loader.js";
 
 const require = createRequire(import.meta.url);
@@ -57,7 +57,7 @@ describe("GatewayYtDlpPlugin — ESM playlist compatibility", () => {
         songs: commonJsSongs,
         id: "ninho-jefe-album",
         name: "Ninho - Jefe Album",
-        url: "https://soundcloud.com/drilleurope/sets/ninho-jefe-album",
+        url: "https://example.com/ninho-jefe-album",
         thumbnail: "https://images.example/cover.jpg",
       },
       { metadata },
@@ -110,6 +110,76 @@ describe("GatewayYtDlpPlugin — ESM playlist compatibility", () => {
     expect(streamUrl).toBe("https://media.example/first-track");
     expect(streamResolve).toHaveBeenCalledOnce();
     expect(streamResolve).toHaveBeenCalledWith(first);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("restores an exact SoundCloud /sets/ URL when yt-dlp skips DRM entries", async () => {
+    const url = "https://soundcloud.com/mathis-miot/sets/nouveaute-rap-francais-2026";
+    const playableEntries = Array.from({ length: 28 }, (_, index) => ({
+      extractor: "soundcloud",
+      id: String(2_127_940_821 + index),
+      title: index === 0 ? "KAT (feat. La Rvfleuze)" : `Playable track ${index + 1}`,
+      webpage_url: `https://soundcloud.com/mathis-miot/playable-track-${index + 1}`,
+      duration: index === 0 ? 30 : 180 + index,
+      thumbnail: `https://images.example/playable-track-${index + 1}.jpg`,
+      uploader: "Mathis Miot",
+      uploader_url: "https://soundcloud.com/mathis-miot",
+    }));
+    const entries = [...Array.from({ length: 31 }, () => null), ...playableEntries];
+    const ytDlpOutput = {
+      _type: "playlist",
+      extractor: "soundcloud:set",
+      id: "nouveaute-rap-francais-2026",
+      title: "Nouveauté Rap Francais 2026 (Nouvelle Music du Rap Francais 2026)",
+      webpage_url: url,
+      thumbnail: "https://images.example/set-cover.jpg",
+      entries,
+    };
+    const parsedOutput = parseSoundcloudSetOutput(
+      JSON.stringify(ytDlpOutput),
+      "ERROR: [soundcloud] 2210137373: This video is DRM protected",
+      1,
+    );
+    const setJson = vi.fn().mockResolvedValue(parsedOutput);
+    const plugin = new GatewayYtDlpPlugin({ update: false }, setJson);
+    const superResolve = vi.spyOn(YtDlpPlugin.prototype, "resolve");
+    const streamResolve = vi.spyOn(plugin, "getStreamURL").mockResolvedValue("https://media.example/kat");
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const result = await plugin.resolve(url, resolveOptions);
+
+    expect(setJson).toHaveBeenCalledOnce();
+    expect(setJson).toHaveBeenCalledWith(url);
+    expect(superResolve).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(result).toBeInstanceOf(Playlist);
+
+    const playlist = result as Playlist<{ requestId: string }>;
+    expect(entries).toHaveLength(59);
+    expect(playlist.songs).toHaveLength(28);
+    expect(playlist.songs.every((song) => song instanceof Song)).toBe(true);
+    expect(playlist.songs.every((song) => !(song instanceof CommonJsSong))).toBe(true);
+    expect(playlist.songs.every((song) => song.playlist === playlist)).toBe(true);
+    expect(playlist.songs.every((song) => song.plugin === plugin)).toBe(true);
+    expect(playlist.songs.every((song) => song.metadata === resolveOptions.metadata)).toBe(true);
+    expect(playlist.songs.every((song) => song.stream.playFromSource)).toBe(true);
+    expect(playlist.songs.every((song) => song.stream.url === undefined)).toBe(true);
+    expect(playlist.name).toBe("Nouveauté Rap Francais 2026 (Nouvelle Music du Rap Francais 2026)");
+    expect(playlist.url).toBe(url);
+    expect(playlist.songs[0]).toMatchObject({
+      id: "2127940821",
+      name: "KAT (feat. La Rvfleuze)",
+      url: "https://soundcloud.com/mathis-miot/playable-track-1",
+      duration: 30,
+    });
+    expect(playlist.songs.map((song) => song.id)).toEqual(playableEntries.map((entry) => entry.id));
+    expect(streamResolve).not.toHaveBeenCalled();
+
+    await plugin.getStreamURL(playlist.songs[0]!);
+
+    expect(streamResolve).toHaveBeenCalledOnce();
+    expect(streamResolve).toHaveBeenCalledWith(playlist.songs[0]);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
