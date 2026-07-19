@@ -703,7 +703,7 @@ describe("MusicController — real AudioPlayer state", () => {
 
     distube.emit(
       DTEvents.FFMPEG_DEBUG,
-      "[g1] [process] spawn: ffmpeg -i https://media.example/audio?signature=STREAM_SECRET&token=TOKEN_SECRET",
+      "[123456789012345678] [process] spawn: ffmpeg -i https://media.example/audio?signature=STREAM_SECRET&token=TOKEN_SECRET",
     );
 
     const output = log.mock.calls.map(([line]) => String(line)).join("\n");
@@ -713,6 +713,18 @@ describe("MusicController — real AudioPlayer state", () => {
     expect(output).not.toContain("media.example");
     expect(output).not.toContain("STREAM_SECRET");
     expect(output).not.toContain("TOKEN_SECRET");
+  });
+
+  it("ignores DisTube's [test] ffmpeg bootstrap label instead of resolving it as a guild", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const { distube } = createHarness();
+    const getQueue = vi.mocked(distube.getQueue);
+    getQueue.mockClear();
+
+    expect(() => distube.emit(DTEvents.FFMPEG_DEBUG, "[test] spawn ffmpeg at '/usr/bin/ffmpeg' path")).not.toThrow();
+
+    expect(getQueue).not.toHaveBeenCalledWith("test");
+    expect(log.mock.calls.some(([line]) => String(line).includes('"lifecycle":"spawned"'))).toBe(false);
   });
 
   it("keeps manual pause/resume, skip, stop and disconnect state updates working", async () => {

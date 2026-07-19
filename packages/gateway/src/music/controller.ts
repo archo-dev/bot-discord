@@ -65,6 +65,7 @@ interface GuardedStreamContext {
 
 /** Maximum time after extraction for Discord's real AudioPlayer to start. */
 export const PLAYER_START_TIMEOUT_MS = 8_000;
+const DISCORD_SNOWFLAKE_RE = /^\d{17,20}$/;
 
 function isPausedPlayerStatus(status: AudioPlayerStatus): boolean {
   return status === AudioPlayerStatus.Paused || status === AudioPlayerStatus.AutoPaused;
@@ -892,6 +893,9 @@ export class MusicController {
       if (!matched) return;
       const guildId = matched[1]!;
       const detail = matched[2]!;
+      // checkFFmpeg() emits bootstrap diagnostics prefixed with `[test]`.
+      // Only live queue diagnostics carry a Discord guild snowflake.
+      if (!DISCORD_SNOWFLAKE_RE.test(guildId)) return;
       const current = this.distube.getQueue(guildId)?.songs[0];
       const correlation = current
         ? this.correlationFromMetadata(current.metadata, guildId)
