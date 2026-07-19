@@ -250,6 +250,9 @@ export class MusicController {
       message: reply.content ?? "OK",
       ...(reply.search ? { search: reply.search } : {}),
       ...(reply.enqueue ? { enqueue: reply.enqueue } : {}),
+      ...(ok && payload.source === "panel" && payload.command !== "search"
+        ? { state: this.currentMusicState(payload.guildId) }
+        : {}),
     };
   }
 
@@ -1147,6 +1150,18 @@ export class MusicController {
       loop: loopLabel(queue.repeatMode),
       volume: queue.volume,
       voiceChannelId: queue.voiceChannel?.id ?? null,
+      sequence: this.nextMusicStateSequence(),
+      updatedAt: Date.now(),
+    };
+  }
+
+  /** Snapshot returned directly to panel mutations; no Worker or yt-dlp call is made here. */
+  private currentMusicState(guildId: string): MusicStateDto {
+    const queue = this.distube.getQueue(guildId);
+    if (queue) return this.buildState(queue);
+    return {
+      ...EMPTY_MUSIC_STATE,
+      status: "stopped",
       sequence: this.nextMusicStateSequence(),
       updatedAt: Date.now(),
     };

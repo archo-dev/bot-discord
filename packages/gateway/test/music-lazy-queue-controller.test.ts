@@ -153,7 +153,7 @@ describe("MusicController — lazy playlist guild isolation", () => {
     expect(firstResult.message).toMatch(/annulé/);
     expect(requestSignals.get("g1")?.aborted).toBe(true);
     expect(requestSignals.get("g2")?.aborted).toBe(false);
-    expect(secondResult).toEqual({ ok: true, message: "📥 Playlist **Large Album** chargée (200 pistes)." });
+    expect(secondResult).toMatchObject({ ok: true, message: "📥 Playlist **Large Album** chargée (200 pistes)." });
     expect(queues.has("g1")).toBe(false);
     expect(queues.get("g2")!.songs).toHaveLength(201);
     expect(distube.play).toHaveBeenCalledOnce();

@@ -4,6 +4,7 @@ import type {
   MusicPanelEnqueueResponse,
   MusicPanelSearchResponse,
   MusicSearchResultDto,
+  MusicStateDto,
 } from "@bot/shared";
 import { api } from "../lib/api.js";
 import {
@@ -60,7 +61,13 @@ function ResultCard({
   );
 }
 
-export function MusicSearchPanel({ guildId, onQueued }: { guildId: string; onQueued: () => Promise<unknown> }) {
+export function MusicSearchPanel({
+  guildId,
+  onQueued,
+}: {
+  guildId: string;
+  onQueued: (state: MusicStateDto | undefined) => void;
+}) {
   const [input, setInput] = useState("");
   const [resolvedQuery, setResolvedQuery] = useState("");
   const [results, setResults] = useState<MusicSearchResultDto[]>([]);
@@ -116,11 +123,11 @@ export function MusicSearchPanel({ guildId, onQueued }: { guildId: string; onQue
       if (!response.ok) throw new Error(response.message ?? "Ajout impossible.");
       return response;
     },
-    onSuccess: async (response) => {
+    onSuccess: (response) => {
       const position = response.enqueue?.position;
       setNotice(position === 0 ? "Lecture démarrée." : `Ajout réussi à la position ${position}.`);
       setError(null);
-      await onQueued();
+      onQueued(response.state);
     },
     onError: (reason) => setError(reason instanceof Error ? reason.message : "Ajout impossible."),
   });

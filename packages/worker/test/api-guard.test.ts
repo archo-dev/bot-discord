@@ -6,6 +6,7 @@ import { replacePanelAccess, upsertGuild } from "../src/db/queries.js";
 
 const INSTALLED = "910000000000000001";
 const NOT_INSTALLED = "910000000000000002";
+const transientDiscordUsers = new Set<string>();
 
 async function makeSession(userId: string): Promise<string> {
   return createSession(env, {
@@ -40,6 +41,9 @@ beforeAll(async () => {
     .reply((req) => {
       const headers = req.headers as Record<string, string | string[]>;
       const auth = String(headers["authorization"] ?? headers["Authorization"] ?? "");
+      if ([...transientDiscordUsers].some((userId) => auth.includes(`token-${userId}`))) {
+        return { statusCode: 429, data: [] };
+      }
       const permissions = auth.includes("token-810000000000000042") || auth.includes("token-810000000000000077") ? "0" : "32";
       const owner = auth.includes("token-810000000000000077");
       return {
@@ -115,5 +119,18 @@ describe("panel API auth", () => {
     expect((await get(`/api/guilds/${INSTALLED}`, sid)).status).toBe(200);
     const guilds = await get("/api/guilds", sid);
     expect((await guilds.json() as Array<{ id: string }>).map((g) => g.id)).toContain(INSTALLED);
+  });
+
+  it("keeps music-state reads available from a recent verified guild list during Discord 429", async () => {
+    const userId = "810000000000000088";
+    const sid = await makeSession(userId);
+    expect((await get(`/api/guilds/${INSTALLED}/music-state`, sid)).status).toBe(200);
+    await env.KV.delete(`guilds:${userId}`);
+    transientDiscordUsers.add(userId);
+    try {
+      expect((await get(`/api/guilds/${INSTALLED}/music-state`, sid)).status).toBe(200);
+    } finally {
+      transientDiscordUsers.delete(userId);
+    }
   });
 });

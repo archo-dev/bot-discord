@@ -488,7 +488,7 @@ describe("MusicController — real AudioPlayer state", () => {
 
     const result = await controller.handle({ ...playPayload, command: "playlist_load", arg: "Partial insert" });
 
-    expect(result).toEqual({ ok: true, message: "📥 Playlist **Partial insert** chargée (2 pistes)." });
+    expect(result).toMatchObject({ ok: true, message: "📥 Playlist **Partial insert** chargée (2 pistes)." });
     expect(getQueue()!.songs.slice(1).map((item) => item.name)).toEqual(["One", "Two"]);
     const summary = log.mock.calls
       .map(([line]) => JSON.parse(String(line)) as Record<string, unknown>)
@@ -512,7 +512,7 @@ describe("MusicController — real AudioPlayer state", () => {
     expect(player.state.status).toBe(AudioPlayerStatus.Buffering);
 
     player.transition(AudioPlayerStatus.Playing);
-    expect(await handled).toEqual({ ok: true, message: "📥 Playlist **Fresh queue** chargée (3 pistes)." });
+    expect(await handled).toMatchObject({ ok: true, message: "📥 Playlist **Fresh queue** chargée (3 pistes)." });
     expect(getQueue()!.songs.map((item) => item.name)).toEqual(["One", "Two", "Three"]);
   });
 
@@ -531,7 +531,7 @@ describe("MusicController — real AudioPlayer state", () => {
 
     const result = await controller.handle({ ...playPayload, command: "playlist_load", arg: "Large Album" });
 
-    expect(result).toEqual({ ok: true, message: `📥 Playlist **Large Album** chargée (${count} pistes).` });
+    expect(result).toMatchObject({ ok: true, message: `📥 Playlist **Large Album** chargée (${count} pistes).` });
     expect(distube.play).toHaveBeenCalledOnce();
     expect(getStreamURL).not.toHaveBeenCalled();
     expect(playSong).not.toHaveBeenCalled();
@@ -573,7 +573,7 @@ describe("MusicController — real AudioPlayer state", () => {
 
     const result = await controller.handle({ ...playPayload, command: "playlist_load", arg: "Oversized" });
 
-    expect(result).toEqual({ ok: true, message: "📥 Playlist **Oversized** chargée (200 pistes)." });
+    expect(result).toMatchObject({ ok: true, message: "📥 Playlist **Oversized** chargée (200 pistes)." });
     expect(distube.play).toHaveBeenCalledOnce();
     expect(getQueue()!.songs).toHaveLength(201);
     const summary = log.mock.calls
@@ -598,7 +598,7 @@ describe("MusicController — real AudioPlayer state", () => {
 
     const result = await controller.handle({ ...playPayload, command: "playlist_load", arg: "Partial" });
 
-    expect(result).toEqual({ ok: true, message: "📥 Playlist **Partial** chargée (2 pistes)." });
+    expect(result).toMatchObject({ ok: true, message: "📥 Playlist **Partial** chargée (2 pistes)." });
     expect(getQueue()!.songs.slice(1).map((item) => item.name)).toEqual(["One", "Three"]);
     const event = errorLog.mock.calls
       .map(([line]) => JSON.parse(String(line)) as Record<string, unknown>)
@@ -935,10 +935,12 @@ describe("MusicController — real AudioPlayer state", () => {
     distube.emit(DTEvents.PLAY_SONG, getQueue(), current);
     api.postMusicState.mockClear();
 
-    expect((await controller.handle({ ...playPayload, command: "pause", arg: null })).ok).toBe(true);
+    const paused = await controller.handle({ ...playPayload, command: "pause", arg: null });
+    expect(paused).toMatchObject({ ok: true, state: { status: "paused" } });
     expect(player.state.status).toBe(AudioPlayerStatus.Paused);
     expect(api.postMusicState).toHaveBeenLastCalledWith("g1", expect.objectContaining({ status: "paused" }));
-    expect((await controller.handle({ ...playPayload, command: "resume", arg: null })).ok).toBe(true);
+    const resumed = await controller.handle({ ...playPayload, command: "resume", arg: null });
+    expect(resumed).toMatchObject({ ok: true, state: { status: "buffering" } });
     expect(api.postMusicState).toHaveBeenLastCalledWith("g1", expect.objectContaining({ status: "buffering" }));
     player.transition(AudioPlayerStatus.Playing);
     expect(api.postMusicState).toHaveBeenLastCalledWith("g1", expect.objectContaining({ status: "playing" }));
@@ -953,7 +955,8 @@ describe("MusicController — real AudioPlayer state", () => {
     );
 
     getQueue()!.songs = [current];
-    expect((await controller.handle({ ...playPayload, command: "stop", arg: null })).ok).toBe(true);
+    const stopped = await controller.handle({ ...playPayload, command: "stop", arg: null });
+    expect(stopped).toMatchObject({ ok: true, state: { status: "stopped", current: null } });
     expect(api.postMusicState).toHaveBeenLastCalledWith(
       "g1",
       expect.objectContaining({ status: "stopped", connected: false }),
@@ -976,6 +979,21 @@ describe("MusicController — real AudioPlayer state", () => {
     },
   );
 
+  it("adds an authoritative snapshot only to successful panel responses", async () => {
+    const panelHarness = createHarness({ initialSongs: [song("Panel")] });
+    const panelResult = await panelHarness.controller.handle({ ...playPayload, command: "pause", arg: null });
+    expect(panelResult.state).toMatchObject({ status: "paused", current: { title: "Panel" } });
+
+    const interactionHarness = createHarness({ initialSongs: [song("Discord")] });
+    const interactionResult = await interactionHarness.controller.handle({
+      ...playPayload,
+      source: "interaction",
+      command: "pause",
+      arg: null,
+    });
+    expect(interactionResult.state).toBeUndefined();
+  });
+
   it("awaits a panel seek, preserves Paused and publishes the authoritative position", async () => {
     const current = song("Current");
     const { controller, api, getQueue } = createHarness({
@@ -984,13 +1002,26 @@ describe("MusicController — real AudioPlayer state", () => {
       status: AudioPlayerStatus.Paused,
     });
     const result = await controller.handle({ ...playPayload, command: "seek", arg: "90" });
-    expect(result).toEqual({ ok: true, message: "⏩ Position : 90 s" });
+    expect(result).toMatchObject({
+      ok: true,
+      message: "⏩ Position : 90 s",
+      state: {
+        status: "paused",
+        elapsed: 90,
+        current: { title: "Current", url: expect.stringMatching(/^https:\/\/soundcloud\.com\//) },
+      },
+    });
+    expect(JSON.stringify(result.state)).not.toContain("signature=");
     expect(getQueue()!.seek).toHaveBeenCalledWith(90);
     expect(getQueue()!.paused).toBe(true);
     expect(api.postMusicState).toHaveBeenLastCalledWith(
       "g1",
       expect.objectContaining({ status: "paused", elapsed: 90 }),
     );
+
+    const zero = await controller.handle({ ...playPayload, command: "seek", arg: "0" });
+    expect(zero).toMatchObject({ ok: true, state: { status: "paused", elapsed: 0 } });
+    expect(getQueue()!.seek).toHaveBeenLastCalledWith(0);
   });
 
   it.each([

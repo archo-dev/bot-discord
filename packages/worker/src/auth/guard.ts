@@ -43,8 +43,13 @@ export const requireSession: MiddlewareHandler<AppContext> = async (c, next) => 
  * The user's guild list as Discord reports it (OAuth `guilds` scope),
  * KV-cached for 60s. Returns null when the user token was revoked.
  */
-export async function getUserGuilds(env: Env, session: SessionData & { id: string }): Promise<OAuthGuild[] | null> {
+export async function getUserGuilds(
+  env: Env,
+  session: SessionData & { id: string },
+  options: { allowRecentOnTransientError?: boolean } = {},
+): Promise<OAuthGuild[] | null> {
   const cacheKey = `guilds:${session.userId}`;
+  const recentKey = `guilds:recent:${session.userId}`;
   const cached = await env.KV.get(cacheKey);
   if (cached) return JSON.parse(cached) as OAuthGuild[];
 
@@ -52,9 +57,19 @@ export async function getUserGuilds(env: Env, session: SessionData & { id: strin
     headers: { authorization: `Bearer ${session.accessToken}` },
   });
   if (res.status === 401) return null;
-  if (!res.ok) throw new Error(`users/@me/guilds failed: ${res.status}`);
+  if (!res.ok) {
+    if (options.allowRecentOnTransientError && (res.status === 429 || res.status >= 500)) {
+      const recent = await env.KV.get(recentKey);
+      if (recent) return JSON.parse(recent) as OAuthGuild[];
+    }
+    throw new Error(`users/@me/guilds failed: ${res.status}`);
+  }
   const guilds = (await res.json()) as OAuthGuild[];
-  await env.KV.put(cacheKey, JSON.stringify(guilds), { expirationTtl: 60 });
+  const serialized = JSON.stringify(guilds);
+  await Promise.all([
+    env.KV.put(cacheKey, serialized, { expirationTtl: 60 }),
+    env.KV.put(recentKey, serialized, { expirationTtl: 180 }),
+  ]);
   return guilds;
 }
 
@@ -120,7 +135,11 @@ export const requireGuildAccess: MiddlewareHandler<AppContext> = async (c, next)
   const guildRow = await getGuild(c.env.DB, guildId);
   if (!guildRow || guildRow.bot_installed !== 1) return c.json({ error: "bot_not_installed" }, 404);
 
-  const userGuilds = await getUserGuilds(c.env, session);
+  const musicStateRead = c.req.method === "GET" &&
+    new URL(c.req.url).pathname === `/api/guilds/${guildId}/music-state`;
+  const userGuilds = await getUserGuilds(c.env, session, {
+    allowRecentOnTransientError: musicStateRead,
+  });
   if (userGuilds === null) return c.json({ error: "session_expired" }, 401);
 
   const oauthGuild = userGuilds.find((g) => g.id === guildId);

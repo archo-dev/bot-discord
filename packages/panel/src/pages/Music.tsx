@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { MusicControlRequest, MusicStateDto, PlaylistSummaryDto } from "@bot/shared";
+import type { MusicCommandResult, MusicControlRequest, MusicStateDto, PlaylistSummaryDto } from "@bot/shared";
 import { api } from "../lib/api.js";
 import { Badge, Button, Card, EmptyState, ErrorCard, InfoCard, Input, Select } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
@@ -40,6 +40,8 @@ export function MusicPage() {
   const queryClient = useQueryClient();
   const canWrite = useCanWrite();
   const [volume, setVolume] = useState(50);
+  const idleSince = useRef(Date.now());
+  const previousStatus = useRef<MusicStateDto["status"] | undefined>(undefined);
 
   const stateKey = ["music-state", guildId] as const;
   const state = useQuery<MusicStateDto>({
@@ -48,24 +50,62 @@ export function MusicPage() {
       const incoming = await api<MusicStateDto>(`/api/guilds/${guildId}/music-state`);
       return newestMusicState(queryClient.getQueryData<MusicStateDto>(stateKey), incoming);
     },
-    refetchInterval: (query) => musicPollInterval(query.state.data, query.state.fetchFailureCount),
+    refetchInterval: (query) => musicPollInterval(
+      query.state.data,
+      query.state.fetchFailureCount,
+      Date.now() - idleSince.current,
+    ),
     refetchIntervalInBackground: false,
-    refetchOnReconnect: true,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
+    refetchOnReconnect: "always",
+    staleTime: 0,
   });
   const playlists = useQuery({
     queryKey: ["playlists", guildId],
     queryFn: () => api<PlaylistSummaryDto[]>(`/api/guilds/${guildId}/playlists`),
   });
 
-  const control = useMutation({
-    mutationFn: (request: MusicControlRequest) =>
-      api(`/api/guilds/${guildId}/music-control`, { method: "POST", body: JSON.stringify(request) }),
+  const control = useMutation<MusicCommandResult, Error, MusicControlRequest>({
+    mutationFn: async (request: MusicControlRequest) => {
+      const result = await api<MusicCommandResult>(`/api/guilds/${guildId}/music-control`, {
+        method: "POST",
+        body: JSON.stringify(request),
+      });
+      if (!result.ok) throw new Error(result.message);
+      return result;
+    },
     meta: { errorMessage: "Contrôle indisponible — gateway hors ligne ?" },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: stateKey }),
+    onSuccess: (result) => {
+      if (result.state) {
+        queryClient.setQueryData<MusicStateDto>(stateKey, (currentState) =>
+          newestMusicState(currentState, result.state!));
+      }
+      void queryClient.invalidateQueries({ queryKey: stateKey });
+    },
   });
 
   const s = state.data;
   const current = s?.current ?? null;
+  useEffect(() => {
+    if (!s) return;
+    const idle = s.status === "idle" || s.status === "stopped" || s.status === "error";
+    const wasIdle = previousStatus.current === "idle" ||
+      previousStatus.current === "stopped" || previousStatus.current === "error";
+    if (idle && !wasIdle) idleSince.current = Date.now();
+    previousStatus.current = s.status;
+  }, [s?.status]);
+  useEffect(() => {
+    const resetIdleDetection = () => {
+      idleSince.current = Date.now();
+    };
+    window.addEventListener("focus", resetIdleDetection);
+    window.addEventListener("online", resetIdleDetection);
+    return () => {
+      window.removeEventListener("focus", resetIdleDetection);
+      window.removeEventListener("online", resetIdleDetection);
+    };
+  }, []);
   useEffect(() => {
     if (s) setVolume(s.volume);
   }, [s?.sequence]);
@@ -93,7 +133,13 @@ export function MusicPage() {
         <Card title="Rechercher et ajouter">
           <MusicSearchPanel
             guildId={guildId!}
-            onQueued={() => queryClient.invalidateQueries({ queryKey: stateKey })}
+            onQueued={(incoming) => {
+              if (incoming) {
+                queryClient.setQueryData<MusicStateDto>(stateKey, (currentState) =>
+                  newestMusicState(currentState, incoming));
+              }
+              void queryClient.invalidateQueries({ queryKey: stateKey });
+            }}
           />
         </Card>
       )}

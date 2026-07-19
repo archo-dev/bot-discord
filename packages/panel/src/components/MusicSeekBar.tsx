@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { clampSeekPosition, reconcileSeekDraft, rollbackSeekDraft } from "../lib/music-seek.js";
 
 function formatDuration(totalSeconds: number): string {
@@ -27,6 +27,12 @@ export function MusicSeekBar({
   const [dragging, setDragging] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const authoritative = useRef({ value, duration, sequence });
+  if (authoritative.current.sequence !== sequence || authoritative.current.duration !== duration) {
+    authoritative.current = { value, duration, sequence };
+  } else if (!dragging) {
+    authoritative.current.value = value;
+  }
 
   useEffect(() => {
     setDraft((current) => reconcileSeekDraft(current, value, duration, dragging || pending));
@@ -41,7 +47,7 @@ export function MusicSeekBar({
     try {
       await onSeek(position);
     } catch {
-      setDraft(rollbackSeekDraft(value, duration));
+      setDraft(rollbackSeekDraft(authoritative.current.value, authoritative.current.duration));
       setError("Le déplacement a échoué. La position réelle a été restaurée.");
     } finally {
       setPending(false);

@@ -144,6 +144,8 @@ export interface MusicPanelEnqueueResponse {
   ok: boolean;
   message?: string;
   enqueue?: MusicEnqueueResultDto;
+  /** Authoritative Gateway snapshot captured after the enqueue mutation. */
+  state?: MusicStateDto;
 }
 
 export interface PlaylistSummaryDto {
@@ -175,6 +177,8 @@ export interface MusicCommandResult {
   message: string;
   search?: MusicSearchResponseDto;
   enqueue?: MusicEnqueueResultDto;
+  /** Present after successful panel mutations so the UI need not wait for KV polling. */
+  state?: MusicStateDto;
 }
 
 /** Forwarded Worker → gateway (bearer GATEWAY_HTTP_TOKEN) to run a music action. */

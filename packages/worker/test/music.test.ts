@@ -1,9 +1,11 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { env, createExecutionContext, fetchMock } from "cloudflare:test";
-import type { MusicStateDto, PlaylistSummaryDto } from "@bot/shared";
+import type { MusicCommandPayload, MusicStateDto, PlaylistSummaryDto } from "@bot/shared";
 import app from "../src/index.js";
 import { createSession } from "../src/auth/session.js";
 import { upsertGuild } from "../src/db/queries.js";
+import { forwardMusic } from "../src/gateway/forward.js";
+import type { Env } from "../src/env.js";
 
 const G = "950000000000000001";
 
@@ -106,6 +108,50 @@ describe("music state", () => {
     expect(state.loop).toBe("song");
     expect(state.status).toBe("playing");
     expect(state.seekable).toBe(true);
+  });
+
+  it("validates and forwards the authoritative Gateway state in a panel mutation response", async () => {
+    const state: MusicStateDto = {
+      status: "buffering",
+      connected: true,
+      paused: false,
+      seekable: true,
+      current: {
+        title: "Now",
+        url: "https://soundcloud.com/example/now",
+        duration: 210,
+        thumbnail: null,
+        requestedBy: null,
+      },
+      elapsed: 91,
+      queue: [],
+      loop: "off",
+      volume: 50,
+      voiceChannelId: "9",
+      sequence: Date.now(),
+      updatedAt: Date.now(),
+    };
+    fetchMock
+      .get("https://gateway-music-state.test")
+      .intercept({ path: "/music", method: "POST" })
+      .reply(200, { ok: true, message: "seeked", state });
+    const payload: MusicCommandPayload = {
+      command: "seek",
+      guildId: G,
+      userId: "850000000000000008",
+      textChannelId: "",
+      applicationId: null,
+      token: null,
+      arg: "91",
+      source: "panel",
+    };
+    const result = await forwardMusic({
+      GATEWAY_ORIGIN: "https://gateway-music-state.test",
+      GATEWAY_HTTP_TOKEN: "test-gateway-token",
+    } as Env, payload);
+
+    expect(result).toMatchObject({ reachable: true, ok: true, state: { status: "buffering", elapsed: 91 } });
+    expect(JSON.stringify(result.state)).not.toContain("signature=");
   });
 
   it("normalizes legacy snapshots and rejects delayed KV overwrites", async () => {

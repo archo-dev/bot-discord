@@ -62,7 +62,7 @@ musicRouter.post("/guilds/:guildId/music-control", rateLimit({ name: "music-cont
   };
   const result = await forwardMusic(c.env, payload);
   if (!result.reachable) return c.json({ error: "gateway_unreachable" }, 503);
-  return c.json({ ok: result.ok, message: result.message });
+  return c.json({ ok: result.ok, message: result.message, state: result.state });
 });
 
 musicRouter.post("/guilds/:guildId/music-search", rateLimit({
@@ -109,7 +109,7 @@ musicRouter.post("/guilds/:guildId/music-enqueue", rateLimit({ name: "music-enqu
     source: "panel",
   });
   if (!result.reachable) return c.json({ error: "gateway_unreachable" }, 503);
-  return c.json({ ok: result.ok, message: result.message, enqueue: result.enqueue });
+  return c.json({ ok: result.ok, message: result.message, enqueue: result.enqueue, state: result.state });
 });
 
 musicRouter.get("/guilds/:guildId/playlists", async (c) => {

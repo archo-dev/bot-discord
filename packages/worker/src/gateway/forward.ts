@@ -1,4 +1,5 @@
 import {
+  MusicStateSchema,
   signInternalRequest,
   type GatewayModuleRuntimeResponse,
   type MusicCommandPayload,
@@ -59,12 +60,14 @@ export async function forwardMusic(env: Env, payload: MusicCommandPayload): Prom
     });
     if (!res.ok) return { reachable: true, ok: false };
     const responseBody = (await res.json().catch(() => ({}))) as Partial<MusicCommandResult>;
+    const parsedState = MusicStateSchema.safeParse(responseBody.state);
     return {
       reachable: true,
       ok: responseBody.ok ?? true,
       message: responseBody.message,
       search: responseBody.search,
       enqueue: responseBody.enqueue,
+      state: parsedState.success ? parsedState.data : undefined,
     };
   } catch {
     return { reachable: false, ok: false };

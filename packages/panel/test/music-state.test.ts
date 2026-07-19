@@ -3,7 +3,11 @@ import type { MusicPlaybackStatus, MusicStateDto } from "@bot/shared";
 import {
   MUSIC_ACTIVE_POLL_MS,
   MUSIC_BUFFERING_POLL_MS,
+  MUSIC_IDLE_FAST_POLL_MS,
+  MUSIC_IDLE_FAST_WINDOW_MS,
   MUSIC_IDLE_POLL_MS,
+  MUSIC_IDLE_WARM_POLL_MS,
+  MUSIC_IDLE_WARM_WINDOW_MS,
   MUSIC_PAUSED_POLL_MS,
   interpolateMusicElapsed,
   musicPollInterval,
@@ -32,10 +36,23 @@ describe("near-real-time music state", () => {
     expect(musicPollInterval(state("buffering", 1))).toBe(MUSIC_BUFFERING_POLL_MS);
     expect(musicPollInterval(state("playing", 1))).toBe(MUSIC_ACTIVE_POLL_MS);
     expect(musicPollInterval(state("paused", 1))).toBe(MUSIC_PAUSED_POLL_MS);
-    expect(musicPollInterval(state("idle", 1))).toBe(MUSIC_IDLE_POLL_MS);
+    expect(musicPollInterval(state("idle", 1), 0, 0)).toBe(MUSIC_IDLE_FAST_POLL_MS);
+    expect(musicPollInterval(state("idle", 1), 0, MUSIC_IDLE_FAST_WINDOW_MS)).toBe(MUSIC_IDLE_WARM_POLL_MS);
+    expect(musicPollInterval(state("idle", 1), 0, MUSIC_IDLE_WARM_WINDOW_MS)).toBe(MUSIC_IDLE_POLL_MS);
     expect(musicPollInterval(state("playing", 1), 1)).toBe(4_000);
-    expect(musicPollInterval(state("playing", 1), 4)).toBe(MUSIC_IDLE_POLL_MS);
+    expect(musicPollInterval(state("playing", 1), 4)).toBe(12_000);
     expect(musicPollInterval(state("playing", 1), 0)).toBe(MUSIC_ACTIVE_POLL_MS);
+  });
+
+  it("installs an authoritative mutation response immediately and rejects the older KV confirmation", () => {
+    const before = state("playing", 30, 20);
+    const mutation = state("buffering", 32, 91);
+    const delayedKv = state("playing", 31, 20);
+
+    const installed = newestMusicState(before, mutation);
+    expect(installed).toBe(mutation);
+    expect(newestMusicState(installed, delayedKv)).toBe(mutation);
+    expect(interpolateMusicElapsed(installed, 0)).toBe(91);
   });
 
   it("rejects stale snapshots independently in multiple tabs", () => {

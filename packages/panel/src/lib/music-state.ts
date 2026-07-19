@@ -2,16 +2,26 @@ import type { MusicStateDto } from "@bot/shared";
 
 export const MUSIC_ACTIVE_POLL_MS = 2_000;
 export const MUSIC_PAUSED_POLL_MS = 3_000;
-export const MUSIC_IDLE_POLL_MS = 12_000;
+export const MUSIC_IDLE_FAST_POLL_MS = 2_000;
+export const MUSIC_IDLE_WARM_POLL_MS = 4_000;
+export const MUSIC_IDLE_POLL_MS = 6_000;
 export const MUSIC_BUFFERING_POLL_MS = 1_000;
+export const MUSIC_IDLE_FAST_WINDOW_MS = 30_000;
+export const MUSIC_IDLE_WARM_WINDOW_MS = 120_000;
 
-/** Adaptive KV polling: fast only while a transition is actually in progress. */
-export function musicPollInterval(state: MusicStateDto | undefined, failedAttempts = 0): number {
-  if (failedAttempts > 0) return Math.min(MUSIC_IDLE_POLL_MS, 2_000 * 2 ** Math.min(failedAttempts, 3));
+/** Adaptive KV polling: briefly detects Discord actions, then backs off while idle. */
+export function musicPollInterval(
+  state: MusicStateDto | undefined,
+  failedAttempts = 0,
+  idleForMs = 0,
+): number {
+  if (failedAttempts > 0) return Math.min(12_000, 2_000 * 2 ** Math.min(failedAttempts, 3));
   if (!state) return MUSIC_ACTIVE_POLL_MS;
   if (state.status === "buffering") return MUSIC_BUFFERING_POLL_MS;
   if (state.status === "playing") return MUSIC_ACTIVE_POLL_MS;
   if (state.status === "paused") return MUSIC_PAUSED_POLL_MS;
+  if (idleForMs < MUSIC_IDLE_FAST_WINDOW_MS) return MUSIC_IDLE_FAST_POLL_MS;
+  if (idleForMs < MUSIC_IDLE_WARM_WINDOW_MS) return MUSIC_IDLE_WARM_POLL_MS;
   return MUSIC_IDLE_POLL_MS;
 }
 
