@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { MusicStateDto, PlaylistSummaryDto } from "@bot/shared";
+import type { MusicControlRequest, MusicStateDto, PlaylistSummaryDto } from "@bot/shared";
 import { api } from "../lib/api.js";
-import { Badge, Button, Card, EmptyState, ErrorCard, InfoCard } from "../ui/kit.js";
+import { Badge, Button, Card, EmptyState, ErrorCard, InfoCard, Input, Select } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
 import { Skeleton, SkeletonList } from "../ui/skeleton.js";
 import { useCanWrite } from "../lib/access.js";
@@ -37,6 +37,7 @@ export function MusicPage() {
   const { guildId } = useParams<{ guildId: string }>();
   const queryClient = useQueryClient();
   const canWrite = useCanWrite();
+  const [volume, setVolume] = useState(50);
 
   const stateKey = ["music-state", guildId] as const;
   const state = useQuery<MusicStateDto>({
@@ -55,14 +56,17 @@ export function MusicPage() {
   });
 
   const control = useMutation({
-    mutationFn: (action: "pause" | "resume" | "skip" | "stop") =>
-      api(`/api/guilds/${guildId}/music-control`, { method: "POST", body: JSON.stringify({ action }) }),
+    mutationFn: (request: MusicControlRequest) =>
+      api(`/api/guilds/${guildId}/music-control`, { method: "POST", body: JSON.stringify(request) }),
     meta: { errorMessage: "Contrôle indisponible — gateway hors ligne ?" },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: stateKey }),
   });
 
   const s = state.data;
   const current = s?.current ?? null;
+  useEffect(() => {
+    if (s) setVolume(s.volume);
+  }, [s?.sequence]);
   const receipt = useRef({ sequence: -1, at: performance.now() });
   if (s && receipt.current.sequence !== s.sequence) {
     receipt.current = { sequence: s.sequence, at: performance.now() };
@@ -149,14 +153,48 @@ export function MusicPage() {
             {canWrite && (
               <>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Button variant="secondary" onClick={() => control.mutate(s!.paused ? "resume" : "pause")} disabled={control.isPending}>
+                  <Button variant="secondary" onClick={() => control.mutate({ action: s!.paused ? "resume" : "pause" })} disabled={control.isPending}>
                     {s!.paused ? "▶️ Reprendre" : "⏸️ Pause"}
                   </Button>
-                  <Button variant="secondary" onClick={() => control.mutate("skip")} disabled={control.isPending}>
+                  <Button variant="secondary" onClick={() => control.mutate({ action: "skip" })} disabled={control.isPending}>
                     ⏭️ Suivant
                   </Button>
-                  <Button variant="danger" onClick={() => control.mutate("stop")} disabled={control.isPending}>
+                  <Button variant="secondary" onClick={() => control.mutate({ action: "shuffle" })} disabled={control.isPending || s!.queue.length < 2}>
+                    🔀 Mélanger
+                  </Button>
+                  <Button variant="danger" onClick={() => control.mutate({ action: "stop" })} disabled={control.isPending}>
                     ⏹️ Stop
+                  </Button>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                  <Select
+                    aria-label="Mode de répétition"
+                    value={s!.loop}
+                    disabled={control.isPending}
+                    onChange={(event) => control.mutate({
+                      action: "repeat",
+                      mode: event.target.value as MusicStateDto["loop"],
+                    })}
+                  >
+                    <option value="off">Sans répétition</option>
+                    <option value="song">Répéter la piste</option>
+                    <option value="queue">Répéter la file</option>
+                  </Select>
+                  <Input
+                    aria-label="Volume en pourcentage"
+                    type="number"
+                    min={0}
+                    max={150}
+                    value={volume}
+                    disabled={control.isPending}
+                    onChange={(event) => setVolume(Number(event.target.value))}
+                  />
+                  <Button
+                    variant="secondary"
+                    disabled={control.isPending || !Number.isInteger(volume) || volume < 0 || volume > 150}
+                    onClick={() => control.mutate({ action: "volume", value: volume })}
+                  >
+                    Appliquer
                   </Button>
                 </div>
                 {control.isError && <p className="mt-2 text-sm text-red-400">Contrôle indisponible (gateway hors ligne ?).</p>}
@@ -181,10 +219,21 @@ export function MusicPage() {
         <Card title={`File d'attente (${s.queue.length})`}>
           <ol className="space-y-1.5 text-sm">
             {s.queue.slice(0, 20).map((t, i) => (
-              <li key={i} className="flex gap-2 text-zinc-300">
+              <li key={`${t.url}:${i}`} className="flex items-center gap-2 text-zinc-300">
                 <span className="text-zinc-600">{i + 1}.</span>
                 <span className="min-w-0 flex-1 truncate">{t.title}</span>
                 <span className="text-zinc-500">{t.duration > 0 ? formatDuration(t.duration) : "live"}</span>
+                {canWrite && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-label={`Retirer ${t.title}`}
+                    disabled={control.isPending}
+                    onClick={() => control.mutate({ action: "remove", position: i + 1 })}
+                  >
+                    Retirer
+                  </Button>
+                )}
               </li>
             ))}
           </ol>

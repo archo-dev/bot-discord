@@ -74,11 +74,55 @@
 - Lockfile, migrations, dépendances et patch yt-dlp : inchangés.
 - Audit du diff : 12 fichiers, moins de 2 000 lignes nettes, aucune donnée sensible ou URL de flux signée ajoutée.
 
-Commit : `feat(panel): synchronize music state in near real time`.
+Commit : `31798c951f497374295c920748d1c56d74f26ee7` — `feat(panel): synchronize music state in near real time`.
+
+## Phase 5 — Contrôles communs Discord/panel
+
+### Audit
+
+- Discord et le panel atteignaient déjà le même `MusicController`, mais les mutations étaient directement codées dans son `switch` et seules pause/reprise/skip/stop étaient exposées au panel.
+- DisTube 5.2.3 expose publiquement `pause`, `resume`, `skip`, `stop`, `setVolume`, `setRepeatMode` et `shuffle`. Son `shuffle` conserve explicitement la piste courante.
+- DisTube ne fournit aucune API publique de réorganisation arbitraire de la queue. L’action `reorder` est donc volontairement absente et rejetée par validation stricte.
+- Les middlewares Worker existants couvrent session, appartenance et accès guilde, présence du bot, niveau administrateur, inventaire de mutations, Origin/CSRF, rate limit, quota durable et audit.
+
+### Architecture retenue
+
+- `MusicControlService` est la couche métier unique pour Discord et panel.
+- Sa serrure FIFO par guilde est aussi utilisée par `/play`, `/playlist load` et le chemin seek existant ; aucune serrure globale.
+- Les contrôles vérifient côté Gateway que l’utilisateur se trouve dans le salon vocal de la queue.
+- Le Worker valide un union discriminé shared strict, traduit uniquement vers le protocole interne existant puis relaie au Gateway.
+- Le panel expose pause/reprise, skip, stop, shuffle, volume, repeat et suppression d’une piste non courante.
+
+### Tests et auto-audit
+
+- Parité Discord/panel des huit contrôles, queue absente, suppression invalide, publication d’état, nettoyage stop/skip et conservation de la piste active.
+- Sérialisation de deux actions dans une guilde et parallélisme de deux guildes.
+- Refus hors salon vocal pour les sources panel et Discord.
+- Validation stricte Worker de toutes les actions et rejet de `reorder`, des valeurs hors bornes et des champs inattendus.
+- Test Lazy Queue 200 pistes renforcé avec le contexte vocal réel ; l’isolation de guildes reste valide.
+- Tests ciblés : Gateway 45/45 puis régression Lazy Queue 41/41 ; Worker 6/6 ; panel 3/3.
+- Suites complètes Gateway, Worker et panel : réussies après correction du faux membre incomplet du harness Lazy Queue.
+- Typechecks Gateway, Worker, panel et shared : réussis.
+- Builds Gateway et panel, et build Worker `wrangler --dry-run` : réussis, sans déploiement.
+- Lockfile, dépendances, migrations, patch yt-dlp et configuration : inchangés.
+
+### Fichiers de la phase
+
+- `packages/shared/src/api-types/music.ts`
+- `packages/gateway/src/music/control-service.ts`
+- `packages/gateway/src/music/controller.ts`
+- `packages/gateway/test/music-control-service.test.ts`
+- `packages/gateway/test/music-player-state.test.ts`
+- `packages/gateway/test/music-lazy-queue-controller.test.ts`
+- `packages/worker/src/api/music.ts`
+- `packages/worker/test/music.test.ts`
+- `packages/panel/src/pages/Music.tsx`
+
+Commit prévu : `feat(music): expose shared panel and Discord controls`.
 
 ## Phases suivantes
 
-- Phase 5 : en attente.
+- Phase 5 : validée, commit en cours.
 - Phase 6 : en attente.
 - Phase 7 : en attente.
 

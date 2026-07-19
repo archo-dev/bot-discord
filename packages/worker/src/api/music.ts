@@ -1,7 +1,7 @@
 import { Hono } from "hono";
-import { z } from "zod";
 import {
   EMPTY_MUSIC_STATE,
+  MusicControlRequestSchema,
   MusicStateSchema,
   type MusicCommandPayload,
   type MusicStateDto,
@@ -32,22 +32,29 @@ musicRouter.get("/guilds/:guildId/music-state", async (c) => {
   return c.json(state);
 });
 
-const controlSchema = z.object({ action: z.enum(["pause", "resume", "skip", "stop"]) });
-
 musicRouter.post("/guilds/:guildId/music-control", rateLimit({ name: "music-control", limit: 30 }), async (c) => {
   if (!(await isGuildModuleEnabled(c.env.DB, c.req.param("guildId"), "music"))) {
     return c.json({ error: "module_disabled" }, 409);
   }
-  const parsed = controlSchema.safeParse(await c.req.json().catch(() => null));
+  const parsed = MusicControlRequestSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "invalid_body" }, 400);
+  const { action } = parsed.data;
+  const command = action === "repeat" ? "loop" : action;
+  const arg = action === "volume"
+    ? String(parsed.data.value)
+    : action === "repeat"
+      ? parsed.data.mode
+      : action === "remove"
+        ? String(parsed.data.position)
+        : null;
   const payload: MusicCommandPayload = {
-    command: parsed.data.action,
+    command,
     guildId: c.req.param("guildId"),
     userId: c.get("session").userId,
     textChannelId: "",
     applicationId: null,
     token: null,
-    arg: null,
+    arg,
     source: "panel",
   };
   const result = await forwardMusic(c.env, payload);

@@ -101,7 +101,10 @@ describe("MusicController — lazy playlist guild isolation", () => {
       members: {
         me: { voice: { channelId: `voice-${guildId}` } },
         fetch: vi.fn().mockResolvedValue({
-          voice: { channel: { id: `voice-${guildId}`, guild: { id: guildId } } },
+          voice: {
+            channelId: `voice-${guildId}`,
+            channel: { id: `voice-${guildId}`, guild: { id: guildId } },
+          },
         }),
       },
     });

@@ -4,7 +4,6 @@ import {
   DisTube,
   Events as DTEvents,
   Playlist,
-  RepeatMode,
   type DisTubeStream,
   type DisTubeVoice,
   type Queue,
@@ -54,6 +53,7 @@ import {
   SoundcloudSearchCapacityError,
 } from "./search-cache.js";
 import { getSoundcloudPlaybackMetadata } from "./soundcloud-playback.js";
+import { MusicControlService } from "./control-service.js";
 
 interface NowPlaying {
   messageId: string;
@@ -121,8 +121,6 @@ export class MusicController {
   private readonly expectedStreamClosures = new WeakSet<DisTubeStream>();
   /** Weak lifecycle records: values never outlive their stream keys. */
   private readonly streamContexts = new WeakMap<DisTubeStream, GuardedStreamContext>();
-  /** One explicit /play or /playlist load start sequence per guild at a time. */
-  private readonly playbackLocks = new Map<string, Promise<void>>();
   /** Shared confirmation for playSong and the command awaiting real playback. */
   private readonly playingConfirmations = new Map<string, Promise<void>>();
   /** Active scalar-only action contexts used to correlate synchronous events. */
@@ -131,6 +129,7 @@ export class MusicController {
   private readonly executingPlaybackActions = new Map<string, MusicActionContext>();
   private readonly actionsById = new Map<string, MusicActionContext>();
   private readonly playlistLoader = new PlaylistLoader();
+  private readonly controlService: MusicControlService;
   private lastMusicStateSequence = 0;
 
   constructor(
@@ -140,7 +139,31 @@ export class MusicController {
     private readonly primarySource: PrimarySource = "youtube",
     private readonly instrumentation = new MusicInstrumentation(),
     private readonly soundcloudSearchCache = new SoundcloudSearchCache(),
-  ) {}
+  ) {
+    this.controlService = new MusicControlService({
+      getQueue: (guildId) => this.distube.getQueue(guildId),
+      authorize: async (queue, guildId, userId) => {
+        const guild = this.client.guilds.cache.get(guildId) ?? (await this.client.guilds.fetch(guildId));
+        const member = await guild.members.fetch(userId);
+        const memberVoiceId = member.voice.channelId;
+        if (!memberVoiceId) throw new UserError("⚠️ Rejoins d'abord un salon vocal.");
+        const queueVoiceId = queue.voiceChannel?.id;
+        if (queueVoiceId && queueVoiceId !== memberVoiceId) {
+          throw new UserError("⚠️ Rejoins le salon vocal du bot pour utiliser ce contrôle.");
+        }
+      },
+      enter: (guildId, action) => this.executingPlaybackActions.set(guildId, action),
+      leave: (guildId, action) => {
+        if (this.executingPlaybackActions.get(guildId) === action) this.executingPlaybackActions.delete(guildId);
+      },
+      prepareStreamCleanup: (queue, guildId, action, reason) =>
+        this.markVoiceStreamsForCleanup(queue.voice, guildId, action, reason),
+      prepareResume: (queue, guildId, action) => this.guardStream(queue.voice.pausingStream, true, guildId, action),
+      publish: (queue, action) => this.pushState(queue, action),
+      publishStopped: (guildId, action) => this.pushEmptyState(guildId, action, "stopped"),
+      clearNowPlaying: (guildId) => this.clearNowPlaying(guildId),
+    });
+  }
 
   /** Entry point for the HTTP /music route. Edits the interaction webhook itself. */
   async handle(payload: MusicCommandPayload): Promise<{ ok: boolean; message: string }> {
@@ -204,7 +227,7 @@ export class MusicController {
     switch (payload.command) {
       case "play":
       case "playlist_load": {
-        return this.withPlaybackLock(guild.id, action, async () => {
+        return this.controlService.withGuildLock(guild.id, action, async () => {
           const member = await guild.members.fetch(payload.userId);
           const voiceChannel = member.voice.channel;
           if (!voiceChannel) throw new UserError("⚠️ Rejoins d'abord un salon vocal.");
@@ -245,96 +268,50 @@ export class MusicController {
         });
       }
 
-      case "pause": {
-        const queue = this.requireQueue(guild.id);
-        if (queue.paused) return { content: "⏸️ Déjà en pause." };
-        queue.pause();
-        this.pushState(queue);
-        return { content: "⏸️ Lecture mise en pause." };
-      }
-
-      case "resume": {
-        const queue = this.requireQueue(guild.id);
-        if (!queue.paused) return { content: "▶️ Déjà en lecture." };
-        this.guardStream(queue.voice.pausingStream, true, guild.id, action);
-        queue.resume();
-        this.pushState(queue);
-        return { content: "▶️ Reprise de la lecture." };
-      }
-
-      case "skip": {
-        const queue = this.requireQueue(guild.id);
-        this.markVoiceStreamsForCleanup(queue.voice, guild.id, action, "skip");
-        if (queue.songs.length <= 1) {
-          await queue.stop();
-          this.clearNowPlaying(guild.id);
-          this.pushEmptyState(guild.id, undefined, "stopped");
-          return { content: "⏭️ Dernière piste — lecture arrêtée." };
-        }
-        await queue.skip();
-        return { content: "⏭️ Piste suivante." };
-      }
-
-      case "stop": {
-        const queue = this.requireQueue(guild.id);
-        this.markVoiceStreamsForCleanup(queue.voice, guild.id, action, "stop");
-        await queue.stop();
-        this.clearNowPlaying(guild.id);
-        this.pushEmptyState(guild.id, undefined, "stopped");
-        return { content: "⏹️ Lecture arrêtée." };
-      }
-
-      case "shuffle": {
-        const queue = this.requireQueue(guild.id);
-        await queue.shuffle();
-        this.pushState(queue);
-        return { content: "🔀 File mélangée." };
-      }
+      case "pause":
+      case "resume":
+      case "skip":
+      case "stop":
+      case "shuffle":
+        return this.controlService.execute(guild.id, payload.userId, { action: payload.command }, action);
 
       case "loop": {
-        const queue = this.requireQueue(guild.id);
-        const arg = payload.arg?.trim();
-        const mode =
-          arg === "song"
-            ? RepeatMode.SONG
-            : arg === "queue"
-              ? RepeatMode.QUEUE
-              : arg === "off"
-                ? RepeatMode.DISABLED
-                : ((queue.repeatMode + 1) % 3) as RepeatMode;
-        queue.setRepeatMode(mode);
-        this.pushState(queue);
-        const label =
-          mode === RepeatMode.SONG ? "🔂 Répétition : piste" : mode === RepeatMode.QUEUE ? "🔁 Répétition : file" : "➡️ Répétition désactivée";
-        return { content: label };
+        const mode = payload.arg?.trim();
+        if (mode !== undefined && mode !== "" && mode !== "off" && mode !== "song" && mode !== "queue") {
+          throw new UserError("⚠️ Mode de répétition invalide.");
+        }
+        return this.controlService.execute(
+          guild.id,
+          payload.userId,
+          { action: "repeat", mode: mode === "off" || mode === "song" || mode === "queue" ? mode : null },
+          action,
+        );
       }
 
       case "volume": {
-        const queue = this.requireQueue(guild.id);
-        const n = Number(payload.arg);
-        if (!Number.isFinite(n) || n < 0 || n > 150) throw new UserError("⚠️ Volume attendu entre 0 et 150.");
-        queue.setVolume(n);
-        this.pushState(queue);
-        return { content: `🔊 Volume : ${n}%` };
+        const value = Number(payload.arg);
+        if (!Number.isInteger(value) || value < 0 || value > 150) {
+          throw new UserError("⚠️ Volume attendu entre 0 et 150.");
+        }
+        return this.controlService.execute(guild.id, payload.userId, { action: "volume", value }, action);
       }
 
       case "seek": {
-        const queue = this.requireQueue(guild.id);
-        const n = Number(payload.arg);
-        if (!Number.isFinite(n) || n < 0) throw new UserError("⚠️ Position invalide.");
-        this.markVoiceStreamsForCleanup(queue.voice, guild.id, action, "seek");
-        queue.seek(n);
-        this.pushState(queue);
-        return { content: `⏩ Position : ${formatDuration(n)}` };
+        return this.controlService.withGuildLock(guild.id, action, async () => {
+          const queue = this.requireQueue(guild.id);
+          const n = Number(payload.arg);
+          if (!Number.isFinite(n) || n < 0) throw new UserError("⚠️ Position invalide.");
+          this.markVoiceStreamsForCleanup(queue.voice, guild.id, action, "seek");
+          await queue.seek(n);
+          this.pushState(queue, action);
+          return { content: `⏩ Position : ${formatDuration(n)}` };
+        });
       }
 
       case "remove": {
-        const queue = this.requireQueue(guild.id);
         const n = Number(payload.arg);
-        if (!Number.isInteger(n) || n < 1 || n >= queue.songs.length) throw new UserError("⚠️ Numéro de file invalide.");
-        const [removed] = queue.songs.splice(n, 1);
-        this.pushState(queue);
-        return { content: `🗑️ Retiré : **${removed?.name ?? "?"}**` };
+        if (!Number.isInteger(n) || n < 1 || n > 200) throw new UserError("⚠️ Numéro de file invalide.");
+        return this.controlService.execute(guild.id, payload.userId, { action: "remove", position: n }, action);
       }
 
       case "nowplaying": {
@@ -401,32 +378,6 @@ export class MusicController {
 
   private correlationFromMetadata(metadata: unknown, guildId: string): MusicCorrelation {
     return this.instrumentation.correlationFromMetadata(metadata, guildId);
-  }
-
-  /** Serialises explicit playback intentions before DisTube's own queue exists. */
-  private async withPlaybackLock<T>(
-    guildId: string,
-    action: MusicActionContext,
-    task: () => Promise<T>,
-  ): Promise<T> {
-    const previous = this.playbackLocks.get(guildId) ?? Promise.resolve();
-    let release!: () => void;
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const tail = previous.then(() => gate);
-    this.playbackLocks.set(guildId, tail);
-    await previous;
-    this.executingPlaybackActions.set(guildId, action);
-    try {
-      return await task();
-    } finally {
-      if (this.executingPlaybackActions.get(guildId) === action) {
-        this.executingPlaybackActions.delete(guildId);
-      }
-      release();
-      if (this.playbackLocks.get(guildId) === tail) this.playbackLocks.delete(guildId);
-    }
   }
 
   private cancelPlaylistLoad(guildId: string, reason: string): void {

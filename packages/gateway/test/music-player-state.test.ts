@@ -67,6 +67,7 @@ interface HarnessOptions {
   playlistTracks?: MusicTrack[];
   failedUrls?: Set<string>;
   playlistAddLimit?: number;
+  memberVoiceChannelId?: string | null;
 }
 
 function createHarness(options: HarnessOptions = {}) {
@@ -165,7 +166,13 @@ function createHarness(options: HarnessOptions = {}) {
     voices: { get: ReturnType<typeof vi.fn>; leave: ReturnType<typeof vi.fn> };
   };
 
-  const member = { voice: { channel: { id: "vc1", guild: { id: guildId } } } };
+  const memberVoiceChannelId = options.memberVoiceChannelId === undefined ? "vc1" : options.memberVoiceChannelId;
+  const member = {
+    voice: {
+      channelId: memberVoiceChannelId,
+      channel: memberVoiceChannelId ? { id: memberVoiceChannelId, guild: { id: guildId } } : null,
+    },
+  };
   const guild = {
     id: guildId,
     members: {
@@ -949,4 +956,19 @@ describe("MusicController — real AudioPlayer state", () => {
     );
     expect(getStreamURL).not.toHaveBeenCalled();
   });
+
+  it.each(["panel", "interaction"] as const)(
+    "rejects %s controls outside the bot voice channel without mutating the queue",
+    async (source) => {
+      const current = song("Current");
+      const { controller, getQueue } = createHarness({
+        initialSongs: [current],
+        memberVoiceChannelId: source === "panel" ? null : "other-vc",
+      });
+      const result = await controller.handle({ ...playPayload, source, command: "pause", arg: null });
+      expect(result.ok).toBe(false);
+      expect(result.message).toContain("salon vocal");
+      expect(getQueue()!.pause).not.toHaveBeenCalled();
+    },
+  );
 });

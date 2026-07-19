@@ -146,13 +146,39 @@ describe("music state", () => {
     expect(result).toMatchObject({ status: "playing", paused: false, sequence: baseSequence + 2 });
   });
 
-  it("503s panel controls when the gateway is unreachable (GATEWAY_ORIGIN unset)", async () => {
+  it("strictly validates every panel control before forwarding to the Gateway", async () => {
     const sid = await makeSession("850000000000000003");
-    const res = await panel(`/api/guilds/${G}/music-control`, sid, {
-      method: "POST",
-      body: JSON.stringify({ action: "skip" }),
-    });
-    expect(res.status).toBe(503);
+    const valid = [
+      { action: "pause" },
+      { action: "resume" },
+      { action: "skip" },
+      { action: "stop" },
+      { action: "shuffle" },
+      { action: "volume", value: 75 },
+      { action: "repeat", mode: "queue" },
+      { action: "remove", position: 1 },
+    ];
+    for (const body of valid) {
+      const res = await panel(`/api/guilds/${G}/music-control`, sid, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      expect(res.status, JSON.stringify(body)).toBe(503);
+    }
+
+    for (const body of [
+      { action: "volume", value: 151 },
+      { action: "repeat", mode: "invalid" },
+      { action: "remove", position: 0 },
+      { action: "reorder", from: 1, to: 2 },
+      { action: "pause", unexpected: true },
+    ]) {
+      const res = await panel(`/api/guilds/${G}/music-control`, sid, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      expect(res.status, JSON.stringify(body)).toBe(400);
+    }
   });
 });
 
