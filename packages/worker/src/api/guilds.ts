@@ -44,8 +44,16 @@ guildsRouter.get("/me", (c) => {
  */
 guildsRouter.get("/guilds", async (c) => {
   const session = c.get("session");
-  const userGuilds = await getUserGuilds(c.env, session);
-  if (userGuilds === null) return c.json({ error: "session_expired" }, 401);
+  // This overview list is read-only, so a transient Discord rate limit falls
+  // back to the recently verified guild list rather than failing the page.
+  const result = await getUserGuilds(c.env, session, { allowRecent: true });
+  if (result.status === "unauthorized") return c.json({ error: "session_expired" }, 401);
+  if (result.status === "rate_limited") {
+    c.header("Retry-After", String(result.retryAfterSeconds));
+    return c.json({ error: "rate_limited", retryAfterSeconds: result.retryAfterSeconds }, 429);
+  }
+  if (result.status === "unavailable") return c.json({ error: "discord_unavailable" }, 503);
+  const userGuilds = result.guilds;
 
   const manageable = userGuilds.filter((g) => g.owner || canManageGuild(g.permissions));
   const installed = await filterInstalledGuilds(

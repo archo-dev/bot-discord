@@ -39,38 +39,136 @@ export const requireSession: MiddlewareHandler<AppContext> = async (c, next) => 
   await next();
 };
 
+/** Distinct membership-lookup outcomes so callers separate 401/429/5xx cleanly. */
+export type UserGuildsResult =
+  | { status: "ok"; guilds: OAuthGuild[] }
+  | { status: "unauthorized" }
+  | { status: "rate_limited"; retryAfterSeconds: number }
+  | { status: "unavailable" };
+
+type DiscordGuildsFetch =
+  | { kind: "ok"; guilds: OAuthGuild[] }
+  | { kind: "unauthorized" }
+  | { kind: "rate_limited"; retryAfterSeconds: number }
+  | { kind: "unavailable" };
+
 /**
- * The user's guild list as Discord reports it (OAuth `guilds` scope),
- * KV-cached for 60s. Returns null when the user token was revoked.
+ * Coalesces concurrent `users/@me/guilds` fetches for the same user within an
+ * isolate: a burst of panel polls (music-state + page loads) shares one Discord
+ * request instead of each racing to hit — and rate-limit — the endpoint.
+ */
+const inflightUserGuilds = new Map<string, Promise<DiscordGuildsFetch>>();
+
+/** Retry-After (seconds) clamped to a sane window; reads fall back to `recent`. */
+function clampRetryAfter(header: string | null): number {
+  const parsed = header != null ? Number(header) : NaN;
+  if (!Number.isFinite(parsed)) return 5;
+  return Math.min(60, Math.max(1, Math.ceil(parsed)));
+}
+
+async function fetchUserGuilds(env: Env, session: SessionData & { id: string }): Promise<DiscordGuildsFetch> {
+  const key = session.userId;
+  const existing = inflightUserGuilds.get(key);
+  if (existing) return existing;
+
+  const run = async (): Promise<DiscordGuildsFetch> => {
+    let res: Response;
+    try {
+      res = await fetch("https://discord.com/api/v10/users/@me/guilds", {
+        headers: { authorization: `Bearer ${session.accessToken}` },
+      });
+    } catch {
+      return { kind: "unavailable" };
+    }
+    if (res.status === 401) return { kind: "unauthorized" };
+    if (res.status === 429) {
+      const retryAfterSeconds = clampRetryAfter(res.headers.get("retry-after"));
+      // Remember the backoff so subsequent polls serve `recent` instead of
+      // hammering Discord for the whole Retry-After window. The value is the
+      // real expiry epoch (Retry-After honoured to the second); the KV TTL only
+      // reclaims the key and must respect KV's 60s floor.
+      const expiresAt = Date.now() + retryAfterSeconds * 1000;
+      await env.KV.put(`guilds:backoff:${session.userId}`, String(expiresAt), {
+        expirationTtl: Math.max(60, retryAfterSeconds),
+      });
+      return { kind: "rate_limited", retryAfterSeconds };
+    }
+    if (!res.ok) return { kind: "unavailable" };
+    let guilds: OAuthGuild[];
+    try {
+      guilds = (await res.json()) as OAuthGuild[];
+    } catch {
+      return { kind: "unavailable" };
+    }
+    const serialized = JSON.stringify(guilds);
+    await Promise.all([
+      env.KV.put(`guilds:${session.userId}`, serialized, { expirationTtl: 60 }),
+      env.KV.put(`guilds:recent:${session.userId}`, serialized, { expirationTtl: 180 }),
+    ]);
+    return { kind: "ok", guilds };
+  };
+
+  const entry = run().finally(() => {
+    if (inflightUserGuilds.get(key) === entry) inflightUserGuilds.delete(key);
+  });
+  inflightUserGuilds.set(key, entry);
+  return entry;
+}
+
+/**
+ * The user's guild list as Discord reports it (OAuth `guilds` scope), KV-cached
+ * for 60s. A Discord 429 or 5xx never crashes the request: with `allowRecent`
+ * (read-only continuity) the last verified list is served for up to 180s;
+ * otherwise the outcome (`unauthorized`/`rate_limited`/`unavailable`) is
+ * surfaced for the caller to map to a proper status — never a 500.
  */
 export async function getUserGuilds(
   env: Env,
   session: SessionData & { id: string },
-  options: { allowRecentOnTransientError?: boolean } = {},
-): Promise<OAuthGuild[] | null> {
+  options: { allowRecent?: boolean } = {},
+): Promise<UserGuildsResult> {
   const cacheKey = `guilds:${session.userId}`;
   const recentKey = `guilds:recent:${session.userId}`;
-  const cached = await env.KV.get(cacheKey);
-  if (cached) return JSON.parse(cached) as OAuthGuild[];
+  const backoffKey = `guilds:backoff:${session.userId}`;
 
-  const res = await fetch("https://discord.com/api/v10/users/@me/guilds", {
-    headers: { authorization: `Bearer ${session.accessToken}` },
-  });
-  if (res.status === 401) return null;
-  if (!res.ok) {
-    if (options.allowRecentOnTransientError && (res.status === 429 || res.status >= 500)) {
-      const recent = await env.KV.get(recentKey);
-      if (recent) return JSON.parse(recent) as OAuthGuild[];
+  const cached = await env.KV.get(cacheKey);
+  if (cached) return { status: "ok", guilds: JSON.parse(cached) as OAuthGuild[] };
+
+  const serveRecent = async (): Promise<OAuthGuild[] | null> => {
+    if (!options.allowRecent) return null;
+    const recent = await env.KV.get(recentKey);
+    return recent ? (JSON.parse(recent) as OAuthGuild[]) : null;
+  };
+
+  // An active rate-limit backoff is honoured without touching Discord again.
+  const backoff = await env.KV.get(backoffKey);
+  if (backoff) {
+    const expiresAt = Number(backoff);
+    const remainingSeconds = Number.isFinite(expiresAt) ? Math.ceil((expiresAt - Date.now()) / 1000) : 0;
+    if (remainingSeconds > 0) {
+      const recent = await serveRecent();
+      if (recent) return { status: "ok", guilds: recent };
+      return { status: "rate_limited", retryAfterSeconds: remainingSeconds };
     }
-    throw new Error(`users/@me/guilds failed: ${res.status}`);
   }
-  const guilds = (await res.json()) as OAuthGuild[];
-  const serialized = JSON.stringify(guilds);
-  await Promise.all([
-    env.KV.put(cacheKey, serialized, { expirationTtl: 60 }),
-    env.KV.put(recentKey, serialized, { expirationTtl: 180 }),
-  ]);
-  return guilds;
+
+  const fetched = await fetchUserGuilds(env, session);
+  switch (fetched.kind) {
+    case "ok":
+      return { status: "ok", guilds: fetched.guilds };
+    case "unauthorized":
+      return { status: "unauthorized" };
+    case "rate_limited": {
+      const recent = await serveRecent();
+      if (recent) return { status: "ok", guilds: recent };
+      return { status: "rate_limited", retryAfterSeconds: fetched.retryAfterSeconds };
+    }
+    case "unavailable": {
+      const recent = await serveRecent();
+      if (recent) return { status: "ok", guilds: recent };
+      return { status: "unavailable" };
+    }
+  }
 }
 
 interface RESTMember {
@@ -135,12 +233,16 @@ export const requireGuildAccess: MiddlewareHandler<AppContext> = async (c, next)
   const guildRow = await getGuild(c.env.DB, guildId);
   if (!guildRow || guildRow.bot_installed !== 1) return c.json({ error: "bot_not_installed" }, 404);
 
-  const musicStateRead = c.req.method === "GET" &&
-    new URL(c.req.url).pathname === `/api/guilds/${guildId}/music-state`;
-  const userGuilds = await getUserGuilds(c.env, session, {
-    allowRecentOnTransientError: musicStateRead,
-  });
-  if (userGuilds === null) return c.json({ error: "session_expired" }, 401);
+  // Read-only requests keep working from the recently verified guild list when
+  // Discord is briefly rate-limited/unavailable; writes always fail closed.
+  const result = await getUserGuilds(c.env, session, { allowRecent: c.req.method === "GET" });
+  if (result.status === "unauthorized") return c.json({ error: "session_expired" }, 401);
+  if (result.status === "rate_limited") {
+    c.header("Retry-After", String(result.retryAfterSeconds));
+    return c.json({ error: "rate_limited", retryAfterSeconds: result.retryAfterSeconds }, 429);
+  }
+  if (result.status === "unavailable") return c.json({ error: "discord_unavailable" }, 503);
+  const userGuilds = result.guilds;
 
   const oauthGuild = userGuilds.find((g) => g.id === guildId);
   // Discord can report an owner with a bitfield without MANAGE_GUILD.

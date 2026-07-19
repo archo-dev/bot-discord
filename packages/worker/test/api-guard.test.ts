@@ -7,6 +7,8 @@ import { replacePanelAccess, upsertGuild } from "../src/db/queries.js";
 const INSTALLED = "910000000000000001";
 const NOT_INSTALLED = "910000000000000002";
 const transientDiscordUsers = new Set<string>();
+const serverErrorDiscordUsers = new Set<string>();
+const discordGuildCalls = new Map<string, number>();
 
 async function makeSession(userId: string): Promise<string> {
   return createSession(env, {
@@ -27,6 +29,17 @@ function get(path: string, sessionId?: string): Promise<Response> {
   );
 }
 
+function post(path: string, sessionId: string): Promise<Response> {
+  return Promise.resolve(
+    app.request(
+      path,
+      { method: "POST", headers: { cookie: `session=${sessionId}`, origin: env.PANEL_ORIGIN } },
+      env,
+      createExecutionContext(),
+    ),
+  );
+}
+
 beforeAll(async () => {
   fetchMock.activate();
   fetchMock.disableNetConnect();
@@ -41,8 +54,13 @@ beforeAll(async () => {
     .reply((req) => {
       const headers = req.headers as Record<string, string | string[]>;
       const auth = String(headers["authorization"] ?? headers["Authorization"] ?? "");
+      const uid = /token-(\d+)/.exec(auth)?.[1];
+      if (uid) discordGuildCalls.set(uid, (discordGuildCalls.get(uid) ?? 0) + 1);
+      if ([...serverErrorDiscordUsers].some((userId) => auth.includes(`token-${userId}`))) {
+        return { statusCode: 503, data: [] };
+      }
       if ([...transientDiscordUsers].some((userId) => auth.includes(`token-${userId}`))) {
-        return { statusCode: 429, data: [] };
+        return { statusCode: 429, data: [], responseOptions: { headers: { "retry-after": "3" } } };
       }
       const permissions = auth.includes("token-810000000000000042") || auth.includes("token-810000000000000077") ? "0" : "32";
       const owner = auth.includes("token-810000000000000077");
@@ -129,6 +147,83 @@ describe("panel API auth", () => {
     transientDiscordUsers.add(userId);
     try {
       expect((await get(`/api/guilds/${INSTALLED}/music-state`, sid)).status).toBe(200);
+    } finally {
+      transientDiscordUsers.delete(userId);
+    }
+  });
+
+  it("returns 429 with Retry-After instead of 500 when Discord rate-limits and no recent list exists", async () => {
+    const userId = "810000000000000089";
+    const sid = await makeSession(userId);
+    transientDiscordUsers.add(userId);
+    try {
+      const res = await get(`/api/guilds/${INSTALLED}/music-state`, sid);
+      expect(res.status).toBe(429);
+      expect(res.headers.get("Retry-After")).toBe("3");
+      expect((await res.json() as { error: string }).error).toBe("rate_limited");
+    } finally {
+      transientDiscordUsers.delete(userId);
+    }
+  });
+
+  it("keeps any read-only guild page available from the recent list during a Discord 429", async () => {
+    const userId = "810000000000000090";
+    const sid = await makeSession(userId);
+    // Manager (permissions "32") — a first read verifies and caches the list.
+    expect((await get(`/api/guilds/${INSTALLED}`, sid)).status).toBe(200);
+    await env.KV.delete(`guilds:${userId}`);
+    transientDiscordUsers.add(userId);
+    try {
+      expect((await get(`/api/guilds/${INSTALLED}`, sid)).status).toBe(200);
+    } finally {
+      transientDiscordUsers.delete(userId);
+    }
+  });
+
+  it("fails writes closed during a Discord 429 even with a recent list", async () => {
+    const userId = "810000000000000091";
+    const sid = await makeSession(userId);
+    expect((await get(`/api/guilds/${INSTALLED}`, sid)).status).toBe(200); // caches recent
+    await env.KV.delete(`guilds:${userId}`);
+    transientDiscordUsers.add(userId);
+    try {
+      // A write must re-verify against Discord; the recent list is not accepted.
+      const res = await post(`/api/guilds/${INSTALLED}/music-state`, sid);
+      expect(res.status).toBe(429);
+    } finally {
+      transientDiscordUsers.delete(userId);
+    }
+  });
+
+  it("maps a Discord 5xx to 503 when no recent list can cover the read", async () => {
+    const userId = "810000000000000092";
+    const sid = await makeSession(userId);
+    serverErrorDiscordUsers.add(userId);
+    try {
+      const res = await get(`/api/guilds/${INSTALLED}/music-state`, sid);
+      expect(res.status).toBe(503);
+      expect((await res.json() as { error: string }).error).toBe("discord_unavailable");
+    } finally {
+      serverErrorDiscordUsers.delete(userId);
+    }
+  });
+
+  it("stops hitting Discord for the Retry-After window and coalesces concurrent polls", async () => {
+    const userId = "810000000000000093";
+    const sid = await makeSession(userId);
+    expect((await get(`/api/guilds/${INSTALLED}/music-state`, sid)).status).toBe(200); // 1 Discord call
+    await env.KV.delete(`guilds:${userId}`);
+    transientDiscordUsers.add(userId);
+    try {
+      // A burst of concurrent polls shares one in-flight Discord fetch (the 429),
+      // which then arms the backoff so later polls serve `recent` untouched.
+      const burst = await Promise.all(
+        Array.from({ length: 5 }, () => get(`/api/guilds/${INSTALLED}/music-state`, sid)),
+      );
+      expect(burst.map((r) => r.status)).toEqual([200, 200, 200, 200, 200]);
+      expect((await get(`/api/guilds/${INSTALLED}/music-state`, sid)).status).toBe(200);
+      // 1 successful verify + at most 1 rate-limited fetch — never one per poll.
+      expect(discordGuildCalls.get(userId)).toBeLessThanOrEqual(2);
     } finally {
       transientDiscordUsers.delete(userId);
     }
