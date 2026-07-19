@@ -78,7 +78,11 @@ function harness(queues = new Map<string, Queue>([["guild-1", queue()]])) {
     prepareResume: vi.fn(),
     publish: vi.fn(),
     publishStopped: vi.fn(),
+    publishError: vi.fn(),
     clearNowPlaying: vi.fn(),
+    currentPosition: vi.fn((current: Queue) => Math.floor(current.currentTime)),
+    refreshStreamUrl: vi.fn(),
+    confirmSeek: vi.fn().mockResolvedValue(true),
   };
   return { service: new MusicControlService(hooks), hooks, queues };
 }
@@ -220,5 +224,83 @@ describe("MusicControlService", () => {
     });
     await expect(current.service.execute(q.id, "user-1", { action: "seek", position: 20 }, action("panel"))).rejects.toThrow("piste a changé");
     expect(current.hooks.publish).not.toHaveBeenCalled();
+  });
+
+  it("resolves a fresh stream URL before restarting ffmpeg and confirms playback", async () => {
+    const q = queue();
+    const { service, hooks } = harness(new Map([[q.id, q]]));
+    const order: string[] = [];
+    vi.mocked(hooks.refreshStreamUrl).mockImplementation(() => void order.push("refresh"));
+    vi.mocked(q.seek).mockImplementation(async (position: number) => {
+      order.push(`seek:${position}`);
+      q.currentTime = position;
+      return q;
+    });
+    vi.mocked(hooks.confirmSeek).mockImplementation(async () => {
+      order.push("confirm");
+      return true;
+    });
+    const reply = await service.execute(q.id, "user-1", { action: "seek", position: 96 }, action("panel"));
+    expect(reply).toEqual({ content: "⏩ Position : 96 s" });
+    // Fresh resolution must precede the ffmpeg restart, and playback must be
+    // confirmed before the authoritative state is published.
+    expect(order).toEqual(["refresh", "seek:96", "confirm"]);
+    expect(hooks.publish).toHaveBeenCalledTimes(1);
+    expect(hooks.publishError).not.toHaveBeenCalled();
+  });
+
+  it("rolls back to the previous position when a fresh stream is refused but the queue survives", async () => {
+    const q = queue();
+    q.currentTime = 40; // authoritative position before the seek
+    const { service, hooks } = harness(new Map([[q.id, q]]));
+    // First restart (target) stalls, second restart (rollback) succeeds.
+    vi.mocked(hooks.confirmSeek).mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    await expect(
+      service.execute(q.id, "user-1", { action: "seek", position: 96 }, action("panel")),
+    ).rejects.toThrow("reprise à la position précédente");
+    expect(vi.mocked(q.seek).mock.calls.map((call) => call[0])).toEqual([96, 40]);
+    expect(hooks.refreshStreamUrl).toHaveBeenCalledTimes(2); // fresh URL for both attempts
+    expect(hooks.publish).toHaveBeenCalledTimes(1); // restored playback published
+    expect(hooks.publishError).not.toHaveBeenCalled();
+  });
+
+  it("keeps no false success and reports a recoverable error when the refusal persists", async () => {
+    const q = queue();
+    const { service, hooks } = harness(new Map([[q.id, q]]));
+    vi.mocked(hooks.confirmSeek).mockResolvedValue(false);
+    await expect(
+      service.execute(q.id, "user-1", { action: "seek", position: 96 }, action("panel")),
+    ).rejects.toThrow("refusé par la source");
+    expect(vi.mocked(q.seek).mock.calls.length).toBe(2); // target + rollback attempt
+    expect(hooks.publish).not.toHaveBeenCalled();
+    expect(hooks.publishError).toHaveBeenCalledTimes(1); // recoverable, never idle
+  });
+
+  it("skips rollback and reports an error when DisTube tore the queue down", async () => {
+    const q = queue();
+    const queues = new Map([[q.id, q]]);
+    const { service, hooks } = harness(queues);
+    vi.mocked(hooks.confirmSeek).mockImplementation(async () => {
+      queues.delete(q.id); // the stream error already removed the queue
+      return false;
+    });
+    await expect(
+      service.execute(q.id, "user-1", { action: "seek", position: 96 }, action("panel")),
+    ).rejects.toThrow("refusé par la source");
+    expect(vi.mocked(q.seek).mock.calls.length).toBe(1); // no re-seek on a dead queue
+    expect(hooks.publish).not.toHaveBeenCalled();
+    expect(hooks.publishError).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies a paused seek without waiting for Playing but still refreshes the URL", async () => {
+    const q = queue();
+    q.paused = true;
+    const { service, hooks } = harness(new Map([[q.id, q]]));
+    const reply = await service.execute(q.id, "user-1", { action: "seek", position: 96 }, action("panel"));
+    expect(reply).toEqual({ content: "⏩ Position : 96 s" });
+    expect(hooks.confirmSeek).not.toHaveBeenCalled(); // ffmpeg only re-spawns on resume
+    expect(hooks.refreshStreamUrl).toHaveBeenCalledTimes(1);
+    expect(hooks.publish).toHaveBeenCalledTimes(1);
+    expect(hooks.publishError).not.toHaveBeenCalled();
   });
 });

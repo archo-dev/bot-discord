@@ -78,6 +78,8 @@ interface MusicExecutionReply extends MusicReply {
 
 /** Maximum time after extraction for Discord's real AudioPlayer to start. */
 export const PLAYER_START_TIMEOUT_MS = 8_000;
+/** Maximum time for a seek restart to reach Playing before it counts as failed. */
+export const SEEK_CONFIRM_TIMEOUT_MS = 8_000;
 const DISCORD_SNOWFLAKE_RE = /^\d{17,20}$/;
 
 function isPausedPlayerStatus(status: AudioPlayerStatus): boolean {
@@ -185,7 +187,11 @@ export class MusicController {
       prepareResume: (queue, guildId, action) => this.guardStream(queue.voice.pausingStream, true, guildId, action),
       publish: (queue, action) => this.pushState(queue, action),
       publishStopped: (guildId, action) => this.pushEmptyState(guildId, action, "stopped"),
+      publishError: (guildId, action) => this.pushEmptyState(guildId, action, "error"),
       clearNowPlaying: (guildId) => this.clearNowPlaying(guildId),
+      currentPosition: (queue) => Math.max(0, Math.floor(queue.currentTime)),
+      refreshStreamUrl: (queue) => this.invalidateStreamUrl(queue),
+      confirmSeek: (queue, guildId) => this.confirmSeekPlayback(guildId),
     });
   }
 
@@ -804,6 +810,52 @@ export class MusicController {
     if (this.distube.voices.get(guildId)) this.distube.voices.leave(guildId);
     this.clearNowPlaying(guildId);
     this.pushEmptyState(guildId, correlation, "error");
+  }
+
+  /**
+   * Drops the current song's cached stream URL so the next ffmpeg restart (seek)
+   * resolves a fresh signed URL through the plugin rather than replaying the
+   * stale HLS URL — mirrors DisTube's own invalidation on a normal track change.
+   * The signed URL itself is never read or logged here.
+   */
+  private invalidateStreamUrl(queue: Queue): void {
+    const song = queue.songs[0];
+    if (!song?.stream) return;
+    const played = song.stream.playFromSource ? song : song.stream.song;
+    if (played?.stream?.playFromSource) {
+      delete played.stream.url;
+    }
+  }
+
+  /**
+   * Resolves once the AudioPlayer actually reaches Playing after a seek restart,
+   * or `false` if the fresh stream dies (Idle) or stalls past the timeout. Unlike
+   * {@link confirmPlaying} this never stops the queue on failure, leaving rollback
+   * decisions to the caller. A paused queue is confirmed by the caller instead,
+   * since it only re-spawns ffmpeg on the next resume.
+   */
+  private confirmSeekPlayback(guildId: string): Promise<boolean> {
+    const voice = this.distube.voices.get(guildId);
+    if (!voice) return Promise.resolve(false);
+    const player = voice.audioPlayer;
+    if (player.state.status === AudioPlayerStatus.Playing) return Promise.resolve(true);
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      const finish = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        player.off("stateChange", onChange);
+        resolve(ok);
+      };
+      const onChange = (_old: unknown, next: { status: AudioPlayerStatus }) => {
+        if (next.status === AudioPlayerStatus.Playing) finish(true);
+        else if (next.status === AudioPlayerStatus.Idle) finish(false);
+      };
+      const timer = setTimeout(() => finish(false), SEEK_CONFIRM_TIMEOUT_MS);
+      timer.unref?.();
+      player.on("stateChange", onChange);
+    });
   }
 
   /** Waits for Discord's actual AudioPlayer, shared by playSong and the command. */

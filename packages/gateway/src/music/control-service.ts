@@ -13,7 +13,22 @@ export interface MusicControlHooks {
   prepareResume(queue: Queue, guildId: string, action: MusicCorrelation): void;
   publish(queue: Queue, action: MusicCorrelation): void;
   publishStopped(guildId: string, action: MusicCorrelation): void;
+  publishError(guildId: string, action: MusicCorrelation): void;
   clearNowPlaying(guildId: string): void;
+  /** Floored playback position (seconds) of the current song. */
+  currentPosition(queue: Queue): number;
+  /**
+   * Drops the cached (possibly expired) stream URL of the current song so the
+   * next ffmpeg restart resolves a fresh signed URL via the plugin instead of
+   * replaying a stale HLS URL that the source now answers with 403.
+   */
+  refreshStreamUrl(queue: Queue): void;
+  /**
+   * Waits for the AudioPlayer to actually reach Playing after a seek restart.
+   * Resolves `false` — without tearing the queue down — when the fresh stream
+   * stalls or dies (e.g. the source still refuses it).
+   */
+  confirmSeek(queue: Queue, guildId: string, action: MusicCorrelation): Promise<boolean>;
 }
 
 /** One bounded mutation lane per guild, shared by Discord and panel actions. */
@@ -135,13 +150,43 @@ export class MusicControlService {
             throw new UserError(`⚠️ Position attendue entre 0 et ${Math.floor(target.duration)} secondes.`);
           }
           const expectedSong = queue.songs[0];
-          this.hooks.prepareStreamCleanup(queue, guildId, action, "seek");
-          await queue.seek(request.position);
-          if (this.hooks.getQueue(guildId) !== queue || queue.songs[0] !== expectedSong) {
-            throw new UserError("⚠️ La piste a changé pendant le déplacement.");
+          const previousPosition = this.hooks.currentPosition(queue);
+          // A paused queue only re-spawns ffmpeg on the next resume, so there is
+          // no Playing state to confirm at seek time — the offset is applied then.
+          const paused = queue.paused;
+
+          // Restarts playback at `position` on a freshly resolved stream URL and,
+          // for a playing queue, confirms it truly resumed. Never tears the queue
+          // down itself: DisTube already handles a hard stream failure.
+          const applySeek = async (position: number): Promise<"ok" | "failed" | "changed"> => {
+            this.hooks.refreshStreamUrl(queue);
+            this.hooks.prepareStreamCleanup(queue, guildId, action, "seek");
+            await queue.seek(position);
+            if (this.hooks.getQueue(guildId) !== queue || queue.songs[0] !== expectedSong) return "changed";
+            if (paused) return "ok";
+            return (await this.hooks.confirmSeek(queue, guildId, action)) ? "ok" : "failed";
+          };
+
+          const outcome = await applySeek(request.position);
+          if (outcome === "changed") throw new UserError("⚠️ La piste a changé pendant le déplacement.");
+          if (outcome === "ok") {
+            this.hooks.publish(queue, action);
+            return { content: `⏩ Position : ${Math.floor(request.position)} s` };
           }
-          this.hooks.publish(queue, action);
-          return { content: `⏩ Position : ${Math.floor(request.position)} s` };
+
+          // The fresh stream was refused/stalled. Roll back to the previous
+          // position when the queue survived, rather than leaving a dead seek.
+          if (this.hooks.getQueue(guildId) === queue && queue.songs[0] === expectedSong) {
+            const restore = await applySeek(previousPosition);
+            if (restore === "ok") {
+              this.hooks.publish(queue, action);
+              throw new UserError("⚠️ Position refusée par la source — lecture reprise à la position précédente.");
+            }
+          }
+          // No recovery possible: surface a recoverable error, never a false
+          // success and never a silent idle that looks like a normal end.
+          this.hooks.publishError(guildId, action);
+          throw new UserError("⚠️ Impossible de changer la position : le flux a été refusé par la source.");
         }
       }
     });

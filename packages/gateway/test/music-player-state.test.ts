@@ -1024,6 +1024,34 @@ describe("MusicController — real AudioPlayer state", () => {
     expect(getQueue()!.seek).toHaveBeenLastCalledWith(0);
   });
 
+  it("drops the cached stream URL and confirms Playing before publishing a live seek", async () => {
+    const current = {
+      ...song("Current"),
+      stream: { playFromSource: true, url: "https://media.example/hls?signature=secret-token" },
+    } as unknown as Song;
+    const { controller, api, getQueue } = createHarness({
+      initialSongs: [current],
+      queuePaused: false,
+      status: AudioPlayerStatus.Playing,
+    });
+    const result = await controller.handle({ ...playPayload, command: "seek", arg: "90" });
+    expect(result).toMatchObject({
+      ok: true,
+      message: "⏩ Position : 90 s",
+      state: { status: "playing", elapsed: 90, current: { title: "Current" } },
+    });
+    // The stale (expired) HLS URL must be invalidated so the ffmpeg restart
+    // resolves a fresh signed URL instead of replaying the refused one.
+    expect((current as unknown as { stream: { url?: string } }).stream.url).toBeUndefined();
+    expect(getQueue()!.seek).toHaveBeenCalledWith(90);
+    // The signed URL must never leak into the published panel state.
+    expect(JSON.stringify(result.state)).not.toContain("signature=");
+    expect(api.postMusicState).toHaveBeenLastCalledWith(
+      "g1",
+      expect.objectContaining({ status: "playing", elapsed: 90 }),
+    );
+  });
+
   it.each([
     { label: "live", current: { ...song("Live"), duration: 0, isLive: true } as Song },
     {
