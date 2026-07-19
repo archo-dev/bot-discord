@@ -8,17 +8,20 @@ import type { WorkerApi } from "./worker-api.js";
 import { MusicController } from "./music/controller.js";
 
 export { MusicController } from "./music/controller.js";
-export { UserError } from "./music/format.js";
+export { UserError, type PrimarySource } from "./music/format.js";
 
-export function registerMusic(client: Client, api: WorkerApi): MusicController {
+import type { PrimarySource } from "./music/format.js";
+
+export function registerMusic(client: Client, api: WorkerApi, primarySource: PrimarySource = "youtube"): MusicController {
   const distube = new DisTube(client, {
     // YtDlpPlugin is the fallback extractor and must be LAST: SpotifyPlugin
-    // rewrites Spotify links into searches that yt-dlp then resolves.
+    // rewrites Spotify links into searches that yt-dlp then resolves. yt-dlp
+    // also natively resolves SoundCloud URLs and scsearch: queries.
     plugins: [new SpotifyPlugin(), new YtDlpPlugin({ update: false })],
     emitNewSongOnly: true,
     savePreviousSongs: false,
   });
-  const controller = new MusicController(client, distube, api);
+  const controller = new MusicController(client, distube, api, primarySource);
   controller.registerEvents();
   return controller;
 }

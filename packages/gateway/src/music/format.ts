@@ -54,6 +54,63 @@ export function normalizeQuery(query: string): string {
   return raw; // other hosts (Spotify, SoundCloud, …) untouched
 }
 
+/** Primary music source. YouTube is the long-term target; SoundCloud is a
+ *  temporary stand-in while the OVH IP can't reach YouTube's media CDN. */
+export type PrimarySource = "youtube" | "soundcloud";
+
+export interface ResolvedQuery {
+  /** The concrete query handed to `distube.play()`. */
+  query: string;
+  /** Origin of the resulting track, for user-facing labelling. */
+  source: "youtube" | "soundcloud" | "url";
+}
+
+/**
+ * Routes a raw `/play` input to a concrete query, honouring the primary source.
+ *
+ * - SoundCloud URLs always play (yt-dlp resolves them, served from SoundCloud's
+ *   own CDN — reachable from OVH).
+ * - In `soundcloud` mode, a plain text search becomes a SoundCloud search
+ *   (`scsearch1:`) and a YouTube URL is refused with a clean UserError (YouTube
+ *   is temporarily unavailable) — no aggressive extraction is attempted.
+ * - In `youtube` mode, behaviour is unchanged: YouTube URLs are cleaned via
+ *   {@link normalizeQuery} and text is left as-is (yt-dlp's `--default-search`).
+ * Non-YouTube/SoundCloud URLs (Spotify, Bandcamp, …) pass through untouched.
+ */
+export function resolvePlayQuery(raw: string, primary: PrimarySource): ResolvedQuery {
+  const trimmed = raw.trim();
+  if (!trimmed) throw new UserError("⚠️ Précise un titre ou un lien.");
+
+  let url: URL | null = null;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    url = null;
+  }
+
+  if (url) {
+    const host = url.hostname.replace(/^www\./, "").toLowerCase();
+    const isSoundcloud = host === "soundcloud.com" || host.endsWith(".soundcloud.com");
+    const isYouTube =
+      host === "youtube.com" || host === "m.youtube.com" || host === "music.youtube.com" || host === "youtu.be";
+
+    if (isSoundcloud) return { query: trimmed, source: "soundcloud" };
+    if (isYouTube) {
+      if (primary === "soundcloud") {
+        throw new UserError(
+          "⚠️ YouTube est temporairement indisponible. Envoie un lien **SoundCloud**, ou fais une **recherche par titre** (les résultats viennent de SoundCloud).",
+        );
+      }
+      return { query: normalizeQuery(trimmed), source: "youtube" };
+    }
+    return { query: trimmed, source: "url" }; // Spotify, Bandcamp, direct file…
+  }
+
+  // Plain text search.
+  if (primary === "soundcloud") return { query: `scsearch1:${trimmed}`, source: "soundcloud" };
+  return { query: trimmed, source: "youtube" };
+}
+
 /** Runs `promise` but rejects with `onTimeout()` if it doesn't settle in `ms`. */
 export function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () => Error): Promise<T> {
   let timer: NodeJS.Timeout;

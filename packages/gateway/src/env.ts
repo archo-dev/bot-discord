@@ -22,6 +22,14 @@ const envSchema = z.object({
    */
   PRESENCE_ENABLED: z.string().optional(),
 
+  /**
+   * Primary music source. "youtube" = historical behaviour (default, safe).
+   * Set "soundcloud" as a temporary stand-in while the OVH IP can't reach
+   * YouTube's media CDN (see docs/roadmap). Flip back to "youtube" once the
+   * egress relay / Oracle VM is in place — no code change needed.
+   */
+  MUSIC_PRIMARY_SOURCE: z.enum(["youtube", "soundcloud"]).default("youtube"),
+
   // --- Reliable delivery (M05) ---------------------------------------------
   /**
    * Comma-separated reliable event types routed through the persistent outbox

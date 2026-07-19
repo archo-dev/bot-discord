@@ -67,7 +67,7 @@ registerVoiceXp(client, configCache, api);
 registerStarboard(client, configCache, api);
 registerTempVoice(client, configCache, api);
 registerAutomations(client, configCache, outbox);
-const music = registerMusic(client, api);
+const music = registerMusic(client, api, env.MUSIC_PRIMARY_SOURCE);
 
 /** Per-guild presence counts from cache — empty until the Presence intent is on. */
 function collectPresence(): Record<string, PresenceCounts> | undefined {

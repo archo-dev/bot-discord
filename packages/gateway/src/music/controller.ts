@@ -11,10 +11,11 @@ import {
   UserError,
   formatDuration,
   loopLabel,
-  normalizeQuery,
+  resolvePlayQuery,
   toTrack,
   withTimeout,
   type MusicReply,
+  type PrimarySource,
 } from "./format.js";
 import { sanitizeMedia } from "./log-sanitize.js";
 import { nowPlayingEmbed, queueEmbed } from "./embeds.js";
@@ -40,6 +41,7 @@ export class MusicController {
     private readonly client: Client,
     private readonly distube: DisTube,
     private readonly api: WorkerApi,
+    private readonly primarySource: PrimarySource = "youtube",
   ) {}
 
   /** Entry point for the HTTP /music route. Edits the interaction webhook itself. */
@@ -78,10 +80,12 @@ export class MusicController {
         if (payload.command === "play") {
           const raw = payload.arg?.trim();
           if (!raw) throw new UserError("⚠️ Précise un titre ou un lien.");
-          const query = normalizeQuery(raw); // strips playlist/mix params; may reject bare playlists
+          // Routes by primary source: SoundCloud search/URL vs YouTube. May reject
+          // a bare playlist, or a YouTube link while SoundCloud is the stand-in.
+          const resolved = resolvePlayQuery(raw, this.primarySource);
           const before = this.distube.getQueue(guild.id)?.songs.length ?? 0;
           try {
-            await this.playWithTimeout(voiceChannel, query, { member, textChannel });
+            await this.playWithTimeout(voiceChannel, resolved.query, { member, textChannel });
             // Hook voice/player state as early as the connection exists, so we
             // capture the signalling → ready transition (not just from playSong).
             this.instrumentVoice(guild.id);
@@ -92,9 +96,10 @@ export class MusicController {
           }
           const queue = this.distube.getQueue(guild.id);
           if (!queue || queue.songs.length === 0) return { content: "🔎 Recherche lancée…" };
-          if (before === 0) return { content: `🎵 Lecture : **${queue.songs[0]!.name}**` };
+          const srcTag = resolved.source === "soundcloud" ? " · 🟠 via SoundCloud" : "";
+          if (before === 0) return { content: `🎵 Lecture : **${queue.songs[0]!.name}**${srcTag}` };
           const added = queue.songs[queue.songs.length - 1]!;
-          return { content: `➕ Ajouté à la file : **${added.name}** (position ${queue.songs.length - 1})` };
+          return { content: `➕ Ajouté à la file : **${added.name}** (position ${queue.songs.length - 1})${srcTag}` };
         }
         // playlist_load
         const name = payload.arg?.trim();
@@ -104,9 +109,9 @@ export class MusicController {
         for (const t of tracks) {
           let trackUrl: string;
           try {
-            trackUrl = normalizeQuery(t.url);
+            trackUrl = resolvePlayQuery(t.url, this.primarySource).query;
           } catch {
-            continue; // skip an un-playable saved track (e.g. a bare playlist URL)
+            continue; // skip an un-playable saved track (bare playlist, or YT while on SoundCloud)
           }
           await this.playWithTimeout(voiceChannel, trackUrl, { member, textChannel }).catch((e) =>
             console.error("playlist track failed:", errMsg(e)),
