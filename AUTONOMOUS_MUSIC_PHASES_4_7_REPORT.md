@@ -230,12 +230,23 @@ Commit : `661e9d4f7500289c467ae8d8204dd5c196afcae6` — `feat(panel): add intera
 - `packages/panel/test/music-search.test.ts`
 - `AUTONOMOUS_MUSIC_PHASES_4_7_REPORT.md`
 
-Commit de phase : `feat(panel): add music search and queue controls` (hash consigné après création dans le commit documentaire final).
+Commit : `5da82f9264565b539ed9b80b3a3da658945b5f6c` — `feat(panel): add music search and queue controls`.
 
 ## Statut de la roadmap
 
-- Phases 4, 5 et 6 : validées et commitées.
-- Phase 7 : validée; commit de phase en cours de création.
+- Phase 4 : `31798c951f497374295c920748d1c56d74f26ee7` — `feat(panel): synchronize music state in near real time`.
+- Phase 5 : `a89b07092cb228b7599732b97f2d274c7d0a3d18` — `feat(music): expose shared panel and Discord controls`.
+- Phase 6 : `661e9d4f7500289c467ae8d8204dd5c196afcae6` — `feat(panel): add interactive music seeking`.
+- Phase 7 : `5da82f9264565b539ed9b80b3a3da658945b5f6c` — `feat(panel): add music search and queue controls`.
+- Les quatre phases sont validées et commitées; l'arbre est propre avant le présent relevé documentaire.
+
+## Ordre de déploiement recommandé
+
+1. Gateway, afin que le protocole interne accepte d'abord les nouveaux contrôles, le seek et la recherche.
+2. Worker/API, qui conserve la compatibilité avec les snapshots antérieurs et expose ensuite les nouvelles routes protégées.
+3. Assets panel en dernier. Si le déploiement Worker embarque les assets panel, effectuer Gateway puis Worker + panel ensemble.
+
+Aucune migration D1, mise à jour de dépendance, modification de lockfile ou opération d'infrastructure n'est requise.
 
 ## Garanties globales
 
