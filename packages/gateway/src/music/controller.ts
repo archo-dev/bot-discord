@@ -1006,12 +1006,11 @@ export class MusicController {
         const queue = this.distube.getQueue(guildId);
         if (newState.status === AudioPlayerStatus.Playing || isPausedPlayerStatus(newState.status)) {
           if (queue) this.pushState(queue, correlation);
-        } else if (newState.status === AudioPlayerStatus.Buffering || newState.status === AudioPlayerStatus.Idle) {
-          // The current DTO cannot represent "loading". Publishing an empty
-          // state is safer than claiming playback at 0:00; Playing republishes
-          // the full queue as soon as the player is genuinely ready.
-          this.pushEmptyState(guildId, correlation);
         }
+        // Buffering and Idle are part of DisTube's normal track transition.
+        // Keep the last stable dashboard snapshot until Playing identifies the
+        // next song. FINISH, DISCONNECT, stop and fatal errors still publish an
+        // empty state explicitly through their dedicated lifecycle handlers.
       });
       player.on("error", (err) => {
         const correlation = this.currentAction(guildId);

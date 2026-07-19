@@ -60,6 +60,7 @@ function song(title: string, url = `https://soundcloud.com/example/${title.toLow
 }
 
 interface HarnessOptions {
+  guildId?: string;
   status?: AudioPlayerStatus;
   queuePaused?: boolean;
   initialSongs?: Song[];
@@ -69,6 +70,7 @@ interface HarnessOptions {
 }
 
 function createHarness(options: HarnessOptions = {}) {
+  const guildId = options.guildId ?? "g1";
   const player = new FakeAudioPlayer(options.status ?? AudioPlayerStatus.Playing);
   const streamOutput = new EventEmitter();
   const stream = Object.assign(new EventEmitter(), { stream: streamOutput, seekTime: 0 });
@@ -89,7 +91,7 @@ function createHarness(options: HarnessOptions = {}) {
 
   const makeQueue = (songs: Song[] = options.initialSongs ?? [], paused = options.queuePaused ?? false): Queue => {
     const q = {
-      id: "g1",
+      id: guildId,
       songs: [...songs],
       previousSongs: [],
       paused,
@@ -163,9 +165,9 @@ function createHarness(options: HarnessOptions = {}) {
     voices: { get: ReturnType<typeof vi.fn>; leave: ReturnType<typeof vi.fn> };
   };
 
-  const member = { voice: { channel: { id: "vc1", guild: { id: "g1" } } } };
+  const member = { voice: { channel: { id: "vc1", guild: { id: guildId } } } };
   const guild = {
-    id: "g1",
+    id: guildId,
     members: {
       me: { voice: { channelId: "vc1", serverMute: false, serverDeaf: false, selfMute: false } },
       fetch: vi.fn().mockResolvedValue(member),
@@ -653,6 +655,117 @@ describe("MusicController — real AudioPlayer state", () => {
         absorbed: true,
       }),
     );
+  });
+
+  it("preserves the last dashboard snapshot through Idle and Buffering between two tracks", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const first = song("First");
+    const second = song("Second");
+    const { distube, api, player, getQueue } = createHarness({
+      status: AudioPlayerStatus.Playing,
+      queuePaused: false,
+      initialSongs: [first, second],
+    });
+
+    distube.emit(DTEvents.PLAY_SONG, getQueue(), first);
+    api.postMusicState.mockClear();
+
+    player.transition(AudioPlayerStatus.Idle);
+    distube.emit(DTEvents.FINISH_SONG, getQueue(), first);
+    getQueue()!.songs.shift();
+    getQueue()!.currentTime = 0;
+    player.transition(AudioPlayerStatus.Buffering);
+    distube.emit(DTEvents.PLAY_SONG, getQueue(), second);
+
+    expect(api.postMusicState).not.toHaveBeenCalled();
+
+    player.transition(AudioPlayerStatus.Playing);
+    await vi.waitFor(() => expect(api.postMusicState).toHaveBeenCalledOnce());
+
+    const states = api.postMusicState.mock.calls.map(([, state]) => state);
+    expect(states).not.toContainEqual(expect.objectContaining({ connected: false }));
+    expect(states).not.toContainEqual(expect.objectContaining({ current: null, queue: [] }));
+    expect(states.at(-1)).toMatchObject({
+      connected: true,
+      paused: false,
+      current: expect.objectContaining({ title: "Second" }),
+      queue: [],
+    });
+    const transitions = log.mock.calls
+      .map(([line]) => JSON.parse(String(line)) as Record<string, unknown>)
+      .filter((event) => event.event === "music_player_transition");
+    expect(transitions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ oldState: AudioPlayerStatus.Playing, newState: AudioPlayerStatus.Idle }),
+      expect.objectContaining({ oldState: AudioPlayerStatus.Idle, newState: AudioPlayerStatus.Buffering }),
+      expect.objectContaining({ oldState: AudioPlayerStatus.Buffering, newState: AudioPlayerStatus.Playing }),
+    ]));
+    expect(player.listenerCount("stateChange")).toBe(1);
+  });
+
+  it("publishes an empty dashboard state for a real queue finish and a fatal DisTube error", () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    const current = song("Current");
+    const { distube, api, player, getQueue } = createHarness({
+      status: AudioPlayerStatus.Playing,
+      queuePaused: false,
+      initialSongs: [current],
+    });
+
+    distube.emit(DTEvents.PLAY_SONG, getQueue(), current);
+    api.postMusicState.mockClear();
+    player.transition(AudioPlayerStatus.Idle);
+    expect(api.postMusicState).not.toHaveBeenCalled();
+
+    getQueue()!.songs = [];
+    distube.emit(DTEvents.FINISH, getQueue());
+    expect(api.postMusicState).toHaveBeenLastCalledWith(
+      "g1",
+      expect.objectContaining({ connected: false, current: null, queue: [] }),
+    );
+
+    api.postMusicState.mockClear();
+    getQueue()!.songs = [current];
+    distube.emit(DTEvents.ERROR, new Error("fatal stream failure"), getQueue(), current);
+    expect(api.postMusicState).toHaveBeenLastCalledWith(
+      "g1",
+      expect.objectContaining({ connected: false, current: null, queue: [] }),
+    );
+    expect(errorLog.mock.calls.some(([line]) => String(line).includes("fatal stream failure"))).toBe(true);
+  });
+
+  it("keeps dashboard transitions isolated between guilds without adding per-transition listeners", async () => {
+    const firstGuild = createHarness({
+      guildId: "g1",
+      status: AudioPlayerStatus.Playing,
+      queuePaused: false,
+      initialSongs: [song("First A"), song("Second A")],
+    });
+    const secondGuild = createHarness({
+      guildId: "g2",
+      status: AudioPlayerStatus.Playing,
+      queuePaused: false,
+      initialSongs: [song("First B"), song("Second B")],
+    });
+
+    firstGuild.distube.emit(DTEvents.PLAY_SONG, firstGuild.getQueue(), firstGuild.getQueue()!.songs[0]!);
+    secondGuild.distube.emit(DTEvents.PLAY_SONG, secondGuild.getQueue(), secondGuild.getQueue()!.songs[0]!);
+    firstGuild.api.postMusicState.mockClear();
+    secondGuild.api.postMusicState.mockClear();
+
+    firstGuild.player.transition(AudioPlayerStatus.Idle);
+    firstGuild.getQueue()!.songs.shift();
+    firstGuild.player.transition(AudioPlayerStatus.Buffering);
+    firstGuild.distube.emit(DTEvents.PLAY_SONG, firstGuild.getQueue(), firstGuild.getQueue()!.songs[0]!);
+    firstGuild.player.transition(AudioPlayerStatus.Playing);
+
+    await vi.waitFor(() => expect(firstGuild.api.postMusicState).toHaveBeenCalledOnce());
+    expect(firstGuild.api.postMusicState).toHaveBeenCalledWith(
+      "g1",
+      expect.objectContaining({ current: expect.objectContaining({ title: "Second A" }) }),
+    );
+    expect(secondGuild.api.postMusicState).not.toHaveBeenCalled();
+    expect(firstGuild.player.listenerCount("stateChange")).toBe(1);
+    expect(secondGuild.player.listenerCount("stateChange")).toBe(1);
   });
 
   it("logs unexpected stream errors and detaches its listener when the stream closes", async () => {
