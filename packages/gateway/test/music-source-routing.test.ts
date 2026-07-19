@@ -17,6 +17,13 @@ describe("resolvePlayQuery — SoundCloud primary source", () => {
     expect(resolvePlayQuery(url, SC)).toEqual({ query: url, source: "soundcloud" });
   });
 
+  it("never marks a SoundCloud /sets/ URL for text-search pre-resolution", () => {
+    const url = "https://soundcloud.com/artist/sets/an-album";
+    const resolved = resolvePlayQuery(url, SC);
+    expect(resolved).toEqual({ query: url, source: "soundcloud" });
+    expect(resolved.soundcloudSearch).toBeUndefined();
+  });
+
   it("plays an m./on. soundcloud short URL directly", () => {
     expect(resolvePlayQuery("https://m.soundcloud.com/a/b", SC).source).toBe("soundcloud");
     expect(resolvePlayQuery("https://on.soundcloud.com/xYz", SC).source).toBe("soundcloud");

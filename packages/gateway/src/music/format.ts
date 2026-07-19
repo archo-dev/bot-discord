@@ -138,6 +138,73 @@ export const SC_MIN_DURATION_SEC = 40;
 
 const NO_SC_RESULT = "⚠️ Aucun résultat SoundCloud trouvé pour cette recherche.";
 const NO_PLAYABLE_SC = "⚠️ Aucun morceau SoundCloud complet et lisible n’a été trouvé.";
+const NO_PRECISE_SC = "⚠️ Aucun morceau complet correspondant précisément à votre recherche n'a été trouvé.";
+
+const SC_RELEVANCE_THRESHOLD = 180;
+const SC_VARIANTS = [
+  "remix",
+  "mashup",
+  "live",
+  "cover",
+  "sped up",
+  "slowed",
+  "nightcore",
+  "instrumental",
+  "karaoke",
+  "reverb",
+  "edit",
+] as const;
+const SC_STOP_WORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "au",
+  "aux",
+  "clip",
+  "d",
+  "de",
+  "des",
+  "du",
+  "en",
+  "et",
+  "feat",
+  "featuring",
+  "ft",
+  "l",
+  "la",
+  "le",
+  "les",
+  "officiel",
+  "official",
+  "the",
+  "un",
+  "une",
+  "video",
+]);
+
+/** Stable local normalisation used by the relevance scorer (no I/O). */
+export function normalizeSoundcloudText(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value
+    .normalize("NFD")
+    .replace(/\p{M}+/gu, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function significantTokens(value: string): string[] {
+  return [...new Set(value.split(" ").filter((token) => token.length > 1 && !SC_STOP_WORDS.has(token)))];
+}
+
+function sameTokens(left: Set<string>, right: Set<string>): boolean {
+  return left.size === right.size && [...left].every((token) => right.has(token));
+}
+
+function hasPhrase(value: string, phrase: string): boolean {
+  return ` ${value} `.includes(` ${phrase} `);
+}
 
 /** First public soundcloud.com track URL of an entry (webpage_url preferred). */
 function publicSoundcloudUrl(entry: { webpage_url?: unknown; url?: unknown }): string | null {
@@ -167,18 +234,75 @@ function isDrmLocked(entry: { drm?: unknown; has_drm?: unknown; availability?: u
  * and entries without a public soundcloud.com URL. Never bypasses DRM.
  * Throws a {@link UserError} when none qualifies.
  */
-export function pickPlayableSoundcloudUrl(info: unknown): string {
+export function pickPlayableSoundcloudUrl(info: unknown, query: string): string {
   const entries = (info as { entries?: unknown } | null)?.entries;
   if (!Array.isArray(entries) || entries.length === 0) throw new UserError(NO_PLAYABLE_SC);
+  const normalizedQuery = normalizeSoundcloudText(query);
+  const queryTokens = significantTokens(normalizedQuery);
+  const querySet = new Set(queryTokens);
+  if (queryTokens.length === 0) throw new UserError(NO_PRECISE_SC);
+
+  let best: { score: number; url: string } | null = null;
+  let sawPlayableEntry = false;
   for (const raw of entries.slice(0, SC_SEARCH_RESULTS)) {
     if (!raw || typeof raw !== "object") continue; // null = skipped/DRM by yt-dlp -i
-    const entry = raw as { duration?: unknown; drm?: unknown; has_drm?: unknown; availability?: unknown };
+    const entry = raw as {
+      title?: unknown;
+      uploader?: unknown;
+      uploader_id?: unknown;
+      duration?: unknown;
+      drm?: unknown;
+      has_drm?: unknown;
+      availability?: unknown;
+    };
     if (isDrmLocked(entry)) continue;
     if (typeof entry.duration === "number" && entry.duration <= SC_MIN_DURATION_SEC) continue; // 30s preview
     const url = publicSoundcloudUrl(entry as { webpage_url?: unknown; url?: unknown });
-    if (url) return url;
+    if (!url) continue;
+    sawPlayableEntry = true;
+
+    const title = normalizeSoundcloudText(entry.title);
+    const uploader = normalizeSoundcloudText(entry.uploader);
+    const uploaderId = normalizeSoundcloudText(entry.uploader_id);
+    if (!title) continue;
+
+    // A requested variant is allowed, but any additional variant remains a
+    // hard rejection: conservatively refuse instead of guessing a remix.
+    if (SC_VARIANTS.some((variant) => hasPhrase(title, variant) && !hasPhrase(normalizedQuery, variant))) continue;
+
+    const titleSet = new Set(significantTokens(title));
+    const uploaderSet = new Set([...significantTokens(uploader), ...significantTokens(uploaderId)]);
+    const combinedSet = new Set([...titleSet, ...uploaderSet]);
+    const titleMatches = queryTokens.filter((token) => titleSet.has(token)).length;
+    const uploaderMatches = queryTokens.filter((token) => uploaderSet.has(token)).length;
+    const combinedMatches = queryTokens.filter((token) => combinedSet.has(token)).length;
+    const titleCoverage = titleMatches / queryTokens.length;
+    const combinedCoverage = combinedMatches / queryTokens.length;
+    const extraTitleTokens = [...titleSet].filter((token) => !querySet.has(token) && !uploaderSet.has(token)).length;
+
+    let score = titleCoverage * 80 + combinedCoverage * 70;
+    if (title === normalizedQuery) score += 180;
+    if (
+      `${uploader} ${title}`.trim() === normalizedQuery ||
+      `${title} ${uploader}`.trim() === normalizedQuery ||
+      `${uploaderId} ${title}`.trim() === normalizedQuery ||
+      `${title} ${uploaderId}`.trim() === normalizedQuery
+    ) {
+      score += 180;
+    }
+    if (sameTokens(titleSet, querySet)) score += 140;
+    if (sameTokens(combinedSet, querySet)) score += 130;
+    if (titleCoverage === 1) score += 60;
+    if (combinedCoverage === 1) score += 50;
+    if (uploaderMatches > 0) score += Math.min(30, (uploaderMatches / queryTokens.length) * 40);
+    score -= extraTitleTokens * 30;
+    if (extraTitleTokens >= 3) score -= 40;
+
+    if (!best || score > best.score) best = { score, url };
   }
-  throw new UserError(NO_PLAYABLE_SC);
+  if (!sawPlayableEntry) throw new UserError(NO_PLAYABLE_SC);
+  if (!best || best.score < SC_RELEVANCE_THRESHOLD) throw new UserError(NO_PRECISE_SC);
+  return best.url;
 }
 
 /** Function that runs a yt-dlp query and resolves its parsed JSON (injected for tests). */
@@ -208,7 +332,7 @@ export async function resolveSoundcloudSearch(
     console.error(`soundcloud search failed: ${sanitizeMedia(errMsg(err), 300)}`);
     throw new UserError(NO_SC_RESULT);
   }
-  return pickPlayableSoundcloudUrl(info);
+  return pickPlayableSoundcloudUrl(info, text);
 }
 
 export interface MusicReply {

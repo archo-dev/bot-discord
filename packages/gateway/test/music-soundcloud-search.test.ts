@@ -4,6 +4,7 @@ import {
   SC_SEARCH_RESULTS,
   SC_SEARCH_TIMEOUT_MS,
   UserError,
+  normalizeSoundcloudText,
   pickPlayableSoundcloudUrl,
   resolveSoundcloudSearch,
 } from "../src/music/format.js";
@@ -11,19 +12,62 @@ import {
 const scUrl = (slug: string) => `https://soundcloud.com/${slug}`;
 const track = (over: Record<string, unknown> = {}) => ({
   webpage_url: scUrl("artist/full"),
+  title: "Full",
+  uploader: "Artist",
+  uploader_id: "artist",
   duration: 200,
   ...over,
 });
 
 describe("pickPlayableSoundcloudUrl — filtered selection", () => {
+  it("normalizes case, accents, punctuation and whitespace", () => {
+    expect(normalizeSoundcloudText("  NÍSKA — Réseaux!!!  ")).toBe("niska reseaux");
+  });
+
   it("returns the first full, non-DRM, public track", () => {
     const info = { entries: [track({ webpage_url: scUrl("niska/reseaux") })] };
-    expect(pickPlayableSoundcloudUrl(info)).toBe(scUrl("niska/reseaux"));
+    expect(pickPlayableSoundcloudUrl(info, "artist full")).toBe(scUrl("niska/reseaux"));
   });
 
   it("prefers webpage_url over a non-SoundCloud cdn url", () => {
     const info = { entries: [track({ webpage_url: scUrl("a/b"), url: "https://cdn.example/x" })] };
-    expect(pickPlayableSoundcloudUrl(info)).toBe(scUrl("a/b"));
+    expect(pickPlayableSoundcloudUrl(info, "artist full")).toBe(scUrl("a/b"));
+  });
+
+  it("prefers the original track to an unrequested remix", () => {
+    const info = {
+      entries: [
+        track({ title: "Réseaux Remix", uploader: "Niska", webpage_url: scUrl("dj/reseaux-remix") }),
+        track({ title: "Réseaux", uploader: "Niska", webpage_url: scUrl("niska/reseaux") }),
+      ],
+    };
+    expect(pickPlayableSoundcloudUrl(info, "Niska Réseaux")).toBe(scUrl("niska/reseaux"));
+  });
+
+  it("prefers the original track to an unrequested sped up version", () => {
+    const info = {
+      entries: [
+        track({ title: "Réseaux (Sped Up)", uploader: "Niska", webpage_url: scUrl("fan/reseaux-sped-up") }),
+        track({ title: "Réseaux", uploader: "Niska", webpage_url: scUrl("niska/reseaux") }),
+      ],
+    };
+    expect(pickPlayableSoundcloudUrl(info, "niska reseaux")).toBe(scUrl("niska/reseaux"));
+  });
+
+  it("accepts a remix when the user explicitly requests it", () => {
+    const info = {
+      entries: [track({ title: "Réseaux Remix", uploader: "Niska", webpage_url: scUrl("dj/reseaux-remix") })],
+    };
+    expect(pickPlayableSoundcloudUrl(info, "Niska Réseaux remix")).toBe(scUrl("dj/reseaux-remix"));
+  });
+
+  it("refuses an unrelated result with the conservative message", () => {
+    const info = {
+      entries: [track({ title: "Jefe", uploader: "Ninho", webpage_url: scUrl("ninho/jefe") })],
+    };
+    expect(() => pickPlayableSoundcloudUrl(info, "Niska Réseaux")).toThrow(
+      "⚠️ Aucun morceau complet correspondant précisément à votre recherche n'a été trouvé.",
+    );
   });
 
   it("skips a ≤40s Go+ preview and picks the next full track", () => {
@@ -33,7 +77,7 @@ describe("pickPlayableSoundcloudUrl — filtered selection", () => {
         track({ duration: 205, webpage_url: scUrl("real/song") }),
       ],
     };
-    expect(pickPlayableSoundcloudUrl(info)).toBe(scUrl("real/song"));
+    expect(pickPlayableSoundcloudUrl(info, "artist full")).toBe(scUrl("real/song"));
   });
 
   it("skips DRM-flagged entries (drm / availability) and picks the next", () => {
@@ -44,12 +88,12 @@ describe("pickPlayableSoundcloudUrl — filtered selection", () => {
         track({ webpage_url: scUrl("clean/three") }),
       ],
     };
-    expect(pickPlayableSoundcloudUrl(info)).toBe(scUrl("clean/three"));
+    expect(pickPlayableSoundcloudUrl(info, "artist full")).toBe(scUrl("clean/three"));
   });
 
   it("skips null entries (yt-dlp --ignore-errors) and picks the next", () => {
     const info = { entries: [null, undefined, track({ webpage_url: scUrl("ok/track") })] };
-    expect(pickPlayableSoundcloudUrl(info)).toBe(scUrl("ok/track"));
+    expect(pickPlayableSoundcloudUrl(info, "artist full")).toBe(scUrl("ok/track"));
   });
 
   it("skips entries without a public soundcloud.com URL", () => {
@@ -60,29 +104,29 @@ describe("pickPlayableSoundcloudUrl — filtered selection", () => {
         track({ webpage_url: scUrl("valid/one") }),
       ],
     };
-    expect(pickPlayableSoundcloudUrl(info)).toBe(scUrl("valid/one"));
+    expect(pickPlayableSoundcloudUrl(info, "artist full")).toBe(scUrl("valid/one"));
   });
 
   it("only scans the first SC_SEARCH_RESULTS entries", () => {
     const bad = Array.from({ length: SC_SEARCH_RESULTS }, (_, i) => track({ duration: 10, webpage_url: scUrl(`p/${i}`) }));
     const good = track({ webpage_url: scUrl("too/late") }); // 6th → out of window
-    expect(() => pickPlayableSoundcloudUrl({ entries: [...bad, good] })).toThrow(UserError);
+    expect(() => pickPlayableSoundcloudUrl({ entries: [...bad, good] }, "artist full")).toThrow(UserError);
   });
 
   it("throws the 'complet et lisible' message when nothing qualifies", () => {
     const info = { entries: [track({ duration: 5 }), track({ drm: true })] };
-    expect(() => pickPlayableSoundcloudUrl(info)).toThrow(/complet et lisible/i);
+    expect(() => pickPlayableSoundcloudUrl(info, "artist full")).toThrow(/complet et lisible/i);
   });
 
   it("throws on empty / invalid shapes", () => {
-    expect(() => pickPlayableSoundcloudUrl({ entries: [] })).toThrow(UserError);
-    expect(() => pickPlayableSoundcloudUrl({ foo: "bar" })).toThrow(UserError);
-    expect(() => pickPlayableSoundcloudUrl(null)).toThrow(UserError);
+    expect(() => pickPlayableSoundcloudUrl({ entries: [] }, "artist full")).toThrow(UserError);
+    expect(() => pickPlayableSoundcloudUrl({ foo: "bar" }, "artist full")).toThrow(UserError);
+    expect(() => pickPlayableSoundcloudUrl(null, "artist full")).toThrow(UserError);
   });
 
   it("keeps entries whose duration is unknown (benefit of the doubt)", () => {
-    const info = { entries: [{ webpage_url: scUrl("unknown/dur") }] };
-    expect(pickPlayableSoundcloudUrl(info)).toBe(scUrl("unknown/dur"));
+    const info = { entries: [{ title: "Full", uploader: "Artist", webpage_url: scUrl("unknown/dur") }] };
+    expect(pickPlayableSoundcloudUrl(info, "artist full")).toBe(scUrl("unknown/dur"));
   });
 });
 
@@ -93,14 +137,17 @@ describe("resolveSoundcloudSearch — bounded pre-resolution", () => {
   });
 
   it("queries scsearch5: and resolves to the first playable track URL", async () => {
-    const fetchJson = vi.fn().mockResolvedValue({ entries: [track({ webpage_url: scUrl("niska/reseaux") })] });
+    const fetchJson = vi.fn().mockResolvedValue({
+      entries: [track({ title: "Réseaux", uploader: "Niska", webpage_url: scUrl("niska/reseaux") })],
+    });
     await expect(resolveSoundcloudSearch("niska reseaux", fetchJson)).resolves.toBe(scUrl("niska/reseaux"));
     expect(fetchJson).toHaveBeenCalledWith("scsearch5:niska reseaux");
+    expect(fetchJson).toHaveBeenCalledTimes(1);
   });
 
   it("throws 'complet et lisible' when every result is a preview/DRM", async () => {
     const fetchJson = vi.fn().mockResolvedValue({ entries: [track({ duration: 30 }), track({ drm: true })] });
-    await expect(resolveSoundcloudSearch("x", fetchJson)).rejects.toThrow(/complet et lisible/i);
+    await expect(resolveSoundcloudSearch("artist full", fetchJson)).rejects.toThrow(/complet et lisible/i);
   });
 
   it("throws a clean UserError on an invalid/unexpected JSON shape", async () => {
