@@ -5,6 +5,14 @@ import { sanitizeMedia } from "./log-sanitize.js";
 export type MusicActionSource = "discord" | "panel";
 export type MusicResolvedType = "Song" | "Playlist";
 export type MusicLogLevel = "info" | "warn" | "error";
+export type MusicPerformanceStage =
+  | "searchStarted"
+  | "searchResolved"
+  | "queueAdded"
+  | "streamCreated"
+  | "ffmpegStarted"
+  | "buffering"
+  | "playing";
 
 export interface PlaybackSnapshot {
   queueSize: number;
@@ -41,6 +49,10 @@ export interface MusicActionContext extends MusicCorrelation {
   queueEventsLogged: number;
   queueEventsSuppressed: number;
   resolutionLogged: boolean;
+  performanceStages: Partial<Record<MusicPerformanceStage, number>>;
+  soundcloudSearches: number;
+  soundcloudSearchYtDlpCalls: number;
+  streamsCreated: number;
 }
 
 export interface MusicLogSink {
@@ -150,6 +162,10 @@ export class MusicInstrumentation {
       queueEventsLogged: 0,
       queueEventsSuppressed: 0,
       resolutionLogged: false,
+      performanceStages: {},
+      soundcloudSearches: 0,
+      soundcloudSearchYtDlpCalls: 0,
+      streamsCreated: 0,
     };
     this.emit("info", "music_action_start", context, {
       ...requestedFields(payload.arg),
@@ -167,6 +183,24 @@ export class MusicInstrumentation {
     error?: unknown,
   ): void {
     if (outcome !== "success" && context.failedTracks === 0) context.failedTracks = 1;
+    if (Object.keys(context.performanceStages).length > 0) {
+      const stages = context.performanceStages;
+      const duration = (from: number | undefined, to: number | undefined): number | null =>
+        from !== undefined && to !== undefined && to >= from ? to - from : null;
+      this.emit("info", "music_playback_performance", context, {
+        commandToSearchResultMs: duration(context.startedAt, stages.searchResolved),
+        searchResultToQueueAddMs: duration(stages.searchResolved, stages.queueAdded),
+        commandToQueueAddMs: duration(context.startedAt, stages.queueAdded),
+        queueAddToStreamCreateMs: duration(stages.queueAdded, stages.streamCreated),
+        streamCreateToFfmpegMs: duration(stages.streamCreated, stages.ffmpegStarted),
+        ffmpegToBufferingMs: duration(stages.ffmpegStarted, stages.buffering),
+        bufferingToPlayingMs: duration(stages.buffering, stages.playing),
+        totalMs: this.now() - context.startedAt,
+        soundcloudSearches: context.soundcloudSearches,
+        soundcloudSearchYtDlpCalls: context.soundcloudSearchYtDlpCalls,
+        streamsCreated: context.streamsCreated,
+      });
+    }
     this.emit(outcome === "error" ? "error" : outcome === "user_error" ? "warn" : "info", "music_action_end", context, {
       outcome,
       durationMs: this.now() - context.startedAt,
@@ -218,6 +252,45 @@ export class MusicInstrumentation {
     if (context.resolutionLogged) return;
     context.resolutionLogged = true;
     this.emit("info", "music_resolved", context, { resolvedType: type, detectedTracks });
+  }
+
+  markPerformanceStage(context: MusicActionContext | undefined, stage: MusicPerformanceStage): void {
+    if (!context || context.performanceStages[stage] !== undefined) return;
+    context.performanceStages[stage] = this.now();
+    if (stage === "streamCreated") context.streamsCreated++;
+  }
+
+  beginSoundcloudSearch(context: MusicActionContext): void {
+    context.soundcloudSearches++;
+    this.markPerformanceStage(context, "searchStarted");
+  }
+
+  markSoundcloudSearchYtDlpCall(context: MusicActionContext): void {
+    context.soundcloudSearchYtDlpCalls++;
+  }
+
+  soundcloudSearchPerformance(
+    context: MusicActionContext,
+    fields: {
+      cacheStatus: "hit" | "miss" | "joined" | "error";
+      durationMs: number;
+      cacheSize: number;
+      cacheMaxEntries: number;
+      cacheTtlMs: number;
+      cacheHits: number;
+      cacheMisses: number;
+      cacheJoins: number;
+      cacheEvictions: number;
+      cacheExpirations: number;
+      cacheEstimatedMaxTextBytes: number;
+      activeResolutions: number;
+      queuedResolutions: number;
+      maxConcurrentObserved: number;
+      outcome: "success" | "error";
+    },
+  ): void {
+    this.markPerformanceStage(context, "searchResolved");
+    this.emit(fields.outcome === "success" ? "info" : "error", "music_soundcloud_search_performance", context, fields);
   }
 
   markAdded(context: MusicActionContext | undefined, addedTracks: number): void {

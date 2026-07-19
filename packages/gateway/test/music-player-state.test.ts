@@ -718,7 +718,7 @@ describe("MusicController — real AudioPlayer state", () => {
   it("keeps manual pause/resume, skip, stop and disconnect state updates working", async () => {
     const current = song("Current");
     const next = song("Next");
-    const { controller, distube, api, player, getQueue } = createHarness({
+    const { controller, distube, api, player, getStreamURL, getQueue } = createHarness({
       status: AudioPlayerStatus.Playing,
       queuePaused: false,
       initialSongs: [current, next],
@@ -737,5 +737,6 @@ describe("MusicController — real AudioPlayer state", () => {
 
     getQueue()!.songs = [current];
     expect((await controller.handle({ ...playPayload, command: "stop", arg: null })).ok).toBe(true);
+    expect(getStreamURL).not.toHaveBeenCalled();
   });
 });

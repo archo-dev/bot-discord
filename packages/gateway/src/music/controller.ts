@@ -43,6 +43,11 @@ import {
   type LazyPlaylistBuildSummary,
   type PlaylistLoadSession,
 } from "./playlist-loader.js";
+import {
+  SoundcloudSearchCache,
+  SoundcloudSearchCacheClearedError,
+  SoundcloudSearchCapacityError,
+} from "./search-cache.js";
 
 interface NowPlaying {
   messageId: string;
@@ -103,6 +108,7 @@ export class MusicController {
     private readonly api: WorkerApi,
     private readonly primarySource: PrimarySource = "youtube",
     private readonly instrumentation = new MusicInstrumentation(),
+    private readonly soundcloudSearchCache = new SoundcloudSearchCache(),
   ) {}
 
   /** Entry point for the HTTP /music route. Edits the interaction webhook itself. */
@@ -181,24 +187,7 @@ export class MusicController {
             // DisTube only routes http(s) URLs to the yt-dlp plugin, so a SoundCloud
             // text search is pre-resolved here to a concrete track URL first.
             const playQuery = resolved.soundcloudSearch
-              ? await resolveSoundcloudSearch(resolved.query, (q) =>
-                  ytdlpJson(q, {
-                    dumpSingleJson: true,
-                    noWarnings: true,
-                    skipDownload: true,
-                    simulate: true,
-                    // Skip DRM/unavailable entries instead of aborting the whole
-                    // scsearch5 — the selector then picks the first playable one.
-                    ignoreErrors: true,
-                  }),
-                undefined,
-                {
-                  actionId: action.actionId,
-                  action: action.action,
-                  source: action.source,
-                  guildKey: action.guildKey,
-                },
-              )
+              ? await this.resolveSoundcloudTextSearch(resolved.query, action)
               : resolved.query;
             await this.reconcilePlayback(guild.id, action);
             const before = this.distube.getQueue(guild.id)?.songs.length ?? 0;
@@ -415,6 +404,76 @@ export class MusicController {
     if (cancelled) this.instrumentation.lazyPlaylistCancelled(guildId, reason, correlation);
   }
 
+  private async resolveSoundcloudTextSearch(query: string, action: MusicActionContext): Promise<string> {
+    this.instrumentation.beginSoundcloudSearch(action);
+    const startedAt = performance.now();
+    try {
+      const result = await this.soundcloudSearchCache.resolve(query, () => {
+        this.instrumentation.markSoundcloudSearchYtDlpCall(action);
+        return resolveSoundcloudSearch(
+          query,
+          (searchQuery) =>
+            ytdlpJson(searchQuery, {
+              dumpSingleJson: true,
+              noWarnings: true,
+              skipDownload: true,
+              simulate: true,
+              ignoreErrors: true,
+            }),
+          undefined,
+          {
+            actionId: action.actionId,
+            action: action.action,
+            source: action.source,
+            guildKey: action.guildKey,
+          },
+        );
+      });
+      const snapshot = this.soundcloudSearchCache.snapshot();
+      this.instrumentation.soundcloudSearchPerformance(action, {
+        cacheStatus: result.status,
+        durationMs: result.durationMs,
+        cacheSize: snapshot.size,
+        cacheMaxEntries: snapshot.maxEntries,
+        cacheTtlMs: snapshot.ttlMs,
+        cacheHits: snapshot.hits,
+        cacheMisses: snapshot.misses,
+        cacheJoins: snapshot.joins,
+        cacheEvictions: snapshot.evictions,
+        cacheExpirations: snapshot.expirations,
+        cacheEstimatedMaxTextBytes: snapshot.maxEntries * (64 + 512) * 2,
+        activeResolutions: snapshot.activeResolutions,
+        queuedResolutions: snapshot.queuedResolutions,
+        maxConcurrentObserved: snapshot.maxConcurrentObserved,
+        outcome: "success",
+      });
+      return result.value;
+    } catch (error) {
+      const snapshot = this.soundcloudSearchCache.snapshot();
+      this.instrumentation.soundcloudSearchPerformance(action, {
+        cacheStatus: "error",
+        durationMs: performance.now() - startedAt,
+        cacheSize: snapshot.size,
+        cacheMaxEntries: snapshot.maxEntries,
+        cacheTtlMs: snapshot.ttlMs,
+        cacheHits: snapshot.hits,
+        cacheMisses: snapshot.misses,
+        cacheJoins: snapshot.joins,
+        cacheEvictions: snapshot.evictions,
+        cacheExpirations: snapshot.expirations,
+        cacheEstimatedMaxTextBytes: snapshot.maxEntries * (64 + 512) * 2,
+        activeResolutions: snapshot.activeResolutions,
+        queuedResolutions: snapshot.queuedResolutions,
+        maxConcurrentObserved: snapshot.maxConcurrentObserved,
+        outcome: "error",
+      });
+      if (error instanceof SoundcloudSearchCapacityError || error instanceof SoundcloudSearchCacheClearedError) {
+        throw new UserError("⚠️ Trop de recherches SoundCloud simultanées. Réessaie dans quelques instants.");
+      }
+      throw error;
+    }
+  }
+
   private async loadSavedPlaylist(
     guildId: string,
     name: string,
@@ -619,6 +678,10 @@ export class MusicController {
     }
 
     this.guardedStreams.add(stream);
+    const streamAction = resolvedCorrelation.actionId
+      ? this.actionsById.get(resolvedCorrelation.actionId)
+      : undefined;
+    this.instrumentation.markPerformanceStage(streamAction, "streamCreated");
     let closed = false;
     const closeListener = () => {
       if (closed) return;
@@ -781,6 +844,7 @@ export class MusicController {
       if (action) {
         this.instrumentation.markResolved(action, "Song", 1);
         this.instrumentation.markAdded(action, 1);
+        this.instrumentation.markPerformanceStage(action, "queueAdded");
       }
       this.instrumentation.queueEvent(correlation, action, "ADD_SONG", {
         title: song.name,
@@ -795,6 +859,7 @@ export class MusicController {
       if (action) {
         this.instrumentation.markResolved(action, "Playlist", playlist.songs.length);
         this.instrumentation.markAdded(action, playlist.songs.length);
+        this.instrumentation.markPerformanceStage(action, "queueAdded");
       }
       this.instrumentation.queueEvent(correlation, action, "ADD_LIST", {
         title: playlist.name,
@@ -832,6 +897,9 @@ export class MusicController {
         ? this.correlationFromMetadata(current.metadata, guildId)
         : this.currentAction(guildId);
       if (detail.startsWith("[process] spawn:")) {
+        const action = current ? this.actionFromMetadata(current.metadata) : this.currentAction(guildId);
+        this.instrumentation.markPerformanceStage(action, "streamCreated");
+        this.instrumentation.markPerformanceStage(action, "ffmpegStarted");
         this.instrumentation.streamEvent("info", guildId, "spawned", correlation, {});
         return;
       }
@@ -894,6 +962,12 @@ export class MusicController {
         if (oldState.status !== newState.status) {
           this.instrumentation.playerTransition(guildId, oldState.status, newState.status, correlation);
         }
+        const action = correlation?.actionId ? this.actionsById.get(correlation.actionId) : undefined;
+        if (newState.status === AudioPlayerStatus.Buffering) {
+          this.instrumentation.markPerformanceStage(action, "buffering");
+        } else if (newState.status === AudioPlayerStatus.Playing) {
+          this.instrumentation.markPerformanceStage(action, "playing");
+        }
         const queue = this.distube.getQueue(guildId);
         if (newState.status === AudioPlayerStatus.Playing || isPausedPlayerStatus(newState.status)) {
           if (queue) this.pushState(queue, correlation);
@@ -940,6 +1014,10 @@ export class MusicController {
     const me = this.client.guilds.cache.get(queue.id)?.members.me?.voice;
     const action = this.actionFromMetadata(song.metadata) ?? this.currentAction(queue.id);
     const correlation = action ?? this.correlationFromMetadata(song.metadata, queue.id);
+    this.instrumentation.markPerformanceStage(action, "streamCreated");
+    if (this.distube.voices.get(queue.id)?.audioPlayer.state.status === AudioPlayerStatus.Buffering) {
+      this.instrumentation.markPerformanceStage(action, "buffering");
+    }
     this.instrumentation.queueEvent(correlation, action, "PLAY_SONG", {
       title: song.name,
       duration: song.duration,

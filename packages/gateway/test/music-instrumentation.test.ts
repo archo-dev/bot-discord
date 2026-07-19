@@ -142,4 +142,64 @@ describe("MusicInstrumentation", () => {
     });
     expect(metadata).not.toHaveProperty("guildId");
   });
+
+  it("emits bounded playback-stage latency metrics without per-tick logging", () => {
+    const { logger, lines, advance } = createLogger();
+    const context = logger.beginAction(payload("panel", "artist track"), snapshot);
+    logger.beginSoundcloudSearch(context);
+    logger.markSoundcloudSearchYtDlpCall(context);
+    advance(5);
+    logger.soundcloudSearchPerformance(context, {
+      cacheStatus: "miss",
+      durationMs: 5,
+      cacheSize: 1,
+      cacheMaxEntries: 64,
+      cacheTtlMs: 30_000,
+      cacheHits: 0,
+      cacheMisses: 1,
+      cacheJoins: 0,
+      cacheEvictions: 0,
+      cacheExpirations: 0,
+      cacheEstimatedMaxTextBytes: 73_728,
+      activeResolutions: 0,
+      queuedResolutions: 0,
+      maxConcurrentObserved: 1,
+      outcome: "success",
+    });
+    advance(3);
+    logger.markPerformanceStage(context, "queueAdded");
+    advance(2);
+    logger.markPerformanceStage(context, "streamCreated");
+    logger.markPerformanceStage(context, "streamCreated");
+    advance(1);
+    logger.markPerformanceStage(context, "ffmpegStarted");
+    advance(4);
+    logger.markPerformanceStage(context, "buffering");
+    advance(6);
+    logger.markPerformanceStage(context, "playing");
+    advance(2);
+    logger.endAction(context, snapshot, "success");
+
+    const events = lines.map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(events.find((event) => event.event === "music_soundcloud_search_performance")).toMatchObject({
+      cacheStatus: "miss",
+      cacheMaxEntries: 64,
+      cacheTtlMs: 30_000,
+      durationMs: 5,
+    });
+    expect(events.find((event) => event.event === "music_playback_performance")).toMatchObject({
+      commandToSearchResultMs: 5,
+      searchResultToQueueAddMs: 3,
+      commandToQueueAddMs: 8,
+      queueAddToStreamCreateMs: 2,
+      streamCreateToFfmpegMs: 1,
+      ffmpegToBufferingMs: 4,
+      bufferingToPlayingMs: 6,
+      totalMs: 23,
+      soundcloudSearches: 1,
+      soundcloudSearchYtDlpCalls: 1,
+      streamsCreated: 1,
+    });
+    expect(events.filter((event) => event.event === "music_playback_performance")).toHaveLength(1);
+  });
 });
