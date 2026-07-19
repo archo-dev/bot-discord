@@ -2,6 +2,7 @@
 
 import { DisTube, Events as DTEvents, RepeatMode, type Queue, type Song } from "distube";
 import { type Client, type GuildTextBasedChannel } from "discord.js";
+import type { AudioPlayer, VoiceConnection } from "@discordjs/voice";
 import { EMPTY_MUSIC_STATE, type MusicCommandPayload, type MusicStateDto } from "@bot/shared";
 import type { WorkerApi } from "../worker-api.js";
 import { errMsg } from "../util.js";
@@ -15,6 +16,7 @@ import {
   withTimeout,
   type MusicReply,
 } from "./format.js";
+import { sanitizeMedia } from "./log-sanitize.js";
 import { nowPlayingEmbed, queueEmbed } from "./embeds.js";
 
 interface NowPlaying {
@@ -26,6 +28,13 @@ interface NowPlaying {
 
 export class MusicController {
   private readonly nowPlaying = new Map<string, NowPlaying>();
+
+  // --- Diagnostics (M: instrumentation ffmpeg/voice) ------------------------
+  /** Rolling tail of ffmpeg stderr (sanitised only when dumped on error). */
+  private ffmpegTail = "";
+  /** Voice objects whose state we've already hooked (avoids duplicate listeners). */
+  private readonly instrumentedPlayers = new WeakSet<AudioPlayer>();
+  private readonly instrumentedConnections = new WeakSet<VoiceConnection>();
 
   constructor(
     private readonly client: Client,
@@ -73,6 +82,9 @@ export class MusicController {
           const before = this.distube.getQueue(guild.id)?.songs.length ?? 0;
           try {
             await this.playWithTimeout(voiceChannel, query, { member, textChannel });
+            // Hook voice/player state as early as the connection exists, so we
+            // capture the signalling → ready transition (not just from playSong).
+            this.instrumentVoice(guild.id);
           } catch (err) {
             // On timeout, don't leave a half-built queue behind.
             if (err instanceof UserError) await this.distube.getQueue(guild.id)?.stop().catch(() => {});
@@ -236,15 +248,76 @@ export class MusicController {
       this.pushEmptyState(queue.id);
     });
     this.distube.on(DTEvents.DISCONNECT, (queue) => {
+      console.log(`music: disconnect (guild ${queue.id})`);
       this.clearNowPlaying(queue.id);
       this.pushEmptyState(queue.id);
     });
-    this.distube.on(DTEvents.ERROR, (error, queue) => {
-      console.error(`distube error (guild ${queue?.id ?? "?"}):`, errMsg(error));
+    // ffmpeg stderr streams here (no guild attached); keep a bounded rolling
+    // tail and only dump it — sanitised — when a DisTube error fires.
+    this.distube.on(DTEvents.FFMPEG_DEBUG, (debug) => {
+      this.ffmpegTail = `${this.ffmpegTail}\n${debug}`.slice(-4000);
+    });
+    this.distube.on(DTEvents.FINISH_SONG, (queue, song) => {
+      console.log(`music: finishSong (guild ${queue.id}) "${song.name}"`);
+    });
+    // NB: DisTube v5.2.3 has no `empty` event — the closest lifecycle signals
+    // are DISCONNECT (above) and FINISH.
+    this.distube.on(DTEvents.ERROR, (error, queue, song) => {
+      const message = errMsg(error);
+      console.error(`distube error (guild ${queue?.id ?? "?"}):`, message);
+      const code = /code (\d+)/.exec(String(message))?.[1];
+      if (code) console.error(`  ↳ ffmpeg exit code=${code}`);
+      if (song) console.error(`  ↳ song "${song.name}" (${formatDuration(song.duration ?? 0)})`);
+      if (this.ffmpegTail) {
+        console.error(`  ↳ ffmpeg stderr tail: ${sanitizeMedia(this.ffmpegTail, 1000)}`);
+      }
     });
   }
 
+  /**
+   * Attaches @discordjs/voice state listeners for a guild's voice — once per
+   * underlying AudioPlayer / VoiceConnection object (WeakSet-guarded, so a
+   * reconnect that creates fresh objects is re-hooked, and GC'd ones drop out).
+   */
+  private instrumentVoice(guildId: string): void {
+    const voice = this.distube.voices.get(guildId);
+    if (!voice) return;
+
+    const player = voice.audioPlayer;
+    if (player && !this.instrumentedPlayers.has(player)) {
+      this.instrumentedPlayers.add(player);
+      player.on("stateChange", (oldState, newState) => {
+        if (oldState.status !== newState.status) {
+          console.log(`music: player ${oldState.status} → ${newState.status} (guild ${guildId})`);
+        }
+      });
+      player.on("error", (err) => {
+        console.error(`music: player error (guild ${guildId}): ${sanitizeMedia(errMsg(err), 500)}`);
+      });
+    }
+
+    const connection = voice.connection;
+    if (connection && !this.instrumentedConnections.has(connection)) {
+      this.instrumentedConnections.add(connection);
+      connection.on("stateChange", (oldState, newState) => {
+        if (oldState.status !== newState.status) {
+          console.log(`music: voice ${oldState.status} → ${newState.status} (guild ${guildId})`);
+        }
+      });
+      connection.on("error", (err) => {
+        console.error(`music: voice error (guild ${guildId}): ${sanitizeMedia(errMsg(err), 500)}`);
+      });
+    }
+  }
+
   private async onPlaySong(queue: Queue, song: Song): Promise<void> {
+    this.instrumentVoice(queue.id);
+    const me = this.client.guilds.cache.get(queue.id)?.members.me?.voice;
+    console.log(
+      `music: playSong (guild ${queue.id}) "${song.name}" dur=${formatDuration(song.duration ?? 0)} ` +
+        `channel=${me?.channelId ?? "none"} serverMute=${me?.serverMute ?? "?"} serverDeaf=${me?.serverDeaf ?? "?"} ` +
+        `selfMute=${me?.selfMute ?? "?"}`,
+    );
     this.clearNowPlaying(queue.id);
     this.pushState(queue);
     const channel = queue.textChannel;
