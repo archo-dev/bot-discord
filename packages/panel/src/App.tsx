@@ -1,9 +1,12 @@
-import { Navigate, Route, Routes } from "react-router";
+import { Navigate, Route, Routes, useLocation } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { lazy, useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import type { MeResponse } from "@bot/shared";
 import { api, ApiError } from "./lib/api.js";
+import { getPlatformFlags } from "./lib/flags.js";
+import { isPublicPath } from "./lib/public-routes.js";
 import { Landing } from "./pages/Landing.js";
+import { LandingContent } from "./pages/LandingContent.js";
 import { GuildList } from "./pages/GuildList.js";
 import { GuildLayout } from "./pages/GuildLayout.js";
 import { Dashboard } from "./pages/Dashboard.js";
@@ -45,8 +48,30 @@ const OnboardingPage = lazy(() => import("./pages/Onboarding.js").then((m) => ({
 const BackupPage = lazy(() => import("./pages/Backup.js").then((m) => ({ default: m.BackupPage })));
 const PrivacyPage = lazy(() => import("./pages/Privacy.js").then((m) => ({ default: m.PrivacyPage })));
 
+/* Shell public (M2) — chargé à la demande, uniquement quand le flag
+   `platform.publicSite` est ON. Absent du chunk initial. */
+const PublicLayout = lazy(() => import("./layouts/PublicLayout.js").then((m) => ({ default: m.PublicLayout })));
+const FeaturesPage = lazy(() => import("./pages/public/PublicStubs.js").then((m) => ({ default: m.FeaturesPage })));
+const PricingPage = lazy(() => import("./pages/public/PublicStubs.js").then((m) => ({ default: m.PricingPage })));
+const UpdatesPage = lazy(() => import("./pages/public/PublicStubs.js").then((m) => ({ default: m.UpdatesPage })));
+const StatusPage = lazy(() => import("./pages/public/PublicStubs.js").then((m) => ({ default: m.StatusPage })));
+const LegalPage = lazy(() => import("./pages/public/PublicStubs.js").then((m) => ({ default: m.LegalPage })));
+
+function PublicFallback() {
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-10" aria-busy="true">
+      <Skeleton className="h-8 w-40" />
+      <div className="mt-8">
+        <Skeleton className="h-64 w-full rounded-2xl" />
+      </div>
+    </div>
+  );
+}
+
 export function App() {
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const publicSite = getPlatformFlags()["platform.publicSite"];
   useEffect(() => {
     const refreshSession = () => void queryClient.invalidateQueries({ queryKey: ["me"], exact: true });
     window.addEventListener("panel:session-expired", refreshSession);
@@ -58,6 +83,27 @@ export function App() {
     queryFn: () => api<MeResponse>("/api/me"),
     retry: false,
   });
+
+  // Shell public (M2) : les chemins publics dédiés ne dépendent pas de la
+  // session → court-circuit AVANT la gate ["me"]. Actif uniquement flag ON ;
+  // flag OFF ⇒ condition morte, comportement identique à l'existant.
+  if (publicSite && isPublicPath(location.pathname)) {
+    return (
+      <Suspense fallback={<PublicFallback />}>
+        <Routes>
+          <Route element={<PublicLayout />}>
+            <Route path="/features" element={<FeaturesPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/updates" element={<UpdatesPage />} />
+            <Route path="/status" element={<StatusPage />} />
+            <Route path="/legal" element={<Navigate to="/legal/mentions" replace />} />
+            <Route path="/legal/:doc" element={<LegalPage />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+    );
+  }
 
   if (me.isPending) {
     // Squelette de la destination la plus probable (liste des serveurs) — zéro layout shift
@@ -73,7 +119,20 @@ export function App() {
   }
 
   if (me.isError) {
-    if (me.error instanceof ApiError && me.error.status === 401) return <Landing />;
+    if (me.error instanceof ApiError && me.error.status === 401) {
+      // Flag ON : la racine déconnectée devient la home publique (même chrome
+      // que les autres pages publiques). Flag OFF : Landing autonome (inchangé).
+      if (publicSite && location.pathname === "/") {
+        return (
+          <Suspense fallback={<PublicFallback />}>
+            <PublicLayout>
+              <LandingContent />
+            </PublicLayout>
+          </Suspense>
+        );
+      }
+      return <Landing />;
+    }
     return (
       <div className="mx-auto flex min-h-screen max-w-md items-center px-4">
         <div className="w-full">
