@@ -26,11 +26,14 @@ Dossier de conception (documentation uniquement) pour la transformation d'**Arch
 | 11 | [11-migration-roadmap.md](./11-migration-roadmap.md) | Gestion de projet — phases |
 | 12 | [12-testing-and-release-strategy.md](./12-testing-and-release-strategy.md) | Qualité — tests & release |
 | 13 | [13-open-decisions.md](./13-open-decisions.md) | Décideur — **arbitrages requis** |
+| E | [execution/](./execution/README.md) | **Suite — décisions produit concrètes & roadmap exécutable** (MVP, 16 milestones, file de décisions) |
 
 **Parcours conseillés :**
-- *Direction / décision* : 00 → 05 → 07 → 13.
-- *Ingénierie* : 01 → 02 → 06 → 08 → 09 → 11 → 12.
+- *Direction / décision* : 00 → 05 → 07 → 13 → [execution/E7](./execution/E7-decision-queue.md).
+- *Ingénierie* : 01 → 02 → 06 → 08 → 09 → 11 → 12 → [execution/E4](./execution/E4-milestones.md).
 - *Produit / design* : 03 → 04 → 05 → 10.
+
+> **Étape suivante (planification d'exécution)** : le sous-dossier [`execution/`](./execution/README.md) transforme ce plan de conception en décisions concrètes, MVP borné, milestones et file de décisions à valider. Toujours **documentation uniquement**.
 
 ## Décisions déjà cadrées
 
