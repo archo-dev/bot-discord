@@ -20,6 +20,16 @@ describe("public route taxonomy (M2)", () => {
     expect(isPublicPath("/legal/")).toBe(true);
   });
 
+  it("reconnaît le détail des mises à jour /updates/:slug (M5)", () => {
+    expect(isPublicPath("/updates")).toBe(true);
+    expect(isPublicPath("/updates/v1-0-0")).toBe(true);
+    expect(isPublicPath("/updates/v1-0-0/")).toBe(true);
+    expect(resolveShell("/updates/v1-0-0", { publicSite: true })).toBe("public");
+    expect(resolveShell("/updates/v1-0-0", { publicSite: false })).toBe("connected");
+    // Pas de faux positif : « /updatesX » n'est pas un sous-chemin de /updates.
+    expect(isPublicPath("/updatesX")).toBe(false);
+  });
+
   it("flag OFF → toujours « connected » (comportement historique)", () => {
     for (const p of ["/", "/features", "/pricing", "/legal/privacy", "/guilds/1"]) {
       expect(resolveShell(p, { publicSite: false })).toBe("connected");
