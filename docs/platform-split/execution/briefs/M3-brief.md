@@ -86,7 +86,7 @@ Réutilisation maximale des primitives (aucun asset lourd, aucune image externe,
 
 ## 12. Tests
 
-- **Purs** : `lib/plans.test` (catalogue = 3 offres, ids `free|premium|business`, slots 1/3/5, **Premium `highlighted`**, **aucun champ prix**), `landing-data.test` (BENEFITS/USE_CASES non vides, clés stables). 
+- **Purs** : `lib/plans.test` (catalogue = 3 offres, ids `free|premium|business`, slots 1/3/5, **Premium `highlighted`**, **aucun champ prix**), `landing-data.test` (BENEFITS/USE_CASES non vides, clés stables).
 - **Non-régression** : `public-routes`, `flags-panel`, `navigation`, `lazy-routes` restent verts.
 - **Build + budget** ≤ 180 KiB. **Monorepo** : typecheck + Gateway + Worker + Panel. **Worker dry-run**.
 
