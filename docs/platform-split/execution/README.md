@@ -27,7 +27,7 @@ Briefs détaillés préparés au fil de l'avancement, prêts à ouvrir une branc
 | M3 — Landing commerciale | [briefs/M3-brief.md](./briefs/M3-brief.md) | **Terminé** — fusionné, rapport [reports/M3-report.md](./reports/M3-report.md) |
 | M4 — Pricing & comparatif | [briefs/M4-brief.md](./briefs/M4-brief.md) | **Terminé** — fusionné, rapport [reports/M4-report.md](./reports/M4-report.md) |
 | M5 — Notes de mise à jour publiques | [briefs/M5-brief.md](./briefs/M5-brief.md) | **Terminé** — fusionné, rapport [reports/M5-report.md](./reports/M5-report.md) |
-| M6 — Modèle d'entitlements (flag) | [briefs/M6-brief.md](./briefs/M6-brief.md) | **En cours** — branche `feat/m06-entitlements` |
+| M6 — Modèle d'entitlements (flag) | [briefs/M6-brief.md](./briefs/M6-brief.md) | **Terminé** — fusionné, rapport [reports/M6-report.md](./reports/M6-report.md) |
 
 ## Rappel des décisions déjà cadrées (non rouvertes ici)
 
