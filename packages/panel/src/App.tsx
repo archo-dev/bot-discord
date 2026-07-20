@@ -52,7 +52,7 @@ const PrivacyPage = lazy(() => import("./pages/Privacy.js").then((m) => ({ defau
    `platform.publicSite` est ON. Absent du chunk initial. */
 const PublicLayout = lazy(() => import("./layouts/PublicLayout.js").then((m) => ({ default: m.PublicLayout })));
 const FeaturesPage = lazy(() => import("./pages/public/PublicStubs.js").then((m) => ({ default: m.FeaturesPage })));
-const PricingPage = lazy(() => import("./pages/public/PublicStubs.js").then((m) => ({ default: m.PricingPage })));
+const PricingPage = lazy(() => import("./pages/public/Pricing.js").then((m) => ({ default: m.PricingPage })));
 const UpdatesPage = lazy(() => import("./pages/public/PublicStubs.js").then((m) => ({ default: m.UpdatesPage })));
 const StatusPage = lazy(() => import("./pages/public/PublicStubs.js").then((m) => ({ default: m.StatusPage })));
 const LegalPage = lazy(() => import("./pages/public/PublicStubs.js").then((m) => ({ default: m.LegalPage })));

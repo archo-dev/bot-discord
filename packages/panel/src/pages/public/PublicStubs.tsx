@@ -33,10 +33,6 @@ export function FeaturesPage() {
   return <Stub title="Fonctions" lead="Le détail des capacités du bot, organisé par bénéfice, arrivera ici." />;
 }
 
-export function PricingPage() {
-  return <Stub title="Tarifs" lead="Le comparatif des offres sera présenté ici." note="Aucun tarif n'est encore fixé." />;
-}
-
 export function UpdatesPage() {
   return <Stub title="Mises à jour" lead="Les notes de version publiques seront publiées ici." />;
 }
