@@ -1,26 +1,11 @@
 import type { ReactNode } from "react";
 import { Button } from "./buttons.js";
 
-/* Kit Nocturne — retours d'état : Badge (5.5), EmptyState (v2 §4.5), ErrorCard (v2 §5), Tooltip (v2 §4.7). */
-
-type BadgeTone = "primary" | "success" | "warning" | "danger" | "neutral";
-const badgeTones: Record<BadgeTone, string> = {
-  primary: "bg-indigo-950 text-indigo-200",
-  success: "bg-green-950 text-green-300",
-  warning: "bg-amber-950 text-amber-200",
-  danger: "bg-red-950 text-red-300",
-  neutral: "bg-zinc-800 text-zinc-400",
-};
-
-export function Badge({ tone = "neutral", children }: { tone?: BadgeTone; children: ReactNode }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-eyebrow font-semibold uppercase tracking-wide ${badgeTones[tone]}`}
-    >
-      {children}
-    </span>
-  );
-}
+/* Kit Nocturne — retours d'état : EmptyState (v2 §4.5), ErrorCard (v2 §5), Tooltip (v2 §4.7).
+   Badge (5.5) est désormais fourni par @bot/ui (première primitive partagée, M1) et
+   ré-exporté ici pour préserver les imports existants (`../ui/kit`). */
+export { Badge } from "@bot/ui";
+export type { BadgeTone } from "@bot/ui";
 
 /* --- v2 §4.5 État vide --- */
 export function EmptyState({

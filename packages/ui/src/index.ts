@@ -3,6 +3,6 @@
  * Package TS brut (comme @bot/shared) : bundlé par chaque consommateur.
  * Voir docs/platform-split/execution/briefs/M1-brief.md.
  *
- * Barrel initial : les primitives partagées sont ajoutées progressivement (M1+).
+ * Barrel : les primitives partagées sont ajoutées progressivement (M1+).
  */
-export {};
+export * from "./primitives/badge.js";
