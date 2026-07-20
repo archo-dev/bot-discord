@@ -24,7 +24,7 @@ Briefs détaillés préparés au fil de l'avancement, prêts à ouvrir une branc
 |-----------|-------|--------|
 | M1 — Fondations & design system | [briefs/M1-brief.md](./briefs/M1-brief.md) | **Terminé** — fusionné (`b4dfef4`), rapport [reports/M1-report.md](./reports/M1-report.md) |
 | M2 — Shell public & routes publiques | [briefs/M2-brief.md](./briefs/M2-brief.md) | **Terminé** — fusionné, rapport [reports/M2-report.md](./reports/M2-report.md) |
-| M3 — Landing commerciale | [briefs/M3-brief.md](./briefs/M3-brief.md) | **Préparé** — en attente de démarrage |
+| M3 — Landing commerciale | [briefs/M3-brief.md](./briefs/M3-brief.md) | **Terminé** — fusionné, rapport [reports/M3-report.md](./reports/M3-report.md) |
 
 ## Rappel des décisions déjà cadrées (non rouvertes ici)
 
