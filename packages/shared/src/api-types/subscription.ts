@@ -3,6 +3,7 @@
  * and no internal origin details. `source=null` means the implicit free default. */
 
 import type { EntitlementSource, EntitlementStatus, PlanId } from "../entitlement.js";
+import type { AssignmentState } from "../assignments.js";
 
 export interface SubscriptionResponse {
   planId: PlanId;
@@ -18,4 +19,32 @@ export interface SubscriptionResponse {
   endAt: string | null;
   /** Whether the platform.entitlements flag is on (panel awareness). */
   entitlementsEnabled: boolean;
+}
+
+/** One server slot occupied by (or suspended under) the user's entitlement. */
+export interface SlotAssignment {
+  guildId: string;
+  state: AssignmentState;
+  /** ISO 8601 assignment time. */
+  assignedAt: string;
+}
+
+/** GET /api/subscription/assignments — the user's slots and their occupancy. */
+export interface SubscriptionAssignmentsResponse {
+  planId: PlanId;
+  /** Total slots of the effective plan (1/3/5). */
+  slots: number;
+  /** Active (live) assignments consuming a slot. */
+  used: number;
+  /** Free slots = slots - used (never negative). */
+  available: number;
+  assignments: SlotAssignment[];
+  entitlementsEnabled: boolean;
+}
+
+/** Effective plan of a single guild, surfaced to the gateway config. */
+export interface GuildPlan {
+  id: PlanId;
+  rank: number;
+  slots: number;
 }

@@ -15,3 +15,4 @@ export * from "./reliable-delivery.js";
 export * from "./automation.js";
 export * from "./flags.js";
 export * from "./entitlement.js";
+export * from "./assignments.js";

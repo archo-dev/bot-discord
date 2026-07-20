@@ -121,6 +121,28 @@ function compareEntitlements(a: EntitlementInput, b: EntitlementInput): number {
   return toTime(a.createdAt) - toTime(b.createdAt);
 }
 
+function toNowMs(now: Date | string | number): number {
+  return now instanceof Date ? now.getTime() : typeof now === "number" ? now : toTime(now);
+}
+
+/**
+ * Index du meilleur entitlement actif (ou -1 si aucun → Gratuit implicite).
+ * Pur/déterministe — permet au backend de retrouver la ligne source (son id).
+ */
+export function pickBestEntitlementIndex(
+  entitlements: readonly EntitlementInput[],
+  now: Date | string | number,
+): number {
+  const nowMs = toNowMs(now);
+  let bestIdx = -1;
+  for (let i = 0; i < entitlements.length; i++) {
+    const e = entitlements[i]!;
+    if (!isActiveCandidate(e, nowMs)) continue;
+    if (bestIdx === -1 || compareEntitlements(e, entitlements[bestIdx]!) > 0) bestIdx = i;
+  }
+  return bestIdx;
+}
+
 /**
  * Résout le **meilleur entitlement actif** d'un utilisateur à l'instant `now`.
  * Pure et déterministe (mêmes entrées → même sortie). Aucun candidat → Gratuit.
@@ -129,13 +151,9 @@ export function resolveEffectiveEntitlement(
   entitlements: readonly EntitlementInput[],
   now: Date | string | number,
 ): EffectiveEntitlement {
-  const nowMs = now instanceof Date ? now.getTime() : typeof now === "number" ? now : toTime(now);
-  let best: EntitlementInput | null = null;
-  for (const e of entitlements) {
-    if (!isActiveCandidate(e, nowMs)) continue;
-    if (best === null || compareEntitlements(e, best) > 0) best = e;
-  }
-  if (best === null) return EFFECTIVE_FREE;
+  const bestIdx = pickBestEntitlementIndex(entitlements, now);
+  if (bestIdx === -1) return EFFECTIVE_FREE;
+  const best = entitlements[bestIdx]!;
   const plan = PLANS[best.planId];
   return {
     planId: plan.id,
