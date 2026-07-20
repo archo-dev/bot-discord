@@ -21,4 +21,5 @@ export * from "./onboarding.js";
 export * from "./config-backup.js";
 export * from "./privacy.js";
 export * from "./release-notes.js";
+export * from "./subscription.js";
 export * from "./common.js";
