@@ -16,6 +16,14 @@ Ce sous-dossier transforme le **plan de conception** (`docs/platform-split/00`�
 | E6 | [E6-branching-strategy.md](./E6-branching-strategy.md) | Stratégie de branches, commits, tests, merge, rollback |
 | E7 | [E7-decision-queue.md](./E7-decision-queue.md) | File **ordonnée** de décisions à soumettre (2-3 options chacune) |
 
+## Briefs d'exécution (par milestone)
+
+Briefs détaillés préparés au fil de l'avancement, prêts à ouvrir une branche (`briefs/`) :
+
+| Milestone | Brief | Statut |
+|-----------|-------|--------|
+| M1 — Fondations & design system | [briefs/M1-brief.md](./briefs/M1-brief.md) | **Préparé** — en attente de démarrage |
+
 ## Rappel des décisions déjà cadrées (non rouvertes ici)
 
 Issues du [README parent](../README.md) et confirmées :
