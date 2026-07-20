@@ -32,9 +32,11 @@ describe("internal API (future gateway)", () => {
     await upsertGuild(env.DB, G, "Internal Guild", null);
     const res = await req(`/internal/guilds/${G}/config`, {}, "test-internal-token");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { warnThreshold: number; autoRoles: string[] };
+    const body = (await res.json()) as { warnThreshold: number; autoRoles: string[]; plan: { id: string; slots: number } };
     expect(body.warnThreshold).toBe(3);
     expect(body.autoRoles).toEqual([]);
+    // M7: effective plan surfaced to the gateway; Gratuit by default (flag off, no assignment).
+    expect(body.plan).toEqual({ id: "free", rank: 1, slots: 1 });
   });
 
   it("stores gateway heartbeats in KV with a TTL", async () => {
