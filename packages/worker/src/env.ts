@@ -13,6 +13,9 @@ export interface Env {
   SESSION_GLOBAL_VERSION?: string;
   PRODUCT_ANALYTICS_ENABLED?: "true" | "false";
   APP_VERSION?: string;
+  /** Platform rollout flag (M6). Undeclared in wrangler.jsonc → off in prod
+   *  (all Gratuit). Set to "true" to enable entitlement resolution. */
+  PLATFORM_ENTITLEMENTS?: string;
 
   // secrets
   DISCORD_TOKEN: string;

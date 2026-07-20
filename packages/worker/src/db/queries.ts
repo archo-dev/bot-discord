@@ -28,3 +28,4 @@ export * from "./queries/reliable-delivery.js";
 export * from "./queries/analytics.js";
 export * from "./queries/automations.js";
 export * from "./queries/release-notes.js";
+export * from "./queries/entitlements.js";
