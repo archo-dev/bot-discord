@@ -83,6 +83,9 @@ importers:
       '@bot/shared':
         specifier: workspace:*
         version: link:../shared
+      '@bot/ui':
+        specifier: workspace:*
+        version: link:../ui
       '@tanstack/react-query':
         specifier: ^5.81.5
         version: 5.101.2(react@19.2.7)
@@ -130,6 +133,19 @@ importers:
         specifier: ^4.0.5
         version: 4.4.3
     devDependencies:
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+
+  packages/ui:
+    dependencies:
+      react:
+        specifier: ^19.1.0
+        version: 19.2.7
+    devDependencies:
+      '@types/react':
+        specifier: ^19.1.8
+        version: 19.2.17
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
