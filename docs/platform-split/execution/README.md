@@ -26,6 +26,7 @@ Briefs détaillés préparés au fil de l'avancement, prêts à ouvrir une branc
 | M2 — Shell public & routes publiques | [briefs/M2-brief.md](./briefs/M2-brief.md) | **Terminé** — fusionné, rapport [reports/M2-report.md](./reports/M2-report.md) |
 | M3 — Landing commerciale | [briefs/M3-brief.md](./briefs/M3-brief.md) | **Terminé** — fusionné, rapport [reports/M3-report.md](./reports/M3-report.md) |
 | M4 — Pricing & comparatif | [briefs/M4-brief.md](./briefs/M4-brief.md) | **Terminé** — fusionné, rapport [reports/M4-report.md](./reports/M4-report.md) |
+| M5 — Notes de mise à jour publiques | [briefs/M5-brief.md](./briefs/M5-brief.md) | **En cours** — branche `feat/m05-release-notes` |
 
 ## Rappel des décisions déjà cadrées (non rouvertes ici)
 
