@@ -25,6 +25,7 @@ import { configBackupRouter } from "./api/config-backup.js";
 import { privacyRouter } from "./api/privacy.js";
 import { automationsRouter } from "./api/automations.js";
 import { subscriptionRouter } from "./api/subscription.js";
+import { assignmentsRouter } from "./api/assignments.js";
 import { publicRouter } from "./api/public.js";
 import { internalRouter } from "./internal/routes.js";
 import { enforcePanelMutationPolicy, requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
@@ -85,8 +86,10 @@ api.route("/", onboardingRouter);
 api.route("/", configBackupRouter);
 api.route("/", privacyRouter);
 api.route("/", automationsRouter);
-// User-level (not guild-scoped): effective subscription/plan read (M6).
+// User-level (not guild-scoped): effective subscription/plan read (M6) and
+// server-slot assignments (M7). Mutations re-verify manage_guild in-handler.
 api.route("/", subscriptionRouter);
+api.route("/", assignmentsRouter);
 api.route("/", guildsRouter);
 app.route("/api", api);
 

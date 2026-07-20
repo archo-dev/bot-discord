@@ -18,6 +18,8 @@ import {
 } from "../db/queries.js";
 import { logRowToDto, welcomeRowToDto } from "../api/welcome.js";
 import { automodRowToDto } from "../api/automod.js";
+import { resolveGuildPlan } from "../api/assignments.js";
+import { getWorkerFlags } from "../config/flags.js";
 
 export const internalConfigRouter = new Hono<{ Bindings: Env }>();
 
@@ -41,12 +43,17 @@ internalConfigRouter.get("/internal/guilds/:guildId/config", async (c) => {
     ]);
   if (!guild) return c.json({ error: "not_found" }, 404);
 
+  // Effective plan of this guild (M7). Behind platform.entitlements → Gratuit by
+  // default. The gateway may use it for plan-aware gating (feature matrix later).
+  const plan = await resolveGuildPlan(c.env.DB, guildId, new Date(), getWorkerFlags(c.env)["platform.entitlements"]);
+
   const modules: Record<string, { enabled: boolean; configVersion: number }> = Object.fromEntries(
     moduleRows.map((row) => [row.module_id, { enabled: row.enabled === 1, configVersion: row.config_version }]),
   );
   const enabled = (id: string) => modules[id]?.enabled === true;
   return c.json({
     governanceVersion: 1,
+    plan,
     modules,
     id: guild.id,
     logChannelId: guild.log_channel_id,
