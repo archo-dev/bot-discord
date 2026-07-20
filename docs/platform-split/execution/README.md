@@ -28,7 +28,7 @@ Briefs détaillés préparés au fil de l'avancement, prêts à ouvrir une branc
 | M4 — Pricing & comparatif | [briefs/M4-brief.md](./briefs/M4-brief.md) | **Terminé** — fusionné, rapport [reports/M4-report.md](./reports/M4-report.md) |
 | M5 — Notes de mise à jour publiques | [briefs/M5-brief.md](./briefs/M5-brief.md) | **Terminé** — fusionné, rapport [reports/M5-report.md](./reports/M5-report.md) |
 | M6 — Modèle d'entitlements (flag) | [briefs/M6-brief.md](./briefs/M6-brief.md) | **Terminé** — fusionné, rapport [reports/M6-report.md](./reports/M6-report.md) |
-| M7 — Slots serveurs & gating | [briefs/M7-brief.md](./briefs/M7-brief.md) | **En cours** — branche `feat/m07-slots-gating` |
+| M7 — Slots serveurs & gating | [briefs/M7-brief.md](./briefs/M7-brief.md) | **Terminé** — fusionné, rapport [reports/M7-report.md](./reports/M7-report.md) |
 
 ## Rappel des décisions déjà cadrées (non rouvertes ici)
 
