@@ -13,3 +13,4 @@ export * from "./onboarding.js";
 export * from "./config-backup.js";
 export * from "./reliable-delivery.js";
 export * from "./automation.js";
+export * from "./flags.js";
