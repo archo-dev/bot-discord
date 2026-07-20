@@ -53,7 +53,8 @@ const PrivacyPage = lazy(() => import("./pages/Privacy.js").then((m) => ({ defau
 const PublicLayout = lazy(() => import("./layouts/PublicLayout.js").then((m) => ({ default: m.PublicLayout })));
 const FeaturesPage = lazy(() => import("./pages/public/PublicStubs.js").then((m) => ({ default: m.FeaturesPage })));
 const PricingPage = lazy(() => import("./pages/public/Pricing.js").then((m) => ({ default: m.PricingPage })));
-const UpdatesPage = lazy(() => import("./pages/public/PublicStubs.js").then((m) => ({ default: m.UpdatesPage })));
+const UpdatesPage = lazy(() => import("./pages/public/Updates.js").then((m) => ({ default: m.UpdatesPage })));
+const UpdateDetailPage = lazy(() => import("./pages/public/UpdateDetail.js").then((m) => ({ default: m.UpdateDetailPage })));
 const StatusPage = lazy(() => import("./pages/public/PublicStubs.js").then((m) => ({ default: m.StatusPage })));
 const LegalPage = lazy(() => import("./pages/public/PublicStubs.js").then((m) => ({ default: m.LegalPage })));
 
@@ -95,6 +96,7 @@ export function App() {
             <Route path="/features" element={<FeaturesPage />} />
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/updates" element={<UpdatesPage />} />
+            <Route path="/updates/:slug" element={<UpdateDetailPage />} />
             <Route path="/status" element={<StatusPage />} />
             <Route path="/legal" element={<Navigate to="/legal/mentions" replace />} />
             <Route path="/legal/:doc" element={<LegalPage />} />

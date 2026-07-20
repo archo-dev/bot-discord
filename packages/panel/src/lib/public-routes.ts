@@ -13,6 +13,8 @@ export const PUBLIC_PATHS = ["/features", "/pricing", "/updates", "/status"] as 
 export type PublicPath = (typeof PUBLIC_PATHS)[number];
 
 const LEGAL_PREFIX = "/legal";
+// Chemins publics à sous-arbre (détail par slug) : /updates/:slug (M5).
+const PREFIX_PATHS = [LEGAL_PREFIX, "/updates"] as const;
 
 function normalize(pathname: string): string {
   return pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
@@ -22,7 +24,7 @@ function normalize(pathname: string): string {
 export function isPublicPath(pathname: string): boolean {
   const path = normalize(pathname);
   if ((PUBLIC_PATHS as readonly string[]).includes(path)) return true;
-  return path === LEGAL_PREFIX || path.startsWith(`${LEGAL_PREFIX}/`);
+  return PREFIX_PATHS.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 }
 
 export type Shell = "public" | "root" | "connected";

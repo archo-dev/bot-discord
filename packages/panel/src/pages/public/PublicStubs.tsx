@@ -5,7 +5,7 @@ import { Button } from "../../ui/kit.js";
 /*
  * Pages publiques PLACEHOLDER (M2). Contenu volontairement minimal :
  * la landing commerciale (M3), le pricing (M4) et les notes de mise à jour
- * (M5) apportent le vrai contenu. Aucun prix inventé ici.
+ * (M5, page dédiée) apportent le vrai contenu. Aucun prix inventé ici.
  * Chaque page fournit son propre <main> (PublicLayout n'en pose pas).
  */
 function Stub({ title, lead, note }: { title: string; lead: string; note?: string }) {
@@ -31,10 +31,6 @@ function Stub({ title, lead, note }: { title: string; lead: string; note?: strin
 
 export function FeaturesPage() {
   return <Stub title="Fonctions" lead="Le détail des capacités du bot, organisé par bénéfice, arrivera ici." />;
-}
-
-export function UpdatesPage() {
-  return <Stub title="Mises à jour" lead="Les notes de version publiques seront publiées ici." />;
 }
 
 export function StatusPage() {

@@ -1,6 +1,8 @@
 import { useDocumentMeta } from "../lib/seo.js";
+import { getPlatformFlags } from "../lib/flags.js";
 import { Hero } from "../components/public/landing/Hero.js";
 import { PlansTeaser } from "../components/public/landing/PlansTeaser.js";
+import { LatestUpdates } from "../components/public/landing/LatestUpdates.js";
 import {
   ValueProp,
   Benefits,
@@ -25,6 +27,10 @@ export function LandingContent() {
       "Animez, modérez et gérez votre serveur Discord depuis un panel web clair : accueil, auto-modération, niveaux, tickets, musique et automatisations. Gratuit pour commencer.",
   });
 
+  // Aperçu des mises à jour : partie du site public → gardé par le même flag,
+  // donc absent (et sans requête) en production tant que le site public est off.
+  const publicSite = getPlatformFlags()["platform.publicSite"];
+
   return (
     <main className="relative mx-auto max-w-6xl px-4 sm:px-6">
       <Hero />
@@ -34,6 +40,7 @@ export function LandingContent() {
       <UseCases />
       <Centralized />
       <PlansTeaser />
+      {publicSite && <LatestUpdates />}
       <Trust />
       <FinalCta />
     </main>
