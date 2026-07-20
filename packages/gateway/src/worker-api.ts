@@ -35,6 +35,10 @@ export type ReliableBatchSendResult =
 
 export interface GuildGatewayConfig {
   governanceVersion?: number;
+  /** Effective plan of this guild (M7). Optional for backward compatibility;
+   *  present once the worker exposes it (Gratuit by default). Plan-aware gating
+   *  of individual features (the feature→plan matrix) lands in a later milestone. */
+  plan?: { id: "free" | "premium" | "business"; rank: number; slots: number };
   modules?: GatewayModuleConfig;
   id: string;
   logChannelId: string | null;
