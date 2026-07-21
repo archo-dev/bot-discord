@@ -28,4 +28,5 @@ export * from "./studio.js";
 export * from "./grants.js";
 export * from "./audit.js";
 export * from "./observability.js";
+export * from "./pricing.js";
 export * from "./common.js";

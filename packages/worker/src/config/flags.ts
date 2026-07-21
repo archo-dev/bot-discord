@@ -16,5 +16,6 @@ export function getWorkerFlags(env: Env): FlagState {
     "platform.billing": isTrue(env.PLATFORM_BILLING),
     "platform.support": isTrue(env.PLATFORM_SUPPORT),
     "platform.studio": isTrue(env.PLATFORM_STUDIO),
+    "platform.launch": isTrue(env.PLATFORM_LAUNCH),
   });
 }

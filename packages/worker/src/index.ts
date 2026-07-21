@@ -32,6 +32,7 @@ import { supportRouter } from "./api/support.js";
 import { webhooksRouter } from "./api/webhooks.js";
 import { publicRouter } from "./api/public.js";
 import { statusRouter } from "./api/status.js";
+import { pricingRouter } from "./api/pricing.js";
 import { studioOAuthRouter } from "./auth/studio-oauth.js";
 import { studioApiRouter } from "./api/studio.js";
 import { internalRouter } from "./internal/routes.js";
@@ -63,6 +64,8 @@ app.route("/", internalRouter);
 app.route("/", publicRouter);
 // Public operational status (M15): component health only, no PII, no session.
 app.route("/", statusRouter);
+// Public launch pricing (M16): config-driven, no hardcoded amounts, no session.
+app.route("/", pricingRouter);
 // Payment webhooks — server-to-server, signature-verified, outside /api (no session).
 app.route("/", webhooksRouter);
 // Isolated developer Studio (M12): every studio route is host-gated to STUDIO_HOST

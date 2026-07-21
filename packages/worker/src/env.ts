@@ -22,6 +22,15 @@ export interface Env {
   PLATFORM_SUPPORT?: string;
   /** Developer Studio rollout flag (M12). Off by default → every /studio* is 404. */
   PLATFORM_STUDIO?: string;
+  /** Commercial launch flag (M16). Off by default → prices hidden, no launch signal. */
+  PLATFORM_LAUNCH?: string;
+  /** Launch pricing config (M16). Amounts are INTEGER smallest units (e.g. cents)
+   *  as strings; currency is ISO 4217. Config, not secret. Absent → "Tarifs à venir". */
+  LAUNCH_CURRENCY?: string;
+  LAUNCH_PRICE_PREMIUM_MONTH?: string;
+  LAUNCH_PRICE_PREMIUM_YEAR?: string;
+  LAUNCH_PRICE_BUSINESS_MONTH?: string;
+  LAUNCH_PRICE_BUSINESS_YEAR?: string;
   /** Host that serves the isolated Studio (e.g. "studio.archodev.fr"). Undeclared
    *  in prod → Studio unreachable. Studio routes 404 on any other host. */
   STUDIO_HOST?: string;
