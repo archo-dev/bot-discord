@@ -54,6 +54,7 @@ const AppLayout = lazy(() => import("./layouts/AppLayout.js").then((m) => ({ def
 const SubscriptionPage = lazy(() => import("./pages/app/Subscription.js").then((m) => ({ default: m.SubscriptionPage })));
 const AccountPage = lazy(() => import("./pages/app/Account.js").then((m) => ({ default: m.AccountPage })));
 const BillingPage = lazy(() => import("./pages/app/Billing.js").then((m) => ({ default: m.BillingPage })));
+const SupportPage = lazy(() => import("./pages/app/Support.js").then((m) => ({ default: m.SupportPage })));
 
 /* Shell public (M2) — chargé à la demande, uniquement quand le flag
    `platform.publicSite` est ON. Absent du chunk initial. */
@@ -166,6 +167,8 @@ export function App() {
           <Route path="account" element={<AccountPage />} />
           {/* Facturation (M9) — flag additionnel platform.billing. */}
           {flags["platform.billing"] && <Route path="billing" element={<BillingPage />} />}
+          {/* Support (M11) — flag additionnel platform.support. */}
+          {flags["platform.support"] && <Route path="support" element={<SupportPage />} />}
         </Route>
       )}
       <Route path="/guilds/:guildId" element={<GuildLayout me={me.data} />}>

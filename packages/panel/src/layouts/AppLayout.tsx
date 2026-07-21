@@ -21,9 +21,12 @@ const BASE_LINKS = [
 
 export function AppLayout() {
   const me = useQuery({ queryKey: ["me"], queryFn: () => api<MeResponse>("/api/me"), retry: false });
-  const LINKS = getPlatformFlags()["platform.billing"]
-    ? [...BASE_LINKS, { to: "/app/billing", label: "Facturation", end: false, icon: <Icon.bolt /> }]
-    : BASE_LINKS;
+  const flags = getPlatformFlags();
+  const LINKS = [
+    ...BASE_LINKS,
+    ...(flags["platform.billing"] ? [{ to: "/app/billing", label: "Facturation", end: false, icon: <Icon.bolt /> }] : []),
+    ...(flags["platform.support"] ? [{ to: "/app/support", label: "Support", end: false, icon: <Icon.ticket /> }] : []),
+  ];
 
   return (
     <div className="min-h-screen">
