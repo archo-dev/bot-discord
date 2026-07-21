@@ -34,12 +34,13 @@ import {
   type StudioGuildRow,
   type StudioReleaseNoteRow,
 } from "../db/queries.js";
+import { registerGrantRoutes } from "./studio-grants.js";
 
 /**
- * Isolated Studio API (M12). Every route is host-gated (requireStudioHost) and
+ * Isolated Studio API (M12+). Every route is host-gated (requireStudioHost) and
  * requires a studio session; mutations additionally require a granular
- * permission + a strict Origin check. Reads are minimized (no PII/secret). No
- * entitlement mutation — grants/lifetime/revocation are M13.
+ * permission + a strict Origin check. Reads are minimized (no PII/secret).
+ * Manual grants / lifetime / revocation (M13) are registered from studio-grants.
  */
 export const studioApiRouter = new Hono<StudioContext>();
 
@@ -175,3 +176,6 @@ studioApiRouter.post("/studio-api/updates/:slug/publish", requireDeveloper("upda
   const published = await getPublishedReleaseNoteBySlug(c.env.DB, slug, new Date().toISOString());
   return c.json({ ok: true, slug, published: published !== null });
 });
+
+// Manual grants, lifetime & revocation (M13) — same host/session/Origin guards.
+registerGrantRoutes(studioApiRouter);

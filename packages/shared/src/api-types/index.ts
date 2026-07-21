@@ -25,4 +25,5 @@ export * from "./subscription.js";
 export * from "./billing.js";
 export * from "./support.js";
 export * from "./studio.js";
+export * from "./grants.js";
 export * from "./common.js";
