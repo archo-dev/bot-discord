@@ -16,6 +16,23 @@ export interface Env {
   /** Platform rollout flag (M6). Undeclared in wrangler.jsonc → off in prod
    *  (all Gratuit). Set to "true" to enable entitlement resolution. */
   PLATFORM_ENTITLEMENTS?: string;
+  /** Billing rollout flag (M9). Off by default → checkout dark. */
+  PLATFORM_BILLING?: string;
+  /** Billing provider for the sandbox adapter (M9). Only "stripe" wired. */
+  BILLING_PROVIDER?: string;
+  /** Hosted checkout return URLs (M9). */
+  BILLING_SUCCESS_URL?: string;
+  BILLING_CANCEL_URL?: string;
+  /** Stripe price ids per plan+interval (M9), e.g. "price_...". Config, not secret. */
+  BILLING_PRICE_PREMIUM_MONTH?: string;
+  BILLING_PRICE_PREMIUM_YEAR?: string;
+  BILLING_PRICE_BUSINESS_MONTH?: string;
+  BILLING_PRICE_BUSINESS_YEAR?: string;
+
+  // secrets (billing sandbox — TEST keys only, provided out of repo via
+  // `wrangler secret bulk`/.dev.vars; absent by default → adapter unavailable)
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
 
   // secrets
   DISCORD_TOKEN: string;

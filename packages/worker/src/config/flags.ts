@@ -13,5 +13,6 @@ function isTrue(value: string | undefined): boolean {
 export function getWorkerFlags(env: Env): FlagState {
   return resolveFlags({
     "platform.entitlements": isTrue(env.PLATFORM_ENTITLEMENTS),
+    "platform.billing": isTrue(env.PLATFORM_BILLING),
   });
 }
