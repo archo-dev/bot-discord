@@ -3,16 +3,17 @@ import { NavLink, Outlet } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { MeResponse } from "@bot/shared";
 import { api, avatarUrl } from "../lib/api.js";
+import { getPlatformFlags } from "../lib/flags.js";
 import { Wordmark } from "../ui/brand.js";
 import { Icon } from "../ui/icons.js";
 import { Skeleton } from "../ui/skeleton.js";
 
 /*
- * Shell de l'espace client (M8) — nav Serveurs / Abonnement / Compte + marque.
- * Monté uniquement quand `platform.entitlements` est ON (routes /app/* gardées
- * par le flag dans App.tsx). Chargé à la demande (chunk séparé).
+ * Shell de l'espace client (M8) — nav Serveurs / Abonnement / Compte (+ Facturation
+ * en M9). Monté uniquement quand `platform.entitlements` est ON (routes /app/*
+ * gardées par le flag dans App.tsx). Chargé à la demande (chunk séparé).
  */
-const LINKS = [
+const BASE_LINKS = [
   { to: "/", label: "Serveurs", end: true, icon: <Icon.home /> },
   { to: "/app/subscription", label: "Abonnement", end: false, icon: <Icon.star /> },
   { to: "/app/account", label: "Compte", end: false, icon: <Icon.users /> },
@@ -20,6 +21,9 @@ const LINKS = [
 
 export function AppLayout() {
   const me = useQuery({ queryKey: ["me"], queryFn: () => api<MeResponse>("/api/me"), retry: false });
+  const LINKS = getPlatformFlags()["platform.billing"]
+    ? [...BASE_LINKS, { to: "/app/billing", label: "Facturation", end: false, icon: <Icon.bolt /> }]
+    : BASE_LINKS;
 
   return (
     <div className="min-h-screen">

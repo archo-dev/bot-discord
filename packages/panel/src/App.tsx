@@ -53,6 +53,7 @@ const PrivacyPage = lazy(() => import("./pages/Privacy.js").then((m) => ({ defau
 const AppLayout = lazy(() => import("./layouts/AppLayout.js").then((m) => ({ default: m.AppLayout })));
 const SubscriptionPage = lazy(() => import("./pages/app/Subscription.js").then((m) => ({ default: m.SubscriptionPage })));
 const AccountPage = lazy(() => import("./pages/app/Account.js").then((m) => ({ default: m.AccountPage })));
+const BillingPage = lazy(() => import("./pages/app/Billing.js").then((m) => ({ default: m.BillingPage })));
 
 /* Shell public (M2) — chargé à la demande, uniquement quand le flag
    `platform.publicSite` est ON. Absent du chunk initial. */
@@ -163,6 +164,8 @@ export function App() {
         <Route path="/app" element={<Suspense fallback={<PublicFallback />}><AppLayout /></Suspense>}>
           <Route path="subscription" element={<SubscriptionPage />} />
           <Route path="account" element={<AccountPage />} />
+          {/* Facturation (M9) — flag additionnel platform.billing. */}
+          {flags["platform.billing"] && <Route path="billing" element={<BillingPage />} />}
         </Route>
       )}
       <Route path="/guilds/:guildId" element={<GuildLayout me={me.data} />}>
