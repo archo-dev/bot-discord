@@ -30,6 +30,8 @@ export interface StudioSessionData {
   absoluteExpiresAt: number;
   userGeneration: number;
   globalVersion: string;
+  /** epoch ms of the last OAuth re-consent (step-up), for sensitive actions (M14). */
+  stepUpAt?: number;
 }
 
 export type StudioSessionInput = Pick<StudioSessionData, "userId" | "username" | "globalName" | "avatar" | "createdAt"> & {
@@ -103,6 +105,28 @@ export async function loadStudioSession(env: Env, id: string): Promise<StudioSes
 
 export async function deleteStudioSession(env: Env, id: string): Promise<void> {
   await env.KV.delete(`studio:sess:${id}`);
+}
+
+/**
+ * Stamp a fresh step-up (OAuth re-consent) time on an existing session (M14).
+ * Preserves the session's remaining TTL. No-op if the session is gone.
+ */
+export async function markStudioStepUp(env: Env, id: string): Promise<boolean> {
+  const raw = await env.KV.get(`studio:sess:${id}`);
+  if (!raw) return false;
+  let session: StudioSessionData;
+  try {
+    session = JSON.parse(raw) as StudioSessionData;
+  } catch {
+    return false;
+  }
+  const now = Date.now();
+  if (session.absoluteExpiresAt <= now) return false;
+  session.stepUpAt = now;
+  await env.KV.put(`studio:sess:${id}`, JSON.stringify(session), {
+    expirationTtl: Math.max(60, Math.ceil((session.absoluteExpiresAt - now) / 1000)),
+  });
+  return true;
 }
 
 export async function revokeStudioSessions(env: Env, userId: string): Promise<void> {

@@ -4,6 +4,7 @@ import type {
   PlanId,
   StudioGuildsListResponse,
   StudioGuildSummary,
+  StudioAuditPage,
   StudioOverview,
   StudioSessionInfo,
   StudioSubscriptionsListResponse,
@@ -27,6 +28,7 @@ import {
   getPublishedReleaseNoteBySlug,
   listEntitlementsForStudio,
   listGuildsForStudio,
+  listAuditEvents,
   listPublishedReleaseNotes,
   listReleaseNotesForStudio,
   publishReleaseNote,
@@ -175,6 +177,36 @@ studioApiRouter.post("/studio-api/updates/:slug/publish", requireDeveloper("upda
   if (!ok) return c.json({ error: "not_found" }, 404);
   const published = await getPublishedReleaseNoteBySlug(c.env.DB, slug, new Date().toISOString());
   return c.json({ ok: true, slug, published: published !== null });
+});
+
+// Immutable audit journal (M14). Read-only: audit_events is append-only — there
+// is deliberately no write/update/delete route on this surface.
+studioApiRouter.get("/studio-api/audit", requireDeveloper("audit.read"), async (c) => {
+  const parsed = pageSchema.safeParse({ page: c.req.query("page"), pageSize: c.req.query("pageSize") });
+  if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
+  const { rows, total } = await listAuditEvents(c.env.DB, {
+    actor: c.req.query("actor") ?? null,
+    action: c.req.query("action") ?? null,
+    targetType: c.req.query("targetType") ?? null,
+    targetId: c.req.query("targetId") ?? null,
+    page: parsed.data.page,
+    pageSize: parsed.data.pageSize,
+  });
+  const body: StudioAuditPage = {
+    items: rows.map((r) => ({
+      id: r.id,
+      actor: r.actor,
+      action: r.action,
+      targetType: r.target_type,
+      targetId: r.target_id,
+      metadata: r.metadata_json ? (JSON.parse(r.metadata_json) as Record<string, unknown>) : null,
+      createdAt: r.created_at,
+    })),
+    total,
+    page: parsed.data.page,
+    pageSize: parsed.data.pageSize,
+  };
+  return c.json(body);
 });
 
 // Manual grants, lifetime & revocation (M13) — same host/session/Origin guards.

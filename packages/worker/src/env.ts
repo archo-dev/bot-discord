@@ -30,6 +30,9 @@ export interface Env {
   STUDIO_OWNER_IDS?: string;
   /** Studio session kill-switch, independent of the client SESSION_GLOBAL_VERSION. */
   STUDIO_SESSION_GLOBAL_VERSION?: string;
+  /** Immediate Studio coupe-circuit (M14): "true" → every /studio* is 503 on the
+   *  studio host (client host stays 404). Absent by default. */
+  STUDIO_KILL_SWITCH?: string;
   /** Billing provider for the sandbox adapter (M9). Only "stripe" wired. */
   BILLING_PROVIDER?: string;
   /** Hosted checkout return URLs (M9). */

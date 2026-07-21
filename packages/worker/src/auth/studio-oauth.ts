@@ -1,5 +1,7 @@
 import { Hono } from "hono";
 import type { Env } from "../env.js";
+import { getCookie, setCookie, deleteCookie } from "hono/cookie";
+import { isHttpsEnvironment } from "../security/browser.js";
 import { requireStudioHost, resolveOperator, type StudioContext } from "./studio-guard.js";
 import {
   clearStudioOAuthStateCookie,
@@ -8,6 +10,8 @@ import {
   createStudioOAuthState,
   createStudioSession,
   deleteStudioSession,
+  loadStudioSession,
+  markStudioStepUp,
   readStudioOAuthStateCookie,
   readStudioSessionCookie,
   setStudioOAuthStateCookie,
@@ -110,4 +114,68 @@ studioOAuthRouter.post("/studio/auth/logout", async (c) => {
   if (sid) await deleteStudioSession(c.env, sid);
   clearStudioSessionCookie(c);
   return c.json({ ok: true });
+});
+
+// --- Step-up: OAuth re-consent (prompt=consent) that stamps the CURRENT session
+// with a fresh stepUpAt, gating sensitive actions like lifetime grants (M14). ---
+
+const STEPUP_STATE_COOKIE = "studio_stepup_state";
+
+studioOAuthRouter.get("/studio/auth/step-up", async (c) => {
+  const sid = readStudioSessionCookie(c);
+  if (!sid) return c.text("No studio session.", 401);
+  const state = await createStudioOAuthState(c.env);
+  setCookie(c, STEPUP_STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: isHttpsEnvironment(c.env),
+    sameSite: "Lax",
+    path: "/studio/auth/step-up/callback",
+    maxAge: 300,
+  });
+  const params = new URLSearchParams({
+    client_id: c.env.DISCORD_CLIENT_ID,
+    redirect_uri: `${studioOrigin(c.env)}/studio/auth/step-up/callback`,
+    response_type: "code",
+    scope: OAUTH_SCOPES,
+    prompt: "consent",
+    state,
+  });
+  return c.redirect(`https://discord.com/oauth2/authorize?${params}`);
+});
+
+studioOAuthRouter.get("/studio/auth/step-up/callback", async (c) => {
+  const sid = readStudioSessionCookie(c);
+  const code = c.req.query("code");
+  const state = c.req.query("state");
+  const stateCookie = getCookie(c, STEPUP_STATE_COOKIE);
+  deleteCookie(c, STEPUP_STATE_COOKIE, { path: "/studio/auth/step-up/callback" });
+  if (!sid || !code || !state || !(await consumeStudioOAuthState(c.env, state, stateCookie))) {
+    return c.text("Invalid step-up state. Please retry.", 400);
+  }
+
+  const tokenRes = await fetch(`${DISCORD_API}/oauth2/token`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: c.env.DISCORD_CLIENT_ID,
+      client_secret: c.env.DISCORD_CLIENT_SECRET,
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: `${studioOrigin(c.env)}/studio/auth/step-up/callback`,
+    }),
+  });
+  if (!tokenRes.ok) return c.text("Discord token exchange failed. Please retry.", 502);
+  const token = (await tokenRes.json()) as TokenResponse;
+
+  const userRes = await fetch(`${DISCORD_API}/users/@me`, { headers: { authorization: `Bearer ${token.access_token}` } });
+  if (!userRes.ok) return c.text("Failed to fetch your Discord profile.", 502);
+  const user = (await userRes.json()) as DiscordUser;
+
+  // The re-consent must be the SAME operator as the current session (no cross-user step-up).
+  const { session } = await loadStudioSession(c.env, sid);
+  if (!session || session.userId !== user.id) return c.text("Step-up does not match the current session.", 403);
+  const operator = await resolveOperator(c.env, user.id);
+  if (!operator) return c.text("This account is not a Studio operator.", 403);
+  await markStudioStepUp(c.env, sid);
+  return c.redirect(`${studioOrigin(c.env)}/`);
 });

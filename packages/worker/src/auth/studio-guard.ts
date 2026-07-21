@@ -70,11 +70,16 @@ export async function resolveOperator(env: Env, userId: string): Promise<StudioO
   return { userId, displayName: row.display_name, isOwner: false, permissions };
 }
 
-/** 404 unless the Studio is enabled AND the request lands on the studio host. */
+/**
+ * 404 unless the Studio is enabled AND the request lands on the studio host.
+ * On the studio host, a set STUDIO_KILL_SWITCH short-circuits with 503 (immediate
+ * disable, M14) — the client host stays 404 so nothing about the studio leaks.
+ */
 export const requireStudioHost: MiddlewareHandler<StudioContext> = async (c, next) => {
   if (!studioEnabled(c.env) || requestHost(c.req.url) !== c.env.STUDIO_HOST) {
     return c.json({ error: "not_found" }, 404);
   }
+  if (c.env.STUDIO_KILL_SWITCH === "true") return c.json({ error: "studio_disabled" }, 503);
   await next();
 };
 
@@ -117,3 +122,40 @@ export const studioMutationOrigin: MiddlewareHandler<StudioContext> = async (c, 
   if (!origin || origin !== expected) return c.json({ error: "csrf_rejected" }, 403);
   await next();
 };
+
+/** Freshness window for a step-up (OAuth re-consent) before a sensitive action. */
+const STEP_UP_MAX_AGE_MS = 10 * 60_000;
+
+/**
+ * Require a recent step-up (re-authentication) on sensitive actions — lifetime,
+ * and any financial workflow (M14). 403 `step_up_required` when the session has
+ * no fresh re-consent; the operator obtains one via /studio/auth/step-up.
+ */
+export function requireStepUp(maxAgeMs: number = STEP_UP_MAX_AGE_MS): MiddlewareHandler<StudioContext> {
+  return async (c, next) => {
+    const session = c.get("studioSession");
+    const stepUpAt = session?.stepUpAt ?? 0;
+    if (!stepUpAt || Date.now() - stepUpAt > maxAgeMs) {
+      return c.json({ error: "step_up_required" }, 403);
+    }
+    await next();
+  };
+}
+
+/**
+ * Per-operator, per-action KV rate limit (M14, doc 09 §6). Fixed window; the
+ * counter key resets each window and rolls back between tests. 429 on overflow.
+ */
+export function studioActionRateLimit(action: string, max: number, windowSec: number): MiddlewareHandler<StudioContext> {
+  return async (c, next) => {
+    const operator = c.get("operator");
+    if (operator) {
+      const bucket = Math.floor(Date.now() / (windowSec * 1000));
+      const key = `studio:rl:${action}:${operator.userId}:${bucket}`;
+      const current = Number((await c.env.KV.get(key)) ?? "0") || 0;
+      if (current >= max) return c.json({ error: "rate_limited", retryAfterSeconds: windowSec }, 429);
+      await c.env.KV.put(key, String(current + 1), { expirationTtl: Math.max(60, windowSec) });
+    }
+    await next();
+  };
+}

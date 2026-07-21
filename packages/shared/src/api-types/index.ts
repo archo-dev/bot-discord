@@ -26,4 +26,5 @@ export * from "./billing.js";
 export * from "./support.js";
 export * from "./studio.js";
 export * from "./grants.js";
+export * from "./audit.js";
 export * from "./common.js";

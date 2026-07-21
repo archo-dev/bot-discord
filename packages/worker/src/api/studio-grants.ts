@@ -8,7 +8,13 @@ import {
   type GrantSummary,
   type GrantsListResponse,
 } from "@bot/shared";
-import { requireDeveloper, type StudioContext } from "../auth/studio-guard.js";
+import {
+  requireDeveloper,
+  requireStepUp,
+  studioActionRateLimit,
+  type StudioContext,
+} from "../auth/studio-guard.js";
+import { callerIp, writeStudioAudit } from "../security/studio-audit.js";
 import {
   getEntitlementSourceStatus,
   insertGrantWithEntitlement,
@@ -77,7 +83,7 @@ export function registerGrantRoutes(router: Hono<StudioContext>): void {
     return c.json(body);
   });
 
-  router.post("/studio-api/subscriptions/grant", requireDeveloper("subscriptions.grant"), async (c) => {
+  router.post("/studio-api/subscriptions/grant", requireDeveloper("subscriptions.grant"), studioActionRateLimit("grant", 20, 3600), async (c) => {
     const parsed = grantSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ error: "invalid_body", fields: parsed.error.flatten().fieldErrors }, 400);
     const operator = c.get("operator");
@@ -109,10 +115,25 @@ export function registerGrantRoutes(router: Hono<StudioContext>): void {
       actor: `operator:${operator.userId}`,
       payload: { grantId, planId: parsed.data.planId, durationKind: parsed.data.durationKind },
     });
+    c.executionCtx.waitUntil(
+      writeStudioAudit(c.env, {
+        actor: `operator:${operator.userId}`,
+        action: "subscriptions.grant",
+        targetType: "entitlement",
+        targetId: String(entitlementId),
+        metadata: { grantId, userId: parsed.data.userId, planId: parsed.data.planId, durationKind: parsed.data.durationKind, reason: parsed.data.reason },
+        ip: callerIp(c),
+      }),
+    );
     return c.json({ ok: true, entitlementId, grantId }, 201);
   });
 
-  router.post("/studio-api/subscriptions/grant-lifetime", requireDeveloper("subscriptions.grant_lifetime"), async (c) => {
+  router.post(
+    "/studio-api/subscriptions/grant-lifetime",
+    requireDeveloper("subscriptions.grant_lifetime"),
+    requireStepUp(),
+    studioActionRateLimit("grant_lifetime", 5, 3600),
+    async (c) => {
     const parsed = lifetimeSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ error: "invalid_body", fields: parsed.error.flatten().fieldErrors }, 400);
     // Anti-error explicit typing — lifetime is a permanent commitment (doc 06 §lifetime).
@@ -140,10 +161,20 @@ export function registerGrantRoutes(router: Hono<StudioContext>): void {
       actor: `operator:${operator.userId}`,
       payload: { grantId, planId: parsed.data.planId },
     });
+    c.executionCtx.waitUntil(
+      writeStudioAudit(c.env, {
+        actor: `operator:${operator.userId}`,
+        action: "subscriptions.grant_lifetime",
+        targetType: "entitlement",
+        targetId: String(entitlementId),
+        metadata: { grantId, userId: parsed.data.userId, planId: parsed.data.planId, reason: parsed.data.reason },
+        ip: callerIp(c),
+      }),
+    );
     return c.json({ ok: true, entitlementId, grantId, isLifetime: true }, 201);
   });
 
-  router.post("/studio-api/subscriptions/:entitlementId/revoke", requireDeveloper("subscriptions.revoke_granted"), async (c) => {
+  router.post("/studio-api/subscriptions/:entitlementId/revoke", requireDeveloper("subscriptions.revoke_granted"), studioActionRateLimit("revoke_granted", 30, 3600), async (c) => {
     const id = idSchema.safeParse(c.req.param("entitlementId"));
     if (!id.success) return c.json({ error: "invalid_id" }, 400);
     const parsed = revokeSchema.safeParse(await c.req.json().catch(() => ({})));
@@ -164,6 +195,16 @@ export function registerGrantRoutes(router: Hono<StudioContext>): void {
       actor: `operator:${operator.userId}`,
       payload: { reason: parsed.data.reason ?? null },
     });
+    c.executionCtx.waitUntil(
+      writeStudioAudit(c.env, {
+        actor: `operator:${operator.userId}`,
+        action: "subscriptions.revoke_granted",
+        targetType: "entitlement",
+        targetId: String(id.data),
+        metadata: { reason: parsed.data.reason ?? null },
+        ip: callerIp(c),
+      }),
+    );
     return c.json({ ok: true });
   });
 }
