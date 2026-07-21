@@ -88,10 +88,10 @@ export interface InsertEntitlementInput {
  * Insert helper for tests and future seed/grant paths (no public mutation API in
  * M6). Enforces the lifetime/end_at invariant so callers can't build an illegal row.
  */
-export async function insertEntitlement(db: D1Database, input: InsertEntitlementInput): Promise<void> {
+export async function insertEntitlement(db: D1Database, input: InsertEntitlementInput): Promise<number> {
   const isLifetime = input.isLifetime ?? false;
   const endAt = isLifetime ? null : (input.endAt ?? null);
-  await db
+  const res = await db
     .prepare(
       `INSERT INTO entitlements
          (user_id, plan_id, source, status, start_at, end_at, is_lifetime, origin_ref)
@@ -107,5 +107,41 @@ export async function insertEntitlement(db: D1Database, input: InsertEntitlement
       isLifetime ? 1 : 0,
       input.originRef ?? null,
     )
+    .run();
+  return Number(res.meta.last_row_id);
+}
+
+/** One entitlement by id (null if absent). */
+export async function getEntitlementById(db: D1Database, id: number): Promise<EntitlementRow | null> {
+  const row = await db
+    .prepare(
+      `SELECT id, user_id, plan_id, source, status, start_at, end_at, is_lifetime,
+              origin_ref, created_at, updated_at
+         FROM entitlements WHERE id = ?1`,
+    )
+    .bind(id)
+    .first<EntitlementRow>();
+  return row ?? null;
+}
+
+/**
+ * Update a paid entitlement's plan/status/end_at (webhook-driven). Hard guard:
+ * a `paid` entitlement can NEVER be moved to `revoked` (invariant 6 / doc 06).
+ */
+export async function updatePaidEntitlement(
+  db: D1Database,
+  id: number,
+  planId: PlanId,
+  status: EntitlementStatus,
+  endAt: string | null,
+): Promise<void> {
+  if (status === "revoked") throw new Error("paid_entitlement_cannot_be_revoked");
+  await db
+    .prepare(
+      `UPDATE entitlements
+          SET plan_id = ?2, status = ?3, end_at = ?4, is_lifetime = 0, updated_at = datetime('now')
+        WHERE id = ?1 AND source = 'paid'`,
+    )
+    .bind(id, planId, status, endAt)
     .run();
 }

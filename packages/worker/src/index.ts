@@ -28,6 +28,7 @@ import { subscriptionRouter } from "./api/subscription.js";
 import { assignmentsRouter } from "./api/assignments.js";
 import { accountRouter } from "./api/account.js";
 import { billingRouter } from "./api/billing.js";
+import { webhooksRouter } from "./api/webhooks.js";
 import { publicRouter } from "./api/public.js";
 import { internalRouter } from "./internal/routes.js";
 import { enforcePanelMutationPolicy, requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
@@ -47,12 +48,15 @@ app.use("/api/*", bodyLimit({ maxSize: 64 * 1024, onError: (c) => c.json({ error
 app.use("/auth/*", bodyLimit({ maxSize: 8 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
 app.use("/interactions", bodyLimit({ maxSize: 256 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
 app.use("/internal/*", bodyLimit({ maxSize: 512 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
+app.use("/webhooks/*", bodyLimit({ maxSize: 256 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
 app.get("/health", (c) => c.json({ ok: true }));
 app.route("/", interactionsRouter);
 app.route("/", authRouter);
 app.route("/", internalRouter);
 // Public landing endpoints — registered before the session-guarded /api sub-app.
 app.route("/", publicRouter);
+// Payment webhooks — server-to-server, signature-verified, outside /api (no session).
+app.route("/", webhooksRouter);
 
 // Panel API: every route needs a session; every guild-scoped route re-verifies
 // the user's real Discord permissions (see auth/guard.ts).
