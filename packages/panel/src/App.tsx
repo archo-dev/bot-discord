@@ -48,6 +48,12 @@ const OnboardingPage = lazy(() => import("./pages/Onboarding.js").then((m) => ({
 const BackupPage = lazy(() => import("./pages/Backup.js").then((m) => ({ default: m.BackupPage })));
 const PrivacyPage = lazy(() => import("./pages/Privacy.js").then((m) => ({ default: m.PrivacyPage })));
 
+/* Espace client (M8) — chargé à la demande, uniquement quand le flag
+   `platform.entitlements` est ON. Absent du chunk initial. */
+const AppLayout = lazy(() => import("./layouts/AppLayout.js").then((m) => ({ default: m.AppLayout })));
+const SubscriptionPage = lazy(() => import("./pages/app/Subscription.js").then((m) => ({ default: m.SubscriptionPage })));
+const AccountPage = lazy(() => import("./pages/app/Account.js").then((m) => ({ default: m.AccountPage })));
+
 /* Shell public (M2) — chargé à la demande, uniquement quand le flag
    `platform.publicSite` est ON. Absent du chunk initial. */
 const PublicLayout = lazy(() => import("./layouts/PublicLayout.js").then((m) => ({ default: m.PublicLayout })));
@@ -72,7 +78,9 @@ function PublicFallback() {
 export function App() {
   const queryClient = useQueryClient();
   const location = useLocation();
-  const publicSite = getPlatformFlags()["platform.publicSite"];
+  const flags = getPlatformFlags();
+  const publicSite = flags["platform.publicSite"];
+  const entitlements = flags["platform.entitlements"];
   useEffect(() => {
     const refreshSession = () => void queryClient.invalidateQueries({ queryKey: ["me"], exact: true });
     window.addEventListener("panel:session-expired", refreshSession);
@@ -150,6 +158,13 @@ export function App() {
   return (
     <Routes>
       <Route path="/" element={<GuildList me={me.data} />} />
+      {/* Espace client (M8) — gardé par platform.entitlements ; sinon catch-all → "/". */}
+      {entitlements && (
+        <Route path="/app" element={<Suspense fallback={<PublicFallback />}><AppLayout /></Suspense>}>
+          <Route path="subscription" element={<SubscriptionPage />} />
+          <Route path="account" element={<AccountPage />} />
+        </Route>
+      )}
       <Route path="/guilds/:guildId" element={<GuildLayout me={me.data} />}>
         <Route index element={<Dashboard />} />
         <Route path="onboarding" element={<OnboardingPage />} />

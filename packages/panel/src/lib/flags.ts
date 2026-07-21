@@ -3,11 +3,12 @@ import { resolveFlags, type FlagState } from "@bot/shared";
 /*
  * Source PANEL des feature flags de plateforme (M2).
  *
- * Source build-time via Vite : `VITE_PLATFORM_PUBLIC_SITE="true"` active
- * `platform.publicSite`. **Défaut off** (variable absente en production →
- * flag off, aucune surface publique). S'appuie sur le résolveur pur de
- * @bot/shared (M1). Le paramètre `env` est injectable pour les tests.
- * Le branchement runtime (vars Worker → /api/me) est différé (voir brief M2).
+ * Sources build-time via Vite (défaut off, variables absentes en production) :
+ *   - `VITE_PLATFORM_PUBLIC_SITE="true"`  → `platform.publicSite`  (site public, M2)
+ *   - `VITE_PLATFORM_ENTITLEMENTS="true"` → `platform.entitlements` (espace client, M8)
+ * S'appuie sur le résolveur pur de @bot/shared (M1). Le paramètre `env` est
+ * injectable pour les tests. Le branchement runtime est différé (voir brief M2) ;
+ * la page abonnement reflète en plus l'état réel via `/api/subscription`.
  */
 
 type FlagEnv = Record<string, unknown> | undefined;
@@ -25,5 +26,6 @@ function readEnv(): FlagEnv {
 export function getPlatformFlags(env: FlagEnv = readEnv()): FlagState {
   return resolveFlags({
     "platform.publicSite": env?.["VITE_PLATFORM_PUBLIC_SITE"] === "true",
+    "platform.entitlements": env?.["VITE_PLATFORM_ENTITLEMENTS"] === "true",
   });
 }

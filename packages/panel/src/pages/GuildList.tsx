@@ -1,7 +1,9 @@
 import { useEffect } from "react";
+import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { GuildSummary, MeResponse } from "@bot/shared";
 import { api, avatarUrl, guildIconUrl } from "../lib/api.js";
+import { getPlatformFlags } from "../lib/flags.js";
 import { Card, EmptyState, ErrorCard, IconButton, PageHeader } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
 import { SkeletonGuildGrid } from "../ui/skeleton.js";
@@ -21,6 +23,14 @@ export function GuildList({ me }: { me: MeResponse }) {
       <div className="mb-9 flex flex-wrap items-start justify-between gap-4">
         <PageHeader eyebrow="Panel Discord" title="Mes serveurs" description="Sélectionnez le serveur que vous souhaitez administrer." />
         <div className="flex items-center gap-3">
+          {getPlatformFlags()["platform.entitlements"] && (
+            <Link
+              to="/app/subscription"
+              className="rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-zinc-400 transition hover:bg-(--state-hover) hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+            >
+              Mon abonnement
+            </Link>
+          )}
           <img src={avatarUrl(me.id, me.avatar, 64)} alt="" className="h-10 w-10 rounded-full ring-2 ring-zinc-800" />
           <span className="hidden text-sm text-zinc-300 sm:inline">{me.globalName ?? me.username}</span>
           <IconButton
