@@ -109,6 +109,78 @@ export async function listHealthMetrics(
   ).results;
 }
 
+// --- Studio observability (M15): cross-guild aggregation for dashboards. Reads
+// only the pseudonymized `guild_key` — no raw guild id / PII ever surfaces. ---
+
+export interface StudioMetricRow {
+  module: string;
+  events: number;
+  samples: number;
+  errors: number;
+  latencyLe100: number;
+  latencyLe250: number;
+  latencyLe500: number;
+  latencyLe1000: number;
+  latencyLe2500: number;
+  latencyLe5000: number;
+  latencyGt5000: number;
+  lastObservedAt: string | null;
+}
+
+/** Cross-guild metrics per module over the last `hours` (1..168). */
+export async function aggregateMetricsForStudio(db: D1Database, hours = 24): Promise<StudioMetricRow[]> {
+  const h = Math.max(1, Math.min(168, Math.round(hours)));
+  return (
+    await db
+      .prepare(
+        `SELECT module,
+                SUM(event_count) AS events,
+                SUM(sample_count) AS samples,
+                SUM(error_count) AS errors,
+                SUM(latency_le_100) AS latencyLe100,
+                SUM(latency_le_250) AS latencyLe250,
+                SUM(latency_le_500) AS latencyLe500,
+                SUM(latency_le_1000) AS latencyLe1000,
+                SUM(latency_le_2500) AS latencyLe2500,
+                SUM(latency_le_5000) AS latencyLe5000,
+                SUM(latency_gt_5000) AS latencyGt5000,
+                MAX(bucket) AS lastObservedAt
+           FROM operation_metrics
+          WHERE bucket >= strftime('%Y-%m-%dT%H:00:00Z', 'now', ?1)
+          GROUP BY module ORDER BY errors DESC, events DESC`,
+      )
+      .bind(`-${h} hours`)
+      .all<StudioMetricRow>()
+  ).results;
+}
+
+export interface StudioErrorRow {
+  module: string;
+  operation: string;
+  errors: number;
+  events: number;
+}
+
+/** Top (module, operation) pairs by error count over the window. */
+export async function topErrorsForStudio(db: D1Database, hours = 24, limit = 20): Promise<StudioErrorRow[]> {
+  const h = Math.max(1, Math.min(168, Math.round(hours)));
+  const lim = Math.max(1, Math.min(100, Math.round(limit)));
+  return (
+    await db
+      .prepare(
+        `SELECT module, operation,
+                SUM(error_count) AS errors,
+                SUM(event_count) AS events
+           FROM operation_metrics
+          WHERE bucket >= strftime('%Y-%m-%dT%H:00:00Z', 'now', ?1) AND error_count > 0
+          GROUP BY module, operation
+          ORDER BY errors DESC LIMIT ?2`,
+      )
+      .bind(`-${h} hours`, lim)
+      .all<StudioErrorRow>()
+  ).results;
+}
+
 export async function purgeObservabilityMetrics(db: D1Database, retentionDays = 30): Promise<number> {
   const result = await db
     .prepare(`DELETE FROM operation_metrics WHERE bucket < strftime('%Y-%m-%dT%H:00:00Z', 'now', ?1)`)

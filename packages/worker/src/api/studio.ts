@@ -37,6 +37,7 @@ import {
   type StudioReleaseNoteRow,
 } from "../db/queries.js";
 import { registerGrantRoutes } from "./studio-grants.js";
+import { registerObservabilityRoutes } from "./studio-observability.js";
 
 /**
  * Isolated Studio API (M12+). Every route is host-gated (requireStudioHost) and
@@ -211,3 +212,5 @@ studioApiRouter.get("/studio-api/audit", requireDeveloper("audit.read"), async (
 
 // Manual grants, lifetime & revocation (M13) — same host/session/Origin guards.
 registerGrantRoutes(studioApiRouter);
+// Observability dashboards + cohort rollout (M15) — same guards.
+registerObservabilityRoutes(studioApiRouter);
