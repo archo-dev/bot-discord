@@ -2,6 +2,7 @@ import type {
   CreateGrantRequest,
   CreateLifetimeGrantRequest,
   GrantsListResponse,
+  StudioAuditPage,
   StudioGuildsListResponse,
   StudioOverview,
   StudioSessionInfo,
@@ -57,4 +58,10 @@ export const studioApi = {
     post<{ ok: boolean; entitlementId: number }>("/studio-api/subscriptions/grant-lifetime", body),
   revoke: (entitlementId: number, reason?: string) =>
     post<{ ok: boolean }>(`/studio-api/subscriptions/${entitlementId}/revoke`, { reason }),
+  audit: () => get<StudioAuditPage>("/studio-api/audit"),
 };
+
+/** Kick off an OAuth re-consent (step-up) for sensitive actions (M14). */
+export function goToStepUp(): void {
+  window.location.href = "/studio/auth/step-up";
+}

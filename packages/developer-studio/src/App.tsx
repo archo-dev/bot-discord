@@ -3,6 +3,7 @@ import { badgeToneClass } from "@bot/ui";
 import type {
   GrantablePlan,
   GrantsListResponse,
+  StudioAuditPage,
   StudioGuildsListResponse,
   StudioOverview,
   StudioPermission,
@@ -10,7 +11,7 @@ import type {
   StudioSubscriptionsListResponse,
   StudioUpdatesListResponse,
 } from "@bot/shared";
-import { StudioApiError, studioApi } from "./api.js";
+import { StudioApiError, goToStepUp, studioApi } from "./api.js";
 
 /**
  * Minimal isolated Studio shell (M12). A login gate, a permanent PRODUCTION
@@ -19,13 +20,14 @@ import { StudioApiError, studioApi } from "./api.js";
  * cosmetic only: the server re-checks every permission (doc 09 principe cardinal).
  */
 
-type Tab = "overview" | "guilds" | "subscriptions" | "updates" | "grants";
+type Tab = "overview" | "guilds" | "subscriptions" | "updates" | "grants" | "audit";
 
 const TAB_PERMISSION: Record<Exclude<Tab, "overview">, StudioPermission> = {
   guilds: "guilds.inspect",
   subscriptions: "subscriptions.read",
   updates: "updates.publish",
   grants: "subscriptions.read",
+  audit: "audit.read",
 };
 
 function ProductionBanner() {
@@ -68,7 +70,7 @@ export function App() {
   if (!session) return <Login />;
 
   const can = (p: StudioPermission) => session.isOwner || session.permissions.includes(p);
-  const tabs: Tab[] = ["overview", "guilds", "subscriptions", "updates", "grants"];
+  const tabs: Tab[] = ["overview", "guilds", "subscriptions", "updates", "grants", "audit"];
 
   return (
     <div className="min-h-screen">
@@ -103,6 +105,7 @@ export function App() {
         {tab === "grants" && can("subscriptions.read") && (
           <GrantsPanel canGrant={can("subscriptions.grant")} canLifetime={can("subscriptions.grant_lifetime")} canRevoke={can("subscriptions.revoke_granted")} />
         )}
+        {tab === "audit" && can("audit.read") && <AuditPanel />}
       </main>
     </div>
   );
@@ -241,14 +244,19 @@ function GrantsPanel({ canGrant, canLifetime, canRevoke }: { canGrant: boolean; 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const [needStepUp, setNeedStepUp] = useState(false);
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true);
     setError(null);
+    setNeedStepUp(false);
     try {
       await fn();
       await reload();
     } catch (e) {
-      setError(e instanceof StudioApiError ? e.code : "error");
+      const code = e instanceof StudioApiError ? e.code : "error";
+      // M14: a lifetime grant needs a fresh OAuth re-consent (step-up).
+      if (code === "step_up_required") setNeedStepUp(true);
+      setError(code);
     } finally {
       setBusy(false);
     }
@@ -293,6 +301,12 @@ function GrantsPanel({ canGrant, canLifetime, canRevoke }: { canGrant: boolean; 
               <p className="mb-2 text-xs text-red-300">
                 Lifetime — engagement permanent. Saisir <b>LIFETIME</b> pour confirmer.
               </p>
+              {needStepUp && (
+                <p className="mb-2 text-xs text-amber-300">
+                  Ré-authentification requise —{" "}
+                  <button onClick={goToStepUp} className="underline">Ré-authentifier</button>
+                </p>
+              )}
               <div className="flex flex-wrap items-end gap-2">
                 <Field label="Confirmation">
                   <input value={lifetimeConfirm} onChange={(e) => setLifetimeConfirm(e.target.value)} className="w-40 rounded bg-zinc-800 px-2 py-1 text-sm" placeholder="LIFETIME" />
@@ -338,6 +352,24 @@ function GrantsPanel({ canGrant, canLifetime, canRevoke }: { canGrant: boolean; 
         </Table>
       )}
     </div>
+  );
+}
+
+function AuditPanel() {
+  const { data, error } = usePanel<StudioAuditPage>(() => studioApi.audit());
+  if (error) return <Err code={error} />;
+  if (!data) return <Loading />;
+  return (
+    <Table headers={["Date", "Acteur", "Action", "Cible"]}>
+      {data.items.map((ev) => (
+        <tr key={ev.id} className="border-t border-zinc-800">
+          <Td>{ev.createdAt}</Td>
+          <Td>{ev.actor}</Td>
+          <Td>{ev.action}</Td>
+          <Td>{ev.targetType ? `${ev.targetType}:${ev.targetId ?? "—"}` : "—"}</Td>
+        </tr>
+      ))}
+    </Table>
   );
 }
 
