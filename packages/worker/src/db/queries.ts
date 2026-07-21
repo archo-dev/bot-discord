@@ -32,3 +32,4 @@ export * from "./queries/entitlements.js";
 export * from "./queries/assignments.js";
 export * from "./queries/billing.js";
 export * from "./queries/support.js";
+export * from "./queries/studio.js";

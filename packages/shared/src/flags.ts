@@ -14,7 +14,8 @@ export type PlatformFlagKey =
   | "platform.publicSite"
   | "platform.entitlements"
   | "platform.billing"
-  | "platform.support";
+  | "platform.support"
+  | "platform.studio";
 
 export interface PlatformFlagDef {
   readonly key: PlatformFlagKey;
@@ -43,6 +44,11 @@ export const PLATFORM_FLAGS: Readonly<Record<PlatformFlagKey, PlatformFlagDef>> 
   "platform.support": {
     key: "platform.support",
     description: "Support client (tickets priorisés par plan) — M11.",
+    default: false,
+  },
+  "platform.studio": {
+    key: "platform.studio",
+    description: "Studio développeur isolé (dev-auth, /studio-api/*) — M12.",
     default: false,
   },
 };

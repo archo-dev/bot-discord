@@ -125,6 +125,72 @@ export interface InsertReleaseNoteInput {
   author?: string | null;
 }
 
+// --- Studio surface (M12): drafts included, plus create/publish. Studio-only,
+// gated by requireDeveloper('updates.publish'); never reachable from the client. ---
+
+export interface StudioReleaseNoteRow {
+  slug: string;
+  version: string | null;
+  title: string;
+  status: string;
+  published_at: string | null;
+  updated_at: string;
+}
+
+/** All notes (any status, incl. drafts) for the Studio list, newest first. */
+export async function listReleaseNotesForStudio(
+  db: D1Database,
+  page: number,
+  pageSize: number,
+): Promise<{ rows: StudioReleaseNoteRow[]; total: number }> {
+  const offset = (page - 1) * pageSize;
+  const listStmt = db
+    .prepare(
+      `SELECT slug, version, title, status, published_at, updated_at FROM release_notes
+        ORDER BY updated_at DESC, id DESC LIMIT ?1 OFFSET ?2`,
+    )
+    .bind(pageSize, offset);
+  const countStmt = db.prepare(`SELECT COUNT(*) AS n FROM release_notes`);
+  const results = await db.batch<StudioReleaseNoteRow | { n: number }>([listStmt, countStmt]);
+  const rows = (results[0]?.results ?? []) as StudioReleaseNoteRow[];
+  const total = ((results[1]?.results?.[0] as { n: number } | undefined)?.n) ?? 0;
+  return { rows, total };
+}
+
+/** Create a draft note (status='draft'). Returns false if the slug already exists. */
+export async function createDraftReleaseNote(
+  db: D1Database,
+  input: { slug: string; title: string; version?: string | null; summary?: string | null; author?: string | null },
+): Promise<boolean> {
+  const existing = await db.prepare(`SELECT 1 FROM release_notes WHERE slug = ?1`).bind(input.slug).first();
+  if (existing) return false;
+  await insertReleaseNote(db, {
+    slug: input.slug,
+    title: input.title,
+    version: input.version ?? null,
+    summary: input.summary ?? null,
+    status: "draft",
+    author: input.author ?? null,
+  });
+  return true;
+}
+
+/** Publish a note by slug: status='published', published_at=now. Returns false if unknown. */
+export async function publishReleaseNote(db: D1Database, slug: string, now: string): Promise<boolean> {
+  const res = await db
+    .prepare(
+      `UPDATE release_notes
+          SET status = 'published',
+              published_at = COALESCE(published_at, ?2),
+              archived_at = NULL,
+              updated_at = datetime('now')
+        WHERE slug = ?1`,
+    )
+    .bind(slug, now)
+    .run();
+  return (res.meta.changes ?? 0) > 0;
+}
+
 export async function insertReleaseNote(db: D1Database, input: InsertReleaseNoteInput): Promise<void> {
   await db
     .prepare(

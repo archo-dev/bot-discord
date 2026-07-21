@@ -31,6 +31,8 @@ import { billingRouter } from "./api/billing.js";
 import { supportRouter } from "./api/support.js";
 import { webhooksRouter } from "./api/webhooks.js";
 import { publicRouter } from "./api/public.js";
+import { studioOAuthRouter } from "./auth/studio-oauth.js";
+import { studioApiRouter } from "./api/studio.js";
 import { internalRouter } from "./internal/routes.js";
 import { enforcePanelMutationPolicy, requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
 import { runScheduled } from "./cron.js";
@@ -50,6 +52,8 @@ app.use("/auth/*", bodyLimit({ maxSize: 8 * 1024, onError: (c) => c.json({ error
 app.use("/interactions", bodyLimit({ maxSize: 256 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
 app.use("/internal/*", bodyLimit({ maxSize: 512 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
 app.use("/webhooks/*", bodyLimit({ maxSize: 256 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
+app.use("/studio/*", bodyLimit({ maxSize: 8 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
+app.use("/studio-api/*", bodyLimit({ maxSize: 64 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
 app.get("/health", (c) => c.json({ ok: true }));
 app.route("/", interactionsRouter);
 app.route("/", authRouter);
@@ -58,6 +62,11 @@ app.route("/", internalRouter);
 app.route("/", publicRouter);
 // Payment webhooks — server-to-server, signature-verified, outside /api (no session).
 app.route("/", webhooksRouter);
+// Isolated developer Studio (M12): every studio route is host-gated to STUDIO_HOST
+// and 404s on the client host (or when platform.studio is off). Distinct cookie,
+// KV keyspace and dev-auth — no studio endpoint is ever served to the client.
+app.route("/", studioOAuthRouter);
+app.route("/", studioApiRouter);
 
 // Panel API: every route needs a session; every guild-scoped route re-verifies
 // the user's real Discord permissions (see auth/guard.ts).

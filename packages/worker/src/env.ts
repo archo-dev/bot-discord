@@ -20,6 +20,16 @@ export interface Env {
   PLATFORM_BILLING?: string;
   /** Client support rollout flag (M11). Off by default → support dark. */
   PLATFORM_SUPPORT?: string;
+  /** Developer Studio rollout flag (M12). Off by default → every /studio* is 404. */
+  PLATFORM_STUDIO?: string;
+  /** Host that serves the isolated Studio (e.g. "studio.archodev.fr"). Undeclared
+   *  in prod → Studio unreachable. Studio routes 404 on any other host. */
+  STUDIO_HOST?: string;
+  /** Comma-separated Discord snowflakes bootstrapped as owner operators (all
+   *  permissions). No public bootstrap route (doc 09 §3). Secret; absent → none. */
+  STUDIO_OWNER_IDS?: string;
+  /** Studio session kill-switch, independent of the client SESSION_GLOBAL_VERSION. */
+  STUDIO_SESSION_GLOBAL_VERSION?: string;
   /** Billing provider for the sandbox adapter (M9). Only "stripe" wired. */
   BILLING_PROVIDER?: string;
   /** Hosted checkout return URLs (M9). */
