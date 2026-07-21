@@ -48,3 +48,20 @@ export interface GuildPlan {
   rank: number;
   slots: number;
 }
+
+/** Current-session metadata for the account page (M8). All ISO 8601. */
+export interface AccountSessionInfo {
+  createdAt: string;
+  lastSeenAt: string;
+  expiresAt: string;
+}
+
+/** GET /api/account — the signed-in user's profile + current session (M8).
+ *  Read-only, user-scoped; never exposes tokens or other users' data. */
+export interface AccountResponse {
+  id: string;
+  username: string;
+  globalName: string | null;
+  avatar: string | null;
+  session: AccountSessionInfo;
+}
