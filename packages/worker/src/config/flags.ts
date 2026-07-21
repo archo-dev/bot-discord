@@ -14,5 +14,6 @@ export function getWorkerFlags(env: Env): FlagState {
   return resolveFlags({
     "platform.entitlements": isTrue(env.PLATFORM_ENTITLEMENTS),
     "platform.billing": isTrue(env.PLATFORM_BILLING),
+    "platform.support": isTrue(env.PLATFORM_SUPPORT),
   });
 }

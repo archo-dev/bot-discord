@@ -18,6 +18,8 @@ export interface Env {
   PLATFORM_ENTITLEMENTS?: string;
   /** Billing rollout flag (M9). Off by default → checkout dark. */
   PLATFORM_BILLING?: string;
+  /** Client support rollout flag (M11). Off by default → support dark. */
+  PLATFORM_SUPPORT?: string;
   /** Billing provider for the sandbox adapter (M9). Only "stripe" wired. */
   BILLING_PROVIDER?: string;
   /** Hosted checkout return URLs (M9). */

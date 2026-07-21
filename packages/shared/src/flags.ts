@@ -13,7 +13,8 @@
 export type PlatformFlagKey =
   | "platform.publicSite"
   | "platform.entitlements"
-  | "platform.billing";
+  | "platform.billing"
+  | "platform.support";
 
 export interface PlatformFlagDef {
   readonly key: PlatformFlagKey;
@@ -37,6 +38,11 @@ export const PLATFORM_FLAGS: Readonly<Record<PlatformFlagKey, PlatformFlagDef>> 
   "platform.billing": {
     key: "platform.billing",
     description: "Parcours de paiement (checkout hosted, portail) — M9.",
+    default: false,
+  },
+  "platform.support": {
+    key: "platform.support",
+    description: "Support client (tickets priorisés par plan) — M11.",
     default: false,
   },
 };

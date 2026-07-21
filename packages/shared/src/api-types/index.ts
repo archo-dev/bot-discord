@@ -23,4 +23,5 @@ export * from "./privacy.js";
 export * from "./release-notes.js";
 export * from "./subscription.js";
 export * from "./billing.js";
+export * from "./support.js";
 export * from "./common.js";

@@ -28,6 +28,7 @@ import { subscriptionRouter } from "./api/subscription.js";
 import { assignmentsRouter } from "./api/assignments.js";
 import { accountRouter } from "./api/account.js";
 import { billingRouter } from "./api/billing.js";
+import { supportRouter } from "./api/support.js";
 import { webhooksRouter } from "./api/webhooks.js";
 import { publicRouter } from "./api/public.js";
 import { internalRouter } from "./internal/routes.js";
@@ -98,6 +99,7 @@ api.route("/", subscriptionRouter);
 api.route("/", assignmentsRouter);
 api.route("/", accountRouter);
 api.route("/", billingRouter);
+api.route("/", supportRouter);
 api.route("/", guildsRouter);
 app.route("/api", api);
 
