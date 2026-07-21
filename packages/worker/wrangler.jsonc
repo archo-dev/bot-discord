@@ -20,6 +20,10 @@
       "/interactions",
       "/internal/*",
       "/health",
+      "/status",
+      "/webhooks/*",
+      "/studio-api/*",
+      "/studio/*",
       "/",
       "/index.html",
       "/assets/*"
@@ -43,15 +47,29 @@
   "vars": {
     // Public (non-secret) config. Override per environment as needed.
     "DISCORD_CLIENT_ID": "1524597895859536074",
-    "PANEL_ORIGIN": "https://botdiscord.archodev.workers.dev",
+    // Client platform origin (M16 cutover to archolabs.com). Used for the OAuth
+    // redirect_uri, CSP/HSTS, and the browserMutationOrigin allowlist. The old
+    // workers.dev origin is kept in PANEL_ALLOWED_ORIGINS during the transition
+    // so in-flight sessions/mutations keep working until DNS is fully cut over.
+    "PANEL_ORIGIN": "https://archolabs.com",
+    "PANEL_ALLOWED_ORIGINS": "https://archolabs.com,https://botdiscord.archodev.workers.dev",
+    // Isolated Studio host (M12). Studio stays DARK until platform.studio is on
+    // (requireStudioHost = flag && STUDIO_HOST) — declaring the host is safe.
+    "STUDIO_HOST": "studio.archolabs.com",
     "SECURITY_ORIGIN_MODE": "enforce",
     "SECURITY_CSP_MODE": "report",
     "SESSION_GLOBAL_VERSION": "1",
     "PRODUCT_ANALYTICS_ENABLED": "true",
-    "APP_VERSION": "m10",
+    "APP_VERSION": "m16",
     "INTERNAL_AUTH_MODE": "signed"
+    // Platform flags (PLATFORM_ENTITLEMENTS/BILLING/SUPPORT/STUDIO/LAUNCH) and
+    // launch prices (LAUNCH_*) are DELIBERATELY absent → all off in prod. Enable
+    // per cohort at go-live via the M15 rollout store, then globally last.
   }
-  // Secrets (wrangler secret put …, mirrored in .dev.vars for local dev):
+  // Secrets (wrangler secret bulk fichier.json — jamais `secret put` sous
+  // PowerShell : CRLF → 401 Ed25519). Requis en prod :
   //   DISCORD_TOKEN, DISCORD_PUBLIC_KEY, DISCORD_CLIENT_SECRET,
-  //   SESSION_SECRET, INTERNAL_API_TOKEN
+  //   SESSION_SECRET, INTERNAL_API_TOKEN,
+  //   STUDIO_OWNER_IDS (bootstrap propriétaire opérateur),
+  //   STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET (LIVE — au lancement commercial).
 }

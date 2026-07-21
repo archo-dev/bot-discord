@@ -5,7 +5,8 @@
 ## Variables de configuration Worker (non secrètes — `wrangler.jsonc` `vars` ou `--var`)
 
 ```
-PANEL_ORIGIN=https://archodev.fr
+PANEL_ORIGIN=https://archolabs.com
+PANEL_ALLOWED_ORIGINS=https://archolabs.com,https://botdiscord.archodev.workers.dev  # transition
 PLATFORM_ENTITLEMENTS=            # "true" pour activer (défaut off)
 PLATFORM_BILLING=                 # "true" pour activer le checkout (défaut off)
 PLATFORM_SUPPORT=                 # "true" (défaut off)
@@ -13,9 +14,11 @@ PLATFORM_STUDIO=                  # "true" (défaut off)
 PLATFORM_LAUNCH=                  # "true" en dernier, prix + juridique prêts (défaut off)
 
 # Studio (M12+)
-STUDIO_HOST=studio.archodev.fr
+STUDIO_HOST=studio.archolabs.com
 STUDIO_SESSION_GLOBAL_VERSION=1
 STUDIO_KILL_SWITCH=               # "true" = coupe-circuit immédiat
+# ⚠️ La SPA studio n'est pas servie par ce Worker (écart M12) — héberger le
+#    front-end sur studio.archolabs.com AVANT d'activer platform.studio.
 
 # Prix de lancement (M16) — ENTIERS en plus petite unité (centimes). Décision D1.
 LAUNCH_CURRENCY=EUR
@@ -26,8 +29,8 @@ LAUNCH_PRICE_BUSINESS_YEAR=       # À FIXER (D1)
 
 # Billing (M9) — IDs de prix prestataire (config, pas secret)
 BILLING_PROVIDER=stripe           # ou le MoR retenu (D3)
-BILLING_SUCCESS_URL=https://archodev.fr/app/billing?status=success
-BILLING_CANCEL_URL=https://archodev.fr/app/billing?status=cancel
+BILLING_SUCCESS_URL=https://archolabs.com/app/billing?status=success
+BILLING_CANCEL_URL=https://archolabs.com/app/billing?status=cancel
 BILLING_PRICE_PREMIUM_MONTH=price_xxx
 BILLING_PRICE_PREMIUM_YEAR=price_xxx
 BILLING_PRICE_BUSINESS_MONTH=price_xxx
