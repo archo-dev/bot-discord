@@ -31,6 +31,7 @@ Briefs détaillés préparés au fil de l'avancement, prêts à ouvrir une branc
 | M7 — Slots serveurs & gating | [briefs/M7-brief.md](./briefs/M7-brief.md) | **Terminé** — fusionné, rapport [reports/M7-report.md](./reports/M7-report.md) |
 | M8 — Espace abonnement client | [briefs/M8-brief.md](./briefs/M8-brief.md) | **Terminé** — fusionné, rapport [reports/M8-report.md](./reports/M8-report.md) |
 | M9 — Billing sandbox (Stripe test) | [briefs/M9-brief.md](./briefs/M9-brief.md) | **Terminé** — fusionné, rapport [reports/M9-report.md](./reports/M9-report.md) |
+| M10 — Webhooks paiement idempotents | [briefs/M10-brief.md](./briefs/M10-brief.md) | **En cours** — branche `feat/m10-payment-webhooks` |
 
 ## Rappel des décisions déjà cadrées (non rouvertes ici)
 
