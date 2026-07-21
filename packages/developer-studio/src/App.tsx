@@ -3,8 +3,11 @@ import { badgeToneClass } from "@bot/ui";
 import type {
   GrantablePlan,
   GrantsListResponse,
+  RolloutResponse,
   StudioAuditPage,
+  StudioErrorsResponse,
   StudioGuildsListResponse,
+  StudioMetricsResponse,
   StudioOverview,
   StudioPermission,
   StudioSessionInfo,
@@ -20,7 +23,7 @@ import { StudioApiError, goToStepUp, studioApi } from "./api.js";
  * cosmetic only: the server re-checks every permission (doc 09 principe cardinal).
  */
 
-type Tab = "overview" | "guilds" | "subscriptions" | "updates" | "grants" | "audit";
+type Tab = "overview" | "guilds" | "subscriptions" | "updates" | "grants" | "audit" | "metrics" | "errors" | "rollout";
 
 const TAB_PERMISSION: Record<Exclude<Tab, "overview">, StudioPermission> = {
   guilds: "guilds.inspect",
@@ -28,6 +31,9 @@ const TAB_PERMISSION: Record<Exclude<Tab, "overview">, StudioPermission> = {
   updates: "updates.publish",
   grants: "subscriptions.read",
   audit: "audit.read",
+  metrics: "deployments.read",
+  errors: "deployments.read",
+  rollout: "deployments.read",
 };
 
 function ProductionBanner() {
@@ -70,7 +76,7 @@ export function App() {
   if (!session) return <Login />;
 
   const can = (p: StudioPermission) => session.isOwner || session.permissions.includes(p);
-  const tabs: Tab[] = ["overview", "guilds", "subscriptions", "updates", "grants", "audit"];
+  const tabs: Tab[] = ["overview", "guilds", "subscriptions", "updates", "grants", "audit", "metrics", "errors", "rollout"];
 
   return (
     <div className="min-h-screen">
@@ -106,6 +112,9 @@ export function App() {
           <GrantsPanel canGrant={can("subscriptions.grant")} canLifetime={can("subscriptions.grant_lifetime")} canRevoke={can("subscriptions.revoke_granted")} />
         )}
         {tab === "audit" && can("audit.read") && <AuditPanel />}
+        {tab === "metrics" && can("deployments.read") && <MetricsPanel />}
+        {tab === "errors" && can("deployments.read") && <ErrorsPanel />}
+        {tab === "rollout" && can("deployments.read") && <RolloutPanel canEdit={can("features.manage")} />}
       </main>
     </div>
   );
@@ -351,6 +360,112 @@ function GrantsPanel({ canGrant, canLifetime, canRevoke }: { canGrant: boolean; 
           ))}
         </Table>
       )}
+    </div>
+  );
+}
+
+function MetricsPanel() {
+  const { data, error } = usePanel<StudioMetricsResponse>(() => studioApi.metrics());
+  if (error) return <Err code={error} />;
+  if (!data) return <Loading />;
+  return (
+    <div className="space-y-3">
+      <div className="text-xs text-zinc-500">
+        Fenêtre {data.windowHours} h — {data.totalEvents} évènements, {data.totalErrors} erreurs
+      </div>
+      <Table headers={["Module", "Events", "Erreurs", "Taux", "≤500ms", ">5s"]}>
+        {data.modules.map((m) => (
+          <tr key={m.module} className="border-t border-zinc-800">
+            <Td>{m.module}</Td>
+            <Td>{m.events}</Td>
+            <Td>{m.errors}</Td>
+            <Td>{(m.errorRate * 100).toFixed(1)}%</Td>
+            <Td>{m.latencyLe100 + m.latencyLe250 + m.latencyLe500}</Td>
+            <Td>{m.latencyGt5000}</Td>
+          </tr>
+        ))}
+      </Table>
+    </div>
+  );
+}
+
+function ErrorsPanel() {
+  const { data, error } = usePanel<StudioErrorsResponse>(() => studioApi.errors());
+  if (error) return <Err code={error} />;
+  if (!data) return <Loading />;
+  return (
+    <Table headers={["Module", "Opération", "Erreurs", "Events"]}>
+      {data.items.map((e) => (
+        <tr key={`${e.module}:${e.operation}`} className="border-t border-zinc-800">
+          <Td>{e.module}</Td>
+          <Td>{e.operation}</Td>
+          <Td>{e.errors}</Td>
+          <Td>{e.events}</Td>
+        </tr>
+      ))}
+    </Table>
+  );
+}
+
+function RolloutPanel({ canEdit }: { canEdit: boolean }) {
+  const [data, setData] = useState<RolloutResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const reload = () => studioApi.rollout().then(setData).catch((e: unknown) => setError(e instanceof StudioApiError ? e.code : "error"));
+  useEffect(() => {
+    void reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const save = async (flag: string, global: boolean, guildsCsv: string) => {
+    setBusy(flag);
+    setError(null);
+    try {
+      const guilds = guildsCsv.split(",").map((s) => s.trim()).filter(Boolean);
+      await studioApi.setRollout(flag, { global, guilds });
+      await reload();
+    } catch (e) {
+      setError(e instanceof StudioApiError ? e.code : "error");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (error) return <Err code={error} />;
+  if (!data) return <Loading />;
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-zinc-500">Activation par cohortes (guildes pilotes) — sans redéploiement. Le global reste off en production.</p>
+      <Table headers={["Flag", "Global", "Cohorte (guildes)", canEdit ? "" : ""]}>
+        {data.flags.map((f) => (
+          <tr key={f.flag} className="border-t border-zinc-800">
+            <Td>{f.flag}</Td>
+            <Td>{f.global ? "on" : "off"}</Td>
+            <Td>{f.guilds.length ? f.guilds.join(", ") : "—"}</Td>
+            <Td>
+              {canEdit && (
+                <div className="flex items-center gap-1">
+                  <input
+                    defaultValue={f.guilds.join(",")}
+                    onChange={(e) => setDraft((d) => ({ ...d, [f.flag]: e.target.value }))}
+                    placeholder="ids,séparés,par,virgule"
+                    className="w-56 rounded bg-zinc-800 px-2 py-1 text-xs"
+                  />
+                  <button
+                    disabled={busy === f.flag}
+                    onClick={() => void save(f.flag, f.global, draft[f.flag] ?? f.guilds.join(","))}
+                    className="rounded bg-indigo-600 px-2 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                  >
+                    Enregistrer
+                  </button>
+                </div>
+              )}
+            </Td>
+          </tr>
+        ))}
+      </Table>
     </div>
   );
 }

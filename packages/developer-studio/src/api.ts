@@ -2,8 +2,12 @@ import type {
   CreateGrantRequest,
   CreateLifetimeGrantRequest,
   GrantsListResponse,
+  RolloutFlagState,
+  RolloutResponse,
   StudioAuditPage,
+  StudioErrorsResponse,
   StudioGuildsListResponse,
+  StudioMetricsResponse,
   StudioOverview,
   StudioSessionInfo,
   StudioSubscriptionsListResponse,
@@ -45,6 +49,20 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
+async function put<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method: "PUT",
+    headers: { accept: "application/json", "content-type": "application/json", origin: window.location.origin },
+    credentials: "same-origin",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const b = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new StudioApiError(res.status, b.error ?? "error");
+  }
+  return (await res.json()) as T;
+}
+
 export const studioApi = {
   session: () => get<StudioSessionInfo>("/studio-api/session"),
   overview: () => get<StudioOverview>("/studio-api/overview"),
@@ -59,6 +77,11 @@ export const studioApi = {
   revoke: (entitlementId: number, reason?: string) =>
     post<{ ok: boolean }>(`/studio-api/subscriptions/${entitlementId}/revoke`, { reason }),
   audit: () => get<StudioAuditPage>("/studio-api/audit"),
+  metrics: () => get<StudioMetricsResponse>("/studio-api/metrics"),
+  errors: () => get<StudioErrorsResponse>("/studio-api/errors"),
+  rollout: () => get<RolloutResponse>("/studio-api/rollout"),
+  setRollout: (flag: string, body: { global: boolean; guilds: string[] }) =>
+    put<RolloutFlagState>(`/studio-api/rollout/${encodeURIComponent(flag)}`, body),
 };
 
 /** Kick off an OAuth re-consent (step-up) for sensitive actions (M14). */
