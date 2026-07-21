@@ -31,5 +31,6 @@ export function getPlatformFlags(env: FlagEnv = readEnv()): FlagState {
     "platform.entitlements": env?.["VITE_PLATFORM_ENTITLEMENTS"] === "true",
     "platform.billing": env?.["VITE_PLATFORM_BILLING"] === "true",
     "platform.support": env?.["VITE_PLATFORM_SUPPORT"] === "true",
+    "platform.launch": env?.["VITE_PLATFORM_LAUNCH"] === "true",
   });
 }
