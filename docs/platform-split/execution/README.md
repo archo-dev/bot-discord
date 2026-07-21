@@ -30,6 +30,7 @@ Briefs détaillés préparés au fil de l'avancement, prêts à ouvrir une branc
 | M6 — Modèle d'entitlements (flag) | [briefs/M6-brief.md](./briefs/M6-brief.md) | **Terminé** — fusionné, rapport [reports/M6-report.md](./reports/M6-report.md) |
 | M7 — Slots serveurs & gating | [briefs/M7-brief.md](./briefs/M7-brief.md) | **Terminé** — fusionné, rapport [reports/M7-report.md](./reports/M7-report.md) |
 | M8 — Espace abonnement client | [briefs/M8-brief.md](./briefs/M8-brief.md) | **Terminé** — fusionné, rapport [reports/M8-report.md](./reports/M8-report.md) |
+| M9 — Billing sandbox (Stripe test) | [briefs/M9-brief.md](./briefs/M9-brief.md) | **En cours** — branche `feat/m09-billing-sandbox` |
 
 ## Rappel des décisions déjà cadrées (non rouvertes ici)
 
