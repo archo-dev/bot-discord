@@ -3,7 +3,7 @@ import { createExecutionContext, env } from "cloudflare:test";
 import { resolveGrantWindow } from "@bot/shared";
 import app from "../src/index.js";
 import type { Env } from "../src/env.js";
-import { createStudioSession } from "../src/auth/studio-session.js";
+import { createStudioSession, markStudioStepUp } from "../src/auth/studio-session.js";
 import {
   getEntitlementById,
   grantStudioOperatorPermission,
@@ -25,11 +25,13 @@ function studioEnv(extra: Partial<Env> = {}): Env {
   return { ...env, PLATFORM_STUDIO: "true", STUDIO_HOST: HOST, STUDIO_OWNER_IDS: OWNER, ...extra } as Env;
 }
 
-async function studioCookie(e: Env, userId: string): Promise<string> {
+async function studioCookie(e: Env, userId: string, opts: { stepUp?: boolean } = {}): Promise<string> {
   const id = await createStudioSession(e, {
     userId, username: "op", globalName: null, avatar: null,
     tokenExpiresAt: Date.now() + 3_600_000, createdAt: Date.now(),
   });
+  // M14: grant-lifetime requires a recent OAuth re-consent (step-up).
+  if (opts.stepUp) await markStudioStepUp(e, id);
   return `studio_session=${id}`;
 }
 
@@ -123,7 +125,7 @@ describe("M13 grants — lifetime guards", () => {
 
   it("requires the explicit LIFETIME confirmation (400 otherwise)", async () => {
     const e = studioEnv();
-    const cookie = await studioCookie(e, OWNER);
+    const cookie = await studioCookie(e, OWNER, { stepUp: true });
     const bad = await req(`https://${HOST}/studio-api/subscriptions/grant-lifetime`, cookie, e, {
       userId: TARGET, planId: "business", reason: "partner", confirm: "yes",
     });
@@ -133,7 +135,7 @@ describe("M13 grants — lifetime guards", () => {
 
   it("creates a lifetime grant (is_lifetime=1, end_at NULL) with permission + confirmation", async () => {
     const e = studioEnv();
-    const cookie = await studioCookie(e, OWNER);
+    const cookie = await studioCookie(e, OWNER, { stepUp: true });
     const res = await req(`https://${HOST}/studio-api/subscriptions/grant-lifetime`, cookie, e, {
       userId: TARGET, planId: "business", reason: "founding partner", confirm: "LIFETIME",
     });
