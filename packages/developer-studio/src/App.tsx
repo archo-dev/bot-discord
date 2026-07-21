@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { badgeToneClass } from "@bot/ui";
 import type {
+  GrantablePlan,
+  GrantsListResponse,
   StudioGuildsListResponse,
   StudioOverview,
   StudioPermission,
@@ -17,12 +19,13 @@ import { StudioApiError, studioApi } from "./api.js";
  * cosmetic only: the server re-checks every permission (doc 09 principe cardinal).
  */
 
-type Tab = "overview" | "guilds" | "subscriptions" | "updates";
+type Tab = "overview" | "guilds" | "subscriptions" | "updates" | "grants";
 
 const TAB_PERMISSION: Record<Exclude<Tab, "overview">, StudioPermission> = {
   guilds: "guilds.inspect",
   subscriptions: "subscriptions.read",
   updates: "updates.publish",
+  grants: "subscriptions.read",
 };
 
 function ProductionBanner() {
@@ -65,7 +68,7 @@ export function App() {
   if (!session) return <Login />;
 
   const can = (p: StudioPermission) => session.isOwner || session.permissions.includes(p);
-  const tabs: Tab[] = ["overview", "guilds", "subscriptions", "updates"];
+  const tabs: Tab[] = ["overview", "guilds", "subscriptions", "updates", "grants"];
 
   return (
     <div className="min-h-screen">
@@ -97,6 +100,9 @@ export function App() {
         {tab === "guilds" && can("guilds.inspect") && <GuildsPanel />}
         {tab === "subscriptions" && can("subscriptions.read") && <SubscriptionsPanel />}
         {tab === "updates" && can("updates.publish") && <UpdatesPanel />}
+        {tab === "grants" && can("subscriptions.read") && (
+          <GrantsPanel canGrant={can("subscriptions.grant")} canLifetime={can("subscriptions.grant_lifetime")} canRevoke={can("subscriptions.revoke_granted")} />
+        )}
       </main>
     </div>
   );
@@ -214,6 +220,133 @@ function UpdatesPanel() {
         </tr>
       ))}
     </Table>
+  );
+}
+
+function GrantsPanel({ canGrant, canLifetime, canRevoke }: { canGrant: boolean; canLifetime: boolean; canRevoke: boolean }) {
+  const [data, setData] = useState<GrantsListResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [userId, setUserId] = useState("");
+  const [planId, setPlanId] = useState<GrantablePlan>("premium");
+  const [durationKind, setDurationKind] = useState<"7d" | "30d" | "3m" | "6m" | "1y">("30d");
+  const [reason, setReason] = useState("");
+  const [lifetimeConfirm, setLifetimeConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const reload = () =>
+    studioApi.grants().then(setData).catch((e: unknown) => setError(e instanceof StudioApiError ? e.code : "error"));
+
+  useEffect(() => {
+    void reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const run = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+      await reload();
+    } catch (e) {
+      setError(e instanceof StudioApiError ? e.code : "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {canGrant && (
+        <section className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+          <h2 className="mb-3 text-sm font-semibold">Octroyer un accès offert</h2>
+          <div className="flex flex-wrap items-end gap-2">
+            <Field label="User ID">
+              <input value={userId} onChange={(e) => setUserId(e.target.value)} className="w-48 rounded bg-zinc-800 px-2 py-1 text-sm" placeholder="snowflake" />
+            </Field>
+            <Field label="Plan">
+              <select value={planId} onChange={(e) => setPlanId(e.target.value as GrantablePlan)} className="rounded bg-zinc-800 px-2 py-1 text-sm">
+                <option value="premium">premium</option>
+                <option value="business">business</option>
+              </select>
+            </Field>
+            <Field label="Durée">
+              <select value={durationKind} onChange={(e) => setDurationKind(e.target.value as typeof durationKind)} className="rounded bg-zinc-800 px-2 py-1 text-sm">
+                {(["7d", "30d", "3m", "6m", "1y"] as const).map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Raison">
+              <input value={reason} onChange={(e) => setReason(e.target.value)} className="w-64 rounded bg-zinc-800 px-2 py-1 text-sm" placeholder="obligatoire" />
+            </Field>
+            <button
+              disabled={busy || !userId || reason.trim().length < 3}
+              onClick={() => void run(() => studioApi.grant({ userId, planId, durationKind, reason }))}
+              className="rounded bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              Octroyer
+            </button>
+          </div>
+
+          {canLifetime && (
+            <div className="mt-4 rounded border border-red-900/60 bg-red-950/30 p-3">
+              <p className="mb-2 text-xs text-red-300">
+                Lifetime — engagement permanent. Saisir <b>LIFETIME</b> pour confirmer.
+              </p>
+              <div className="flex flex-wrap items-end gap-2">
+                <Field label="Confirmation">
+                  <input value={lifetimeConfirm} onChange={(e) => setLifetimeConfirm(e.target.value)} className="w-40 rounded bg-zinc-800 px-2 py-1 text-sm" placeholder="LIFETIME" />
+                </Field>
+                <button
+                  disabled={busy || !userId || reason.trim().length < 3 || lifetimeConfirm !== "LIFETIME"}
+                  onClick={() => void run(() => studioApi.grantLifetime({ userId, planId, reason, confirm: lifetimeConfirm }))}
+                  className="rounded bg-red-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  Octroyer à vie
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {error && <Err code={error} />}
+      {!data ? (
+        <Loading />
+      ) : (
+        <Table headers={["User", "Plan", "Durée", "Statut", "Raison", ""]}>
+          {data.items.map((g) => (
+            <tr key={g.grantId} className="border-t border-zinc-800">
+              <Td>{g.userId}</Td>
+              <Td>{g.planId}</Td>
+              <Td>{g.isLifetime ? "lifetime" : g.durationKind}</Td>
+              <Td>{g.status}</Td>
+              <Td>{g.reason}</Td>
+              <Td>
+                {canRevoke && g.status === "active" && (
+                  <button
+                    disabled={busy}
+                    onClick={() => window.confirm("Révoquer cet accès offert ?") && void run(() => studioApi.revoke(g.entitlementId))}
+                    className="rounded bg-zinc-700 px-2 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                  >
+                    Révoquer
+                  </button>
+                )}
+              </Td>
+            </tr>
+          ))}
+        </Table>
+      )}
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1 text-xs text-zinc-500">
+      {label}
+      {children}
+    </label>
   );
 }
 

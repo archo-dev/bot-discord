@@ -1,4 +1,7 @@
 import type {
+  CreateGrantRequest,
+  CreateLifetimeGrantRequest,
+  GrantsListResponse,
   StudioGuildsListResponse,
   StudioOverview,
   StudioSessionInfo,
@@ -27,15 +30,16 @@ async function get<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-async function post<T>(path: string): Promise<T> {
+async function post<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
     method: "POST",
-    headers: { accept: "application/json", origin: window.location.origin },
+    headers: { accept: "application/json", "content-type": "application/json", origin: window.location.origin },
     credentials: "same-origin",
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new StudioApiError(res.status, body.error ?? "error");
+    const b = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new StudioApiError(res.status, b.error ?? "error");
   }
   return (await res.json()) as T;
 }
@@ -47,4 +51,10 @@ export const studioApi = {
   subscriptions: () => get<StudioSubscriptionsListResponse>("/studio-api/subscriptions"),
   updates: () => get<StudioUpdatesListResponse>("/studio-api/updates"),
   publish: (slug: string) => post<{ ok: boolean; published: boolean }>(`/studio-api/updates/${encodeURIComponent(slug)}/publish`),
+  grants: () => get<GrantsListResponse>("/studio-api/subscriptions/granted"),
+  grant: (body: CreateGrantRequest) => post<{ ok: boolean; entitlementId: number }>("/studio-api/subscriptions/grant", body),
+  grantLifetime: (body: CreateLifetimeGrantRequest) =>
+    post<{ ok: boolean; entitlementId: number }>("/studio-api/subscriptions/grant-lifetime", body),
+  revoke: (entitlementId: number, reason?: string) =>
+    post<{ ok: boolean }>(`/studio-api/subscriptions/${entitlementId}/revoke`, { reason }),
 };
