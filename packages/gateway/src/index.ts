@@ -18,6 +18,7 @@ import { logTelemetry, telemetryErrorCode } from "./telemetry.js";
 import { buildGatewayRuntimeSnapshot } from "./health.js";
 import { createOutbox } from "./outbox/index.js";
 import { registerAutomations } from "./automations.js";
+import { verifyDiscordApplicationId } from "./discord-identity.js";
 
 // 120 s (TTL KV côté Worker = 300 s) : reste sous le quota d'écritures KV du
 // plan gratuit (1000/jour) tout en gardant le badge « Gateway » fiable.
@@ -56,6 +57,15 @@ const client = new Client({
   // gateway started (uncached); the handlers fetch them on demand.
   partials: [Partials.Message, Partials.Reaction],
 });
+
+if (env.DISCORD_CLIENT_ID) {
+  try {
+    await verifyDiscordApplicationId(env.DISCORD_TOKEN, env.DISCORD_CLIENT_ID);
+  } catch (err) {
+    console.error(`discord application identity check failed: ${err instanceof Error ? err.message : "unknown error"}`);
+    process.exit(1);
+  }
+}
 
 registerGuildLifecycle(client, configCache, api, env.WORKER_ORIGIN);
 registerEvents(client, configCache, api);

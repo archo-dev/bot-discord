@@ -3,6 +3,13 @@ import { z } from "zod";
 const envSchema = z.object({
   /** Bot token — the same one the Worker uses. */
   DISCORD_TOKEN: z.string().min(50),
+  /**
+   * Public application id expected for this token. Optional for backwards
+   * compatibility with the existing production service, but mandatory in the
+   * staging service template so a production token can never be used there by
+   * accident.
+   */
+  DISCORD_CLIENT_ID: z.string().regex(/^\d{17,20}$/).optional(),
   /** Worker origin, e.g. https://botdiscord.example.workers.dev */
   WORKER_ORIGIN: z.url(),
   /** Bearer for the Worker's /internal/* API. */

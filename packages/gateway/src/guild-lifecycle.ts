@@ -14,6 +14,33 @@ import { errMsg } from "./util.js";
 
 const WELCOME_COLOR = 0x5865f2;
 
+type InstalledGuild = Pick<Guild, "id" | "name" | "icon">;
+
+/**
+ * READY hydrates discord.js' cache for guilds the bot had already joined, but
+ * Discord does not emit GUILD_CREATE as a fresh installation for those guilds.
+ * Reconcile the full cache on every start so a new/restarted Gateway restores
+ * the Worker's `guilds.bot_installed` source of truth.
+ */
+export async function reconcileInstalledGuilds(
+  guilds: Iterable<InstalledGuild>,
+  api: Pick<WorkerApi, "postGuildInstalled">,
+): Promise<{ synced: number; failed: number }> {
+  const results = await Promise.all(
+    [...guilds].map(async (guild) => {
+      try {
+        await api.postGuildInstalled(guild.id, { name: guild.name, icon: guild.icon });
+        return true;
+      } catch (err) {
+        console.error(`guild cache reconciliation ${guild.id} failed:`, errMsg(err));
+        return false;
+      }
+    }),
+  );
+  const synced = results.filter(Boolean).length;
+  return { synced, failed: results.length - synced };
+}
+
 function canSend(channel: GuildBasedChannel, me: GuildMember): boolean {
   const perms = channel.permissionsFor(me);
   return (
@@ -76,6 +103,12 @@ export function registerGuildLifecycle(
   api: WorkerApi,
   panelUrl: string,
 ): void {
+  client.once(Events.ClientReady, (readyClient) => {
+    void reconcileInstalledGuilds(readyClient.guilds.cache.values(), api).then(({ synced, failed }) => {
+      console.log(`guild cache reconciliation complete (${synced} synced, ${failed} failed)`);
+    });
+  });
+
   client.on(Events.GuildCreate, (guild) => {
     void (async () => {
       console.log(`guildCreate: ${guild.name} (${guild.id}) — ${guild.memberCount} membres`);

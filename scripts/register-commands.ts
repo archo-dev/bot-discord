@@ -286,10 +286,21 @@ export const commands = [
 async function main(): Promise<void> {
   const mode = process.argv[2];
   const apply = process.argv.includes("--apply");
+  const targetArg = process.argv.find((arg) => arg.startsWith("--target="));
+  const target = targetArg?.slice("--target=".length) ?? "production";
+  const applicationIds: Record<string, string> = {
+    production: "1524597895859536074",
+    staging: "1529353871619522600",
+  };
   const aliases: Record<string, "sync-guild" | "sync-global"> = { dev: "sync-guild", global: "sync-global" };
   const normalized = mode ? (aliases[mode] ?? mode) : undefined;
   if (!normalized || !["validate", "list", "diff", "sync-global", "sync-guild", "cleanup-guild"].includes(normalized)) {
-    console.error("Usage: tsx scripts/register-commands.ts <validate|list|diff|sync-global|sync-guild|cleanup-guild> [--apply]");
+    console.error("Usage: tsx scripts/register-commands.ts <validate|list|diff|sync-global|sync-guild|cleanup-guild> [--target=production|staging] [--apply]");
+    process.exit(1);
+  }
+
+  if (!applicationIds[target]) {
+    console.error("Cible inconnue : utilisez --target=production ou --target=staging. Aucune action effectuee.");
     process.exit(1);
   }
 
@@ -314,11 +325,11 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // This bot has one public application. Refuse an accidental .env from an
-  // unrelated bot before listing, overwriting or deleting any command.
-  const expectedApplicationId = "1524597895859536074";
+  // Refuse an accidental environment from the other deployment (or an
+  // unrelated bot) before listing, overwriting or deleting any command.
+  const expectedApplicationId = applicationIds[target]!;
   if (clientId !== expectedApplicationId) {
-    console.error("DISCORD_CLIENT_ID ne correspond pas à l'application botdiscord attendue; aucune action effectuée.");
+    console.error(`DISCORD_CLIENT_ID ne correspond pas à l'application ${target} attendue; aucune action effectuée.`);
     process.exit(1);
   }
 
@@ -341,6 +352,15 @@ async function main(): Promise<void> {
   };
 
   try {
+    const identityResponse = await fetch("https://discord.com/api/v10/users/@me", {
+      headers: { authorization: `Bot ${token}` },
+    });
+    if (!identityResponse.ok) throw new Error(`Verification de l'identite bot echouee (${identityResponse.status})`);
+    const identity = await identityResponse.json() as { id?: unknown; bot?: unknown };
+    if (identity.bot !== true || identity.id !== clientId) {
+      throw new Error(`Le token Discord n'appartient pas a l'application ${target}; aucune action effectuee.`);
+    }
+
     const global = await list("/commands");
     const guild = guildId ? await list(`/guilds/${guildId}/commands`) : [];
     if (normalized === "list") {
