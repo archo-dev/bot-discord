@@ -3,7 +3,8 @@ import { createExecutionContext, env, fetchMock } from "cloudflare:test";
 import { Hono } from "hono";
 import type { Env } from "../src/env.js";
 import app from "../src/index.js";
-import { consumeOAuthState, createOAuthState, createSession, loadSession, revokeUserSessions, setSessionCookie } from "../src/auth/session.js";
+import { createOAuthState, createSession, loadSession, revokeUserSessions, setSessionCookie, validateOAuthState } from "../src/auth/session.js";
+import { createOAuthStateCookieValue } from "../src/auth/oauth-state.js";
 
 const LOCAL = { ...env, PANEL_ORIGIN: "http://localhost:5173", SECURITY_ORIGIN_MODE: "enforce" as const };
 const PROD = { ...env, PANEL_ORIGIN: "https://botdiscord.archodev.workers.dev", SECURITY_ORIGIN_MODE: "enforce" as const };
@@ -22,7 +23,14 @@ describe("M02 browser security", () => {
     expect(local.headers.get("set-cookie")).not.toContain("Secure");
     expect(local.headers.get("strict-transport-security")).toBeNull();
     const prod = await app.request(`${PROD.PANEL_ORIGIN}/auth/login`, {}, PROD, createExecutionContext());
-    expect(prod.headers.get("set-cookie")).toContain("Secure");
+    const oauthCookie = prod.headers.get("set-cookie")!;
+    expect(oauthCookie).toContain("oauth_state=");
+    expect(oauthCookie).toContain("Max-Age=300");
+    expect(oauthCookie).toContain("Path=/auth/callback");
+    expect(oauthCookie).toContain("HttpOnly");
+    expect(oauthCookie).toContain("Secure");
+    expect(oauthCookie).toContain("SameSite=Lax");
+    expect(oauthCookie).not.toMatch(/;\s*Domain=/i);
     expect(prod.headers.get("strict-transport-security")).toBe("max-age=15552000");
     expect(prod.headers.get("content-security-policy-report-only")).toContain("script-src 'self'");
     expect(prod.headers.get("x-frame-options")).toBe("DENY");
@@ -70,6 +78,7 @@ describe("M02 browser security", () => {
     );
     expect(callback.status).toBe(302);
     expect(callback.headers.get("location")).toBe(`${LOCAL.PANEL_ORIGIN}/`);
+    expect(callback.headers.get("set-cookie")).toContain("oauth_state=; Max-Age=0; Path=/auth/callback");
     const sessionId = /(?:^|,\s*)session=([0-9a-f]{64})/.exec(callback.headers.get("set-cookie") ?? "")?.[1];
     expect(sessionId).toBeTruthy();
 
@@ -106,14 +115,100 @@ describe("M02 browser security", () => {
     const body = await denied.text();
     expect(body).toContain('href="/auth/login"');
     expect(body).not.toContain("secret");
-    expect(await env.KV.get(`oauthstate:${state}`)).toBeNull();
+    expect(denied.headers.get("set-cookie")).toContain("oauth_state=; Max-Age=0; Path=/auth/callback");
   });
 
-  it("binds OAuth state to the browser and consumes it once", async () => {
-    const state = await createOAuthState(env);
-    expect(await consumeOAuthState(env, state, "wrong")).toBe(false);
-    expect(await consumeOAuthState(env, state, state)).toBe(true);
-    expect(await consumeOAuthState(env, state, state)).toBe(false);
+  it("validates signed OAuth state without accessing KV", async () => {
+    const now = 1_750_000_000_000;
+    const state = createOAuthState();
+    const cookie = await createOAuthStateCookieValue(env.SESSION_SECRET, "panel", state, now);
+    const kvGet = vi.fn();
+    const kvPut = vi.fn();
+    const kvDelete = vi.fn();
+    const withoutStateKv = {
+      ...env,
+      KV: { get: kvGet, put: kvPut, delete: kvDelete } as unknown as KVNamespace,
+    };
+
+    expect(state).toMatch(/^[0-9a-f]{64}$/);
+    await expect(validateOAuthState(withoutStateKv, state, cookie, now)).resolves.toEqual({ ok: true });
+    await expect(validateOAuthState(withoutStateKv, undefined, cookie, now)).resolves.toEqual({ ok: false, code: "missing_state" });
+    await expect(validateOAuthState(withoutStateKv, "invalid", cookie, now)).resolves.toEqual({ ok: false, code: "invalid_state_format" });
+    await expect(validateOAuthState(withoutStateKv, state, undefined, now)).resolves.toEqual({ ok: false, code: "missing_cookie" });
+    await expect(validateOAuthState(withoutStateKv, "b".repeat(64), cookie, now)).resolves.toEqual({ ok: false, code: "state_mismatch" });
+    const tamperedCookie = `${cookie.slice(0, -1)}${cookie.endsWith("0") ? "1" : "0"}`;
+    await expect(validateOAuthState(withoutStateKv, state, tamperedCookie, now)).resolves.toEqual({ ok: false, code: "state_mismatch" });
+    await expect(validateOAuthState(withoutStateKv, state, cookie, now + 300_001)).resolves.toEqual({ ok: false, code: "state_expired" });
+    expect(kvGet).not.toHaveBeenCalled();
+    expect(kvPut).not.toHaveBeenCalled();
+    expect(kvDelete).not.toHaveBeenCalled();
+  });
+
+  it("reports safe validation codes, clears the cookie and never contacts Discord for invalid callbacks", async () => {
+    fetchMock.activate();
+    fetchMock.disableNetConnect();
+    const state = createOAuthState();
+    const validCookieValue = await createOAuthStateCookieValue(env.SESSION_SECRET, "panel", state);
+    const expiredCookieValue = await createOAuthStateCookieValue(env.SESSION_SECRET, "panel", state, Date.now() - 300_001);
+    const differentState = "b".repeat(64);
+    const cases = [
+      { path: "/auth/callback?code=blocked", cookie: `oauth_state=${validCookieValue}`, code: "missing_state" },
+      { path: "/auth/callback?code=blocked&state=invalid", cookie: `oauth_state=${validCookieValue}`, code: "invalid_state_format" },
+      { path: `/auth/callback?code=blocked&state=${state}`, cookie: undefined, code: "missing_cookie" },
+      { path: `/auth/callback?code=blocked&state=${differentState}`, cookie: `oauth_state=${validCookieValue}`, code: "state_mismatch" },
+      { path: `/auth/callback?code=blocked&state=${state}`, cookie: `oauth_state=${expiredCookieValue}`, code: "state_expired" },
+    ] as const;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    for (const scenario of cases) {
+      const response = await app.request(
+        scenario.path,
+        scenario.cookie ? { headers: { cookie: scenario.cookie } } : {},
+        LOCAL,
+        createExecutionContext(),
+      );
+      expect(response.status).toBe(400);
+      expect(response.headers.get("set-cookie")).toContain("oauth_state=; Max-Age=0; Path=/auth/callback");
+      expect(warn.mock.calls.some(([message]) => message === `oauth state validation failed: reason=${scenario.code}`)).toBe(true);
+    }
+    const logs = JSON.stringify(warn.mock.calls);
+    expect(logs).not.toContain(state);
+    expect(logs).not.toContain(validCookieValue);
+    warn.mockRestore();
+  });
+
+  it("rejects a replay after the callback clears its browser cookie without exchanging twice", async () => {
+    fetchMock.activate();
+    fetchMock.disableNetConnect();
+    fetchMock.get("https://discord.com").intercept({ path: "/api/v10/oauth2/token", method: "POST" }).reply(200, {
+      access_token: "single-use-access-token",
+      refresh_token: "single-use-refresh-token",
+      expires_in: 3600,
+      token_type: "Bearer",
+      scope: "identify guilds",
+    });
+    fetchMock.get("https://discord.com").intercept({ path: "/api/v10/users/@me", method: "GET" }).reply(200, {
+      id: "880000000000000011",
+      username: "single-use-user",
+      global_name: null,
+      avatar: null,
+    });
+    const login = await app.request("/auth/login", {}, LOCAL, createExecutionContext());
+    const authorize = new URL(login.headers.get("location")!);
+    const state = authorize.searchParams.get("state")!;
+    const cookie = login.headers.get("set-cookie")!.split(";", 1)[0]!;
+    const callbackUrl = `/auth/callback?code=single-use&state=${state}`;
+
+    const first = await app.request(callbackUrl, { headers: { cookie } }, LOCAL, createExecutionContext());
+    expect(first.status).toBe(302);
+    expect(first.headers.get("set-cookie")).toContain("oauth_state=; Max-Age=0; Path=/auth/callback");
+
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const replay = await app.request(callbackUrl, {}, LOCAL, createExecutionContext());
+    expect(replay.status).toBe(400);
+    expect(warn).toHaveBeenCalledWith("oauth state validation failed: reason=missing_cookie");
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(state);
+    warn.mockRestore();
   });
 
   it("expires, revokes and globally invalidates minimized sessions", async () => {

@@ -2,6 +2,13 @@ import type { Context } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import type { Env } from "../env.js";
 import { isHttpsEnvironment } from "../security/browser.js";
+import {
+  createOAuthStateCookieValue,
+  createOAuthStateValue,
+  OAUTH_STATE_MAX_AGE_SECONDS,
+  validateOAuthStateValue,
+  type OAuthStateValidation,
+} from "./oauth-state.js";
 
 /**
  * Studio session store (M12) — a strict, isolated replica of the client session
@@ -16,6 +23,7 @@ import { isHttpsEnvironment } from "../security/browser.js";
 
 export const STUDIO_SESSION_COOKIE = "studio_session";
 export const STUDIO_OAUTH_STATE_COOKIE = "studio_oauth_state";
+export const STUDIO_STEPUP_STATE_COOKIE = "studio_stepup_state";
 const STUDIO_ABSOLUTE_SECONDS = 8 * 3600;
 const STUDIO_IDLE_MS = 30 * 60_000;
 const STUDIO_TOUCH_MS = 5 * 60_000;
@@ -152,14 +160,26 @@ export function readStudioSessionCookie(c: Context): string | undefined {
   return getCookie(c, STUDIO_SESSION_COOKIE);
 }
 
-export function setStudioOAuthStateCookie(c: Context, state: string): void {
-  setCookie(c, STUDIO_OAUTH_STATE_COOKIE, state, {
+async function setStudioStateCookie(
+  c: Context,
+  name: string,
+  path: string,
+  purpose: "studio" | "studio-step-up",
+  state: string,
+  issuedAt: number,
+): Promise<void> {
+  const value = await createOAuthStateCookieValue((c.env as Env).SESSION_SECRET, purpose, state, issuedAt);
+  setCookie(c, name, value, {
     httpOnly: true,
     secure: isHttpsEnvironment(c.env as Env),
     sameSite: "Lax",
-    path: "/studio/auth/callback",
-    maxAge: 300,
+    path,
+    maxAge: OAUTH_STATE_MAX_AGE_SECONDS,
   });
+}
+
+export function setStudioOAuthStateCookie(c: Context, state: string, issuedAt = Date.now()): Promise<void> {
+  return setStudioStateCookie(c, STUDIO_OAUTH_STATE_COOKIE, "/studio/auth/callback", "studio", state, issuedAt);
 }
 
 export function readStudioOAuthStateCookie(c: Context): string | undefined {
@@ -170,16 +190,43 @@ export function clearStudioOAuthStateCookie(c: Context): void {
   deleteCookie(c, STUDIO_OAUTH_STATE_COOKIE, { path: "/studio/auth/callback" });
 }
 
-export async function createStudioOAuthState(env: Env): Promise<string> {
-  const state = randomId();
-  await env.KV.put(`studio:oauthstate:${state}`, "1", { expirationTtl: 300 });
-  return state;
+export function createStudioOAuthState(): string {
+  return createOAuthStateValue();
 }
 
-export async function consumeStudioOAuthState(env: Env, state: string, cookieState: string | undefined): Promise<boolean> {
-  if (!/^[0-9a-f]{64}$/.test(state) || cookieState !== state) return false;
-  const found = await env.KV.get(`studio:oauthstate:${state}`);
-  if (!found) return false;
-  await env.KV.delete(`studio:oauthstate:${state}`);
-  return true;
+export function validateStudioOAuthState(
+  env: Env,
+  state: string | undefined,
+  cookieState: string | undefined,
+  now = Date.now(),
+): Promise<OAuthStateValidation> {
+  return validateOAuthStateValue(env.SESSION_SECRET, "studio", state, cookieState, now);
+}
+
+export function setStudioStepUpStateCookie(c: Context, state: string, issuedAt = Date.now()): Promise<void> {
+  return setStudioStateCookie(
+    c,
+    STUDIO_STEPUP_STATE_COOKIE,
+    "/studio/auth/step-up/callback",
+    "studio-step-up",
+    state,
+    issuedAt,
+  );
+}
+
+export function readStudioStepUpStateCookie(c: Context): string | undefined {
+  return getCookie(c, STUDIO_STEPUP_STATE_COOKIE);
+}
+
+export function clearStudioStepUpStateCookie(c: Context): void {
+  deleteCookie(c, STUDIO_STEPUP_STATE_COOKIE, { path: "/studio/auth/step-up/callback" });
+}
+
+export function validateStudioStepUpState(
+  env: Env,
+  state: string | undefined,
+  cookieState: string | undefined,
+  now = Date.now(),
+): Promise<OAuthStateValidation> {
+  return validateOAuthStateValue(env.SESSION_SECRET, "studio-step-up", state, cookieState, now);
 }

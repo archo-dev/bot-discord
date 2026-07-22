@@ -1,13 +1,11 @@
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import type { Env } from "../env.js";
-import { getCookie, setCookie, deleteCookie } from "hono/cookie";
-import { isHttpsEnvironment } from "../security/browser.js";
 import { requireStudioHost, resolveOperator, studioMutationOrigin, type StudioContext } from "./studio-guard.js";
 import {
   clearStudioOAuthStateCookie,
   clearStudioSessionCookie,
-  consumeStudioOAuthState,
+  clearStudioStepUpStateCookie,
   createStudioOAuthState,
   createStudioSession,
   deleteStudioSession,
@@ -15,8 +13,12 @@ import {
   markStudioStepUp,
   readStudioOAuthStateCookie,
   readStudioSessionCookie,
+  readStudioStepUpStateCookie,
   setStudioOAuthStateCookie,
   setStudioSessionCookie,
+  setStudioStepUpStateCookie,
+  validateStudioOAuthState,
+  validateStudioStepUpState,
 } from "./studio-session.js";
 
 /**
@@ -68,8 +70,8 @@ function studioOrigin(env: Env): string {
 }
 
 studioOAuthRouter.get("/studio/auth/login", async (c) => {
-  const state = await createStudioOAuthState(c.env);
-  setStudioOAuthStateCookie(c, state);
+  const state = createStudioOAuthState();
+  await setStudioOAuthStateCookie(c, state);
   const params = new URLSearchParams({
     client_id: c.env.DISCORD_CLIENT_ID,
     redirect_uri: `${studioOrigin(c.env)}/studio/auth/callback`,
@@ -86,7 +88,9 @@ studioOAuthRouter.get("/studio/auth/callback", async (c) => {
   const oauthError = c.req.query("error");
   const stateCookie = readStudioOAuthStateCookie(c);
   clearStudioOAuthStateCookie(c);
-  if (!state || !(await consumeStudioOAuthState(c.env, state, stateCookie))) {
+  const validation = await validateStudioOAuthState(c.env, state, stateCookie);
+  if (!validation.ok) {
+    console.warn(`studio oauth state validation failed: scope=login reason=${validation.code}`);
     return studioOAuthErrorPage(c, "La demande de connexion a expiré ou n'est plus valide.", 400);
   }
   if (oauthError || !code) {
@@ -142,19 +146,11 @@ studioOAuthRouter.post("/studio/auth/logout", studioMutationOrigin, async (c) =>
 // --- Step-up: OAuth re-consent (prompt=consent) that stamps the CURRENT session
 // with a fresh stepUpAt, gating sensitive actions like lifetime grants (M14). ---
 
-const STEPUP_STATE_COOKIE = "studio_stepup_state";
-
 studioOAuthRouter.get("/studio/auth/step-up", async (c) => {
   const sid = readStudioSessionCookie(c);
   if (!sid) return c.text("No studio session.", 401);
-  const state = await createStudioOAuthState(c.env);
-  setCookie(c, STEPUP_STATE_COOKIE, state, {
-    httpOnly: true,
-    secure: isHttpsEnvironment(c.env),
-    sameSite: "Lax",
-    path: "/studio/auth/step-up/callback",
-    maxAge: 300,
-  });
+  const state = createStudioOAuthState();
+  await setStudioStepUpStateCookie(c, state);
   const params = new URLSearchParams({
     client_id: c.env.DISCORD_CLIENT_ID,
     redirect_uri: `${studioOrigin(c.env)}/studio/auth/step-up/callback`,
@@ -170,9 +166,14 @@ studioOAuthRouter.get("/studio/auth/step-up/callback", async (c) => {
   const sid = readStudioSessionCookie(c);
   const code = c.req.query("code");
   const state = c.req.query("state");
-  const stateCookie = getCookie(c, STEPUP_STATE_COOKIE);
-  deleteCookie(c, STEPUP_STATE_COOKIE, { path: "/studio/auth/step-up/callback" });
-  if (!sid || !code || !state || !(await consumeStudioOAuthState(c.env, state, stateCookie))) {
+  const stateCookie = readStudioStepUpStateCookie(c);
+  clearStudioStepUpStateCookie(c);
+  const validation = await validateStudioStepUpState(c.env, state, stateCookie);
+  if (!validation.ok) {
+    console.warn(`studio oauth state validation failed: scope=step-up reason=${validation.code}`);
+    return c.text("Invalid step-up state. Please retry.", 400);
+  }
+  if (!sid || !code) {
     return c.text("Invalid step-up state. Please retry.", 400);
   }
 

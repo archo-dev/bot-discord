@@ -2,6 +2,13 @@ import type { Context } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import type { Env } from "../env.js";
 import { isHttpsEnvironment } from "../security/browser.js";
+import {
+  createOAuthStateCookieValue,
+  createOAuthStateValue,
+  OAUTH_STATE_MAX_AGE_SECONDS,
+  validateOAuthStateValue,
+  type OAuthStateValidation,
+} from "./oauth-state.js";
 
 export const SESSION_COOKIE = "session";
 export const OAUTH_STATE_COOKIE = "oauth_state";
@@ -122,13 +129,14 @@ export function clearSessionCookie(c: Context): void {
   deleteCookie(c, SESSION_COOKIE, { path: "/" });
 }
 
-export function setOAuthStateCookie(c: Context, state: string): void {
-  setCookie(c, OAUTH_STATE_COOKIE, state, {
+export async function setOAuthStateCookie(c: Context, state: string, issuedAt = Date.now()): Promise<void> {
+  const value = await createOAuthStateCookieValue((c.env as Env).SESSION_SECRET, "panel", state, issuedAt);
+  setCookie(c, OAUTH_STATE_COOKIE, value, {
     httpOnly: true,
     secure: isHttpsEnvironment(c.env as Env),
     sameSite: "Lax",
     path: "/auth/callback",
-    maxAge: 300,
+    maxAge: OAUTH_STATE_MAX_AGE_SECONDS,
   });
 }
 
@@ -145,16 +153,15 @@ export function readSessionCookie(c: Context): string | undefined {
 }
 
 /** CSRF state for the OAuth flow. */
-export async function createOAuthState(env: Env): Promise<string> {
-  const state = randomId();
-  await env.KV.put(`oauthstate:${state}`, "1", { expirationTtl: 300 });
-  return state;
+export function createOAuthState(): string {
+  return createOAuthStateValue();
 }
 
-export async function consumeOAuthState(env: Env, state: string, cookieState: string | undefined): Promise<boolean> {
-  if (!/^[0-9a-f]{64}$/.test(state) || cookieState !== state) return false;
-  const found = await env.KV.get(`oauthstate:${state}`);
-  if (!found) return false;
-  await env.KV.delete(`oauthstate:${state}`);
-  return true;
+export function validateOAuthState(
+  env: Env,
+  state: string | undefined,
+  cookieState: string | undefined,
+  now = Date.now(),
+): Promise<OAuthStateValidation> {
+  return validateOAuthStateValue(env.SESSION_SECRET, "panel", state, cookieState, now);
 }

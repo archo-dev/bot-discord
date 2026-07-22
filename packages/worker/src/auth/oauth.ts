@@ -3,7 +3,6 @@ import type { Env } from "../env.js";
 import {
   clearSessionCookie,
   clearOAuthStateCookie,
-  consumeOAuthState,
   createOAuthState,
   createSession,
   deleteSession,
@@ -12,6 +11,7 @@ import {
   readSessionCookie,
   setSessionCookie,
   setOAuthStateCookie,
+  validateOAuthState,
   revokeUserSessions,
 } from "./session.js";
 
@@ -43,8 +43,8 @@ function oauthErrorPage(c: Context<{ Bindings: Env }>, message: string, status: 
 export const authRouter = new Hono<{ Bindings: Env }>();
 
 authRouter.get("/auth/login", async (c) => {
-  const state = await createOAuthState(c.env);
-  setOAuthStateCookie(c, state);
+  const state = createOAuthState();
+  await setOAuthStateCookie(c, state);
   const params = new URLSearchParams({
     client_id: c.env.DISCORD_CLIENT_ID,
     redirect_uri: `${c.env.PANEL_ORIGIN}/auth/callback`,
@@ -61,7 +61,9 @@ authRouter.get("/auth/callback", async (c) => {
   const oauthError = c.req.query("error");
   const stateCookie = readOAuthStateCookie(c);
   clearOAuthStateCookie(c);
-  if (!state || !(await consumeOAuthState(c.env, state, stateCookie))) {
+  const validation = await validateOAuthState(c.env, state, stateCookie);
+  if (!validation.ok) {
+    console.warn(`oauth state validation failed: reason=${validation.code}`);
     return oauthErrorPage(c, "La demande de connexion a expiré ou n'est plus valide.", 400);
   }
   if (oauthError || !code) {

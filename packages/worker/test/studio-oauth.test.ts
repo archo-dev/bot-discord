@@ -1,8 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createExecutionContext, env, fetchMock } from "cloudflare:test";
 import app from "../src/index.js";
 import type { Env } from "../src/env.js";
-import { createStudioSession, loadStudioSession, revokeStudioSessions } from "../src/auth/studio-session.js";
+import {
+  createStudioOAuthState,
+  createStudioSession,
+  loadStudioSession,
+  revokeStudioSessions,
+  validateStudioOAuthState,
+  validateStudioStepUpState,
+} from "../src/auth/studio-session.js";
+import { validateOAuthState } from "../src/auth/session.js";
+import { createOAuthStateCookieValue } from "../src/auth/oauth-state.js";
 
 const HOST = "studio.archodev.fr";
 const OWNER = "700000000000000091";
@@ -70,13 +79,20 @@ describe("Studio OAuth and session", () => {
     expect(authorize.searchParams.get("scope")).toBe("identify");
     const state = authorize.searchParams.get("state")!;
     const stateCookie = login.headers.get("set-cookie")!.split(";", 1)[0]!;
-    expect(login.headers.get("set-cookie")).toContain("SameSite=Lax");
+    const oauthCookie = login.headers.get("set-cookie")!;
+    expect(oauthCookie).toContain("Max-Age=300");
+    expect(oauthCookie).toContain("Path=/studio/auth/callback");
+    expect(oauthCookie).toContain("HttpOnly");
+    expect(oauthCookie).toContain("Secure");
+    expect(oauthCookie).toContain("SameSite=Lax");
+    expect(oauthCookie).not.toMatch(/;\s*Domain=/i);
 
     const callback = await request(`/studio/auth/callback?code=valid&state=${state}`, e, {
       headers: { cookie: stateCookie },
     });
     expect(callback.status).toBe(302);
     expect(callback.headers.get("location")).toBe(`https://${HOST}/`);
+    expect(callback.headers.get("set-cookie")).toContain("studio_oauth_state=; Max-Age=0; Path=/studio/auth/callback");
     const setCookie = callback.headers.get("set-cookie") ?? "";
     const sessionId = /(?:^|,\s*)studio_session=([0-9a-f]{64})/.exec(setCookie)?.[1];
     expect(sessionId).toBeTruthy();
@@ -114,7 +130,85 @@ describe("Studio OAuth and session", () => {
     const body = await denied.text();
     expect(body).toContain('href="/studio/auth/login"');
     expect(body).not.toContain("secret");
-    expect(await e.KV.get(`studio:oauthstate:${state}`)).toBeNull();
+    expect(denied.headers.get("set-cookie")).toContain("studio_oauth_state=; Max-Age=0; Path=/studio/auth/callback");
+  });
+
+  it("keeps panel, Studio login and Studio step-up states cryptographically isolated without KV", async () => {
+    const e = studioEnv();
+    const now = 1_750_000_000_000;
+    const state = createStudioOAuthState();
+    const studioCookie = await createOAuthStateCookieValue(e.SESSION_SECRET, "studio", state, now);
+    const panelCookie = await createOAuthStateCookieValue(e.SESSION_SECRET, "panel", state, now);
+    const stepUpCookie = await createOAuthStateCookieValue(e.SESSION_SECRET, "studio-step-up", state, now);
+    const kvGet = vi.fn();
+    const kvPut = vi.fn();
+    const kvDelete = vi.fn();
+    const withoutStateKv = {
+      ...e,
+      KV: { get: kvGet, put: kvPut, delete: kvDelete } as unknown as KVNamespace,
+    };
+
+    await expect(validateStudioOAuthState(withoutStateKv, state, studioCookie, now)).resolves.toEqual({ ok: true });
+    await expect(validateStudioOAuthState(withoutStateKv, state, panelCookie, now)).resolves.toEqual({ ok: false, code: "state_mismatch" });
+    await expect(validateOAuthState(withoutStateKv, state, studioCookie, now)).resolves.toEqual({ ok: false, code: "state_mismatch" });
+    await expect(validateStudioStepUpState(withoutStateKv, state, stepUpCookie, now)).resolves.toEqual({ ok: true });
+    await expect(validateStudioStepUpState(withoutStateKv, state, studioCookie, now)).resolves.toEqual({ ok: false, code: "state_mismatch" });
+    expect(kvGet).not.toHaveBeenCalled();
+    expect(kvPut).not.toHaveBeenCalled();
+    expect(kvDelete).not.toHaveBeenCalled();
+  });
+
+  it("rejects a replay after a successful Studio callback without a second Discord exchange", async () => {
+    const e = studioEnv();
+    mockDiscordUser(OWNER);
+    const login = await request("/studio/auth/login", e);
+    const authorize = new URL(login.headers.get("location")!);
+    const state = authorize.searchParams.get("state")!;
+    const cookie = login.headers.get("set-cookie")!.split(";", 1)[0]!;
+    const callbackUrl = `/studio/auth/callback?code=single-use&state=${state}`;
+    const first = await request(callbackUrl, e, { headers: { cookie } });
+    expect(first.status).toBe(302);
+
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const replay = await request(callbackUrl, e);
+    expect(replay.status).toBe(400);
+    expect(warn).toHaveBeenCalledWith("studio oauth state validation failed: scope=login reason=missing_cookie");
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(state);
+    warn.mockRestore();
+  });
+
+  it("uses an isolated signed cookie for Studio step-up and clears it on callback errors", async () => {
+    const e = studioEnv();
+    const sessionId = await createStudioSession(e, {
+      userId: OWNER,
+      username: "studio-owner",
+      globalName: null,
+      avatar: null,
+      tokenExpiresAt: Date.now() + 3_600_000,
+      createdAt: Date.now(),
+    });
+    const sessionCookie = `studio_session=${sessionId}`;
+    const login = await request("/studio/auth/step-up", e, { headers: { cookie: sessionCookie } });
+    expect(login.status).toBe(302);
+    const authorize = new URL(login.headers.get("location")!);
+    const state = authorize.searchParams.get("state")!;
+    const setCookie = login.headers.get("set-cookie")!;
+    expect(setCookie).toContain("studio_stepup_state=");
+    expect(setCookie).toContain("Max-Age=300");
+    expect(setCookie).toContain("Path=/studio/auth/step-up/callback");
+    expect(setCookie).toContain("HttpOnly");
+    expect(setCookie).toContain("Secure");
+    expect(setCookie).toContain("SameSite=Lax");
+    expect(setCookie).not.toMatch(/;\s*Domain=/i);
+    const stateCookie = setCookie.split(";", 1)[0]!;
+
+    const callback = await request(`/studio/auth/step-up/callback?state=${state}`, e, {
+      headers: { cookie: `${sessionCookie}; ${stateCookie}` },
+    });
+    expect(callback.status).toBe(400);
+    expect(callback.headers.get("set-cookie")).toContain(
+      "studio_stepup_state=; Max-Age=0; Path=/studio/auth/step-up/callback",
+    );
   });
 
   it("never creates a session for a non-operator", async () => {
