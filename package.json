@@ -23,6 +23,7 @@
     "commands:sync:global": "tsx scripts/register-commands.ts sync-global",
     "commands:sync:guild": "tsx scripts/register-commands.ts sync-guild",
     "commands:cleanup:guild": "tsx scripts/register-commands.ts cleanup-guild",
+    "interactions:configure:staging": "tsx scripts/configure-staging-interactions.ts",
     "migrate:local": "pnpm --filter @bot/worker migrate:local",
     "migrate:remote": "pnpm --filter @bot/worker migrate:remote"
   },

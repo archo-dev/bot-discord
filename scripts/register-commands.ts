@@ -360,6 +360,17 @@ async function main(): Promise<void> {
     if (identity.bot !== true || identity.id !== clientId) {
       throw new Error(`Le token Discord n'appartient pas a l'application ${target}; aucune action effectuee.`);
     }
+    const expectedStagingEndpoint = "https://botdiscord-staging.archodev.workers.dev/interactions";
+    if (target === "staging") {
+      const applicationResponse = await fetch("https://discord.com/api/v10/oauth2/applications/@me", {
+        headers: { authorization: `Bot ${token}` },
+      });
+      if (!applicationResponse.ok) throw new Error(`Verification de l'application staging echouee (${applicationResponse.status})`);
+      const application = await applicationResponse.json() as { interactions_endpoint_url?: unknown };
+      if (application.interactions_endpoint_url !== expectedStagingEndpoint) {
+        throw new Error(`L'endpoint d'interactions staging doit etre ${expectedStagingEndpoint}; aucune commande modifiee.`);
+      }
+    }
 
     const global = await list("/commands");
     const guild = guildId ? await list(`/guilds/${guildId}/commands`) : [];
