@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type { AccountResponse } from "@bot/shared";
 import { api, avatarUrl } from "../../lib/api.js";
 import { Button, Card, ErrorCard, PageHeader } from "../../ui/kit.js";
@@ -17,16 +17,11 @@ export function AccountPage() {
   }, []);
 
   const account = useQuery({ queryKey: ["account"], queryFn: () => api<AccountResponse>("/api/account"), retry: false });
-  const [revoking, setRevoking] = useState(false);
-
-  const revokeAll = async () => {
-    setRevoking(true);
-    try {
-      await fetch("/auth/revoke-all", { method: "POST" });
-    } finally {
-      location.reload();
-    }
-  };
+  const revokeAll = useMutation({
+    mutationFn: () => api<{ ok: true }>("/auth/revoke-all", { method: "POST" }),
+    meta: { errorMessage: "La déconnexion globale a échoué — réessayez." },
+    onSuccess: () => location.reload(),
+  });
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
@@ -72,8 +67,8 @@ export function AccountPage() {
                 <h2 className="text-sm font-semibold text-zinc-200">Sécurité</h2>
                 <p className="mt-1 text-sm text-zinc-500">Déconnecte toutes vos sessions actives sur tous vos appareils.</p>
               </div>
-              <Button variant="secondary" size="sm" onClick={() => void revokeAll()} disabled={revoking}>
-                {revoking ? "Déconnexion…" : "Se déconnecter partout"}
+              <Button variant="secondary" size="sm" onClick={() => revokeAll.mutate()} loading={revokeAll.isPending}>
+                {revokeAll.isPending ? "Déconnexion…" : "Se déconnecter partout"}
               </Button>
             </div>
           </Card>

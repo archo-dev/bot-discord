@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Link } from "react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type { GuildSummary, MeResponse } from "@bot/shared";
 import { api, avatarUrl, guildIconUrl } from "../lib/api.js";
 import { getPlatformFlags } from "../lib/flags.js";
@@ -12,6 +12,11 @@ export function GuildList({ me }: { me: MeResponse }) {
   const guilds = useQuery({
     queryKey: ["guilds"],
     queryFn: () => api<GuildSummary[]>("/api/guilds"),
+  });
+  const logout = useMutation({
+    mutationFn: () => api<{ ok: true }>("/auth/logout", { method: "POST" }),
+    meta: { errorMessage: "La déconnexion a échoué — réessayez." },
+    onSuccess: () => location.reload(),
   });
 
   useEffect(() => {
@@ -34,9 +39,11 @@ export function GuildList({ me }: { me: MeResponse }) {
           <img src={avatarUrl(me.id, me.avatar, 64)} alt="" className="h-10 w-10 rounded-full ring-2 ring-zinc-800" />
           <span className="hidden text-sm text-zinc-300 sm:inline">{me.globalName ?? me.username}</span>
           <IconButton
-            label="Déconnexion"
+            label={logout.isPending ? "Déconnexion en cours" : "Déconnexion"}
             danger
-            onClick={() => fetch("/auth/logout", { method: "POST" }).then(() => location.reload())}
+            disabled={logout.isPending}
+            aria-busy={logout.isPending}
+            onClick={() => logout.mutate()}
           >
             <Icon.logout />
           </IconButton>

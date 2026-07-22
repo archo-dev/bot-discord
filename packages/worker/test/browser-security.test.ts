@@ -36,6 +36,79 @@ describe("M02 browser security", () => {
     expect(sessionCookie).toContain("SameSite=Lax");
   });
 
+  it("completes the exact OAuth callback, creates a session and logs it out", async () => {
+    fetchMock.activate();
+    fetchMock.disableNetConnect();
+    fetchMock.get("https://discord.com").intercept({ path: "/api/v10/oauth2/token", method: "POST" }).reply(200, {
+      access_token: "oauth-access-token",
+      refresh_token: "oauth-refresh-token",
+      expires_in: 3600,
+      token_type: "Bearer",
+      scope: "identify guilds",
+    });
+    fetchMock.get("https://discord.com").intercept({ path: "/api/v10/users/@me", method: "GET" }).reply(200, {
+      id: "880000000000000010",
+      username: "oauth-user",
+      global_name: "OAuth User",
+      avatar: null,
+    });
+
+    const login = await app.request("/auth/login", {}, LOCAL, createExecutionContext());
+    expect(login.status).toBe(302);
+    const authorize = new URL(login.headers.get("location")!);
+    expect(authorize.origin + authorize.pathname).toBe("https://discord.com/oauth2/authorize");
+    expect(authorize.searchParams.get("redirect_uri")).toBe(`${LOCAL.PANEL_ORIGIN}/auth/callback`);
+    expect(authorize.searchParams.get("scope")).toBe("identify guilds");
+    const state = authorize.searchParams.get("state")!;
+    const stateCookie = login.headers.get("set-cookie")!.split(";", 1)[0]!;
+
+    const callback = await app.request(
+      `/auth/callback?code=valid&state=${state}`,
+      { headers: { cookie: stateCookie } },
+      LOCAL,
+      createExecutionContext(),
+    );
+    expect(callback.status).toBe(302);
+    expect(callback.headers.get("location")).toBe(`${LOCAL.PANEL_ORIGIN}/`);
+    const sessionId = /(?:^|,\s*)session=([0-9a-f]{64})/.exec(callback.headers.get("set-cookie") ?? "")?.[1];
+    expect(sessionId).toBeTruthy();
+
+    const sessionCookie = `session=${sessionId}`;
+    const me = await app.request("/api/me", { headers: { cookie: sessionCookie } }, LOCAL, createExecutionContext());
+    expect(me.status).toBe(200);
+    expect(await me.json()).toMatchObject({ id: "880000000000000010", username: "oauth-user" });
+
+    const logout = await app.request(
+      "/auth/logout",
+      { method: "POST", headers: { cookie: sessionCookie, origin: LOCAL.PANEL_ORIGIN } },
+      LOCAL,
+      createExecutionContext(),
+    );
+    expect(logout.status).toBe(200);
+    expect(logout.headers.get("set-cookie")).toContain("session=");
+    expect((await app.request("/api/me", { headers: { cookie: sessionCookie } }, LOCAL, createExecutionContext())).status).toBe(401);
+  });
+
+  it("consumes a denied OAuth request and returns a recoverable error page", async () => {
+    const login = await app.request("/auth/login", {}, LOCAL, createExecutionContext());
+    const authorize = new URL(login.headers.get("location")!);
+    const state = authorize.searchParams.get("state")!;
+    const cookie = login.headers.get("set-cookie")!.split(";", 1)[0]!;
+
+    const denied = await app.request(
+      `/auth/callback?error=access_denied&error_description=secret&state=${state}`,
+      { headers: { cookie } },
+      LOCAL,
+      createExecutionContext(),
+    );
+    expect(denied.status).toBe(400);
+    expect(denied.headers.get("content-type")).toContain("text/html");
+    const body = await denied.text();
+    expect(body).toContain('href="/auth/login"');
+    expect(body).not.toContain("secret");
+    expect(await env.KV.get(`oauthstate:${state}`)).toBeNull();
+  });
+
   it("binds OAuth state to the browser and consumes it once", async () => {
     const state = await createOAuthState(env);
     expect(await consumeOAuthState(env, state, "wrong")).toBe(false);

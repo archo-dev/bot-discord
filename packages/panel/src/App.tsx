@@ -178,6 +178,7 @@ export function App() {
       {/* Espace client (M8) — gardé par platform.entitlements ; sinon catch-all → "/". */}
       {entitlements && (
         <Route path="/app" element={<Suspense fallback={<PublicFallback />}><AppLayout /></Suspense>}>
+          <Route index element={<Navigate to="subscription" replace />} />
           <Route path="subscription" element={<SubscriptionPage />} />
           <Route path="account" element={<AccountPage />} />
           {/* Facturation (M9) — flag additionnel platform.billing. */}

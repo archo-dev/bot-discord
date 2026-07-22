@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import type { Env } from "../env.js";
 import {
   clearSessionCookie,
@@ -33,6 +33,13 @@ interface DiscordUser {
   avatar: string | null;
 }
 
+function oauthErrorPage(c: Context<{ Bindings: Env }>, message: string, status: 400 | 502) {
+  return c.html(
+    `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connexion Discord impossible</title></head><body><main><h1>Connexion Discord impossible</h1><p>${message}</p><p><a href="/auth/login">Réessayer la connexion</a></p></main></body></html>`,
+    status,
+  );
+}
+
 export const authRouter = new Hono<{ Bindings: Env }>();
 
 authRouter.get("/auth/login", async (c) => {
@@ -51,10 +58,14 @@ authRouter.get("/auth/login", async (c) => {
 authRouter.get("/auth/callback", async (c) => {
   const code = c.req.query("code");
   const state = c.req.query("state");
+  const oauthError = c.req.query("error");
   const stateCookie = readOAuthStateCookie(c);
   clearOAuthStateCookie(c);
-  if (!code || !state || !(await consumeOAuthState(c.env, state, stateCookie))) {
-    return c.text("Invalid OAuth state. Please retry from the login page.", 400);
+  if (!state || !(await consumeOAuthState(c.env, state, stateCookie))) {
+    return oauthErrorPage(c, "La demande de connexion a expiré ou n'est plus valide.", 400);
+  }
+  if (oauthError || !code) {
+    return oauthErrorPage(c, "La connexion a été annulée ou refusée par Discord.", 400);
   }
 
   const tokenRes = await fetch(`${DISCORD_API}/oauth2/token`, {
@@ -70,14 +81,14 @@ authRouter.get("/auth/callback", async (c) => {
   });
   if (!tokenRes.ok) {
     console.error(`oauth token exchange failed: ${tokenRes.status}`);
-    return c.text("Discord token exchange failed. Please retry.", 502);
+    return oauthErrorPage(c, "Discord n'a pas pu finaliser la connexion.", 502);
   }
   const token = (await tokenRes.json()) as TokenResponse;
 
   const userRes = await fetch(`${DISCORD_API}/users/@me`, {
     headers: { authorization: `Bearer ${token.access_token}` },
   });
-  if (!userRes.ok) return c.text("Failed to fetch your Discord profile.", 502);
+  if (!userRes.ok) return oauthErrorPage(c, "Le profil Discord n'a pas pu être chargé.", 502);
   const user = (await userRes.json()) as DiscordUser;
 
   const sessionId = await createSession(c.env, {

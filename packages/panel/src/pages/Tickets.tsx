@@ -154,7 +154,19 @@ export function TicketsPage() {
     setForm((previous) => ({ ...previous, fields: previous.fields.map((entry, currentIndex) => currentIndex === index ? { ...entry, ...patch } : entry) }));
   };
 
-  if (settings.isPending) return <SkeletonSettingsPage cards={4} />;
+  if (settings.isPending || channels.isPending || roles.isPending) return <SkeletonSettingsPage cards={4} />;
+  if (settings.isError || channels.isError || roles.isError) {
+    return (
+      <ErrorCard
+        message="Impossible de charger la configuration complète des tickets."
+        onRetry={() => {
+          void settings.refetch();
+          void channels.refetch();
+          void roles.refetch();
+        }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -343,11 +355,13 @@ function TicketList({ guildId, form, canWrite }: { guildId: string; form: Ticket
         <Select value={assignee} onChange={(event) => { setAssignee(event.target.value as typeof assignee); resetPage(); }} className="h-9 w-auto"><option value="">Toute assignation</option><option value="unassigned">Non assignés</option></Select>
       </div>}
     >
-      {tickets.isPending ? <SkeletonList rows={4} /> : tickets.data?.items.length === 0 ? (
+      {tickets.isPending ? <SkeletonList rows={4} /> : tickets.isError ? (
+        <ErrorCard message="Impossible de charger les tickets." onRetry={() => void tickets.refetch()} />
+      ) : tickets.data.items.length === 0 ? (
         <EmptyState icon={<Icon.ticket />} title="Aucun ticket pour ces filtres" action={<Button variant="secondary" size="sm" onClick={() => { setState(""); setPriority(""); setAssignee(""); resetPage(); }}>Effacer les filtres</Button>} />
       ) : (
         <div className="divide-y divide-white/5">
-          {tickets.data?.items.map((ticket) => (
+          {tickets.data.items.map((ticket) => (
             <div key={ticket.id} className="grid gap-3 py-3 text-sm sm:grid-cols-[auto_1fr_auto] sm:items-center">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge tone={ticket.state === "open" ? "success" : ticket.state === "pending" ? "warning" : "neutral"}>{STATE_LABELS[ticket.state]}</Badge>
@@ -361,12 +375,12 @@ function TicketList({ guildId, form, canWrite }: { guildId: string; form: Ticket
               </div>
               <div className="flex items-center justify-end gap-2">
                 {canWrite && ticket.state !== "closed" && (
-                  <Button size="sm" variant="secondary" loading={patch.isPending && detail?.id === ticket.id} onClick={() => patch.mutate({ ticketId: ticket.id, action: ticket.assigneeId === me.data?.id ? { action: "unassign" } : { action: "claim" } })}>
+                  <Button size="sm" variant="secondary" loading={patch.isPending && patch.variables?.ticketId === ticket.id} onClick={() => patch.mutate({ ticketId: ticket.id, action: ticket.assigneeId === me.data?.id ? { action: "unassign" } : { action: "claim" } })}>
                     {ticket.assigneeId === me.data?.id ? "Libérer" : "Prendre"}
                   </Button>
                 )}
                 {canWrite && ticket.state === "closed" && (
-                  <Button size="sm" variant="secondary" loading={patch.isPending && detail?.id === ticket.id} onClick={() => patch.mutate({ ticketId: ticket.id, action: { action: "reopen" } })}>
+                  <Button size="sm" variant="secondary" loading={patch.isPending && patch.variables?.ticketId === ticket.id} onClick={() => patch.mutate({ ticketId: ticket.id, action: { action: "reopen" } })}>
                     Rouvrir
                   </Button>
                 )}
@@ -376,28 +390,28 @@ function TicketList({ guildId, form, canWrite }: { guildId: string; form: Ticket
           ))}
         </div>
       )}
-      <Pagination page={page} totalPages={totalPages} total={tickets.data?.total} onPage={setPage} />
+      {tickets.data && <Pagination page={page} totalPages={totalPages} total={tickets.data.total} onPage={setPage} />}
 
       <Drawer open={detail !== null} onClose={() => setDetail(null)} title={detail ? `Ticket #${String(detail.number).padStart(4, "0")}` : ""}>
         {detail && <div className="space-y-5">
           <div className="flex flex-wrap gap-2"><Badge tone={detail.state === "open" ? "success" : detail.state === "pending" ? "warning" : "neutral"}>{STATE_LABELS[detail.state]}</Badge><Badge tone={detail.priority === "high" ? "danger" : "neutral"}>Priorité {detail.priority === "high" ? "haute" : "normale"}</Badge><Badge>{categoryLabel(detail.categoryKey)}</Badge></div>
           {detail.formResponse && Object.keys(detail.formResponse).length > 0 && <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-4"><h3 className="mb-3 text-sm font-semibold text-zinc-200">Réponses privées</h3><dl className="space-y-3">{Object.entries(detail.formResponse).map(([id, value]) => <div key={id}><dt className="text-xs text-zinc-500">{form.fields.find((field) => field.id === id)?.label ?? id}</dt><dd className="mt-1 whitespace-pre-wrap text-sm text-zinc-200">{value}</dd></div>)}</dl></div>}
           {canWrite && detail.state !== "closed" && <div className="flex flex-wrap gap-2 border-y border-zinc-800 py-3">
-            <Button size="sm" variant="secondary" onClick={() => patch.mutate({ ticketId: detail.id, action: detail.assigneeId === me.data?.id ? { action: "unassign" } : { action: "claim" } })}>{detail.assigneeId === me.data?.id ? "Libérer" : "Me l'assigner"}</Button>
-            <Button size="sm" variant="secondary" onClick={() => patch.mutate({ ticketId: detail.id, action: { action: "set_state", state: detail.state === "pending" ? "open" : "pending" } })}>{detail.state === "pending" ? "Repasser ouvert" : "Mettre en attente"}</Button>
-            <Button size="sm" variant="secondary" onClick={() => patch.mutate({ ticketId: detail.id, action: { action: "set_priority", priority: detail.priority === "high" ? "normal" : "high" } })}>{detail.priority === "high" ? "Priorité normale" : "Priorité haute"}</Button>
+            <Button size="sm" variant="secondary" disabled={patch.isPending} onClick={() => patch.mutate({ ticketId: detail.id, action: detail.assigneeId === me.data?.id ? { action: "unassign" } : { action: "claim" } })}>{detail.assigneeId === me.data?.id ? "Libérer" : "Me l'assigner"}</Button>
+            <Button size="sm" variant="secondary" disabled={patch.isPending} onClick={() => patch.mutate({ ticketId: detail.id, action: { action: "set_state", state: detail.state === "pending" ? "open" : "pending" } })}>{detail.state === "pending" ? "Repasser ouvert" : "Mettre en attente"}</Button>
+            <Button size="sm" variant="secondary" disabled={patch.isPending} onClick={() => patch.mutate({ ticketId: detail.id, action: { action: "set_priority", priority: detail.priority === "high" ? "normal" : "high" } })}>{detail.priority === "high" ? "Priorité normale" : "Priorité haute"}</Button>
           </div>}
           {canWrite && detail.state === "closed" && <div className="border-y border-zinc-800 py-3">
             <Button size="sm" variant="secondary" loading={patch.isPending} onClick={() => patch.mutate({ ticketId: detail.id, action: { action: "reopen" } })}>Rouvrir dans un nouveau salon</Button>
           </div>}
-          <div><h3 className="mb-3 text-sm font-semibold text-zinc-200">Timeline</h3>{events.isPending ? <SkeletonList rows={3} /> : events.data?.length ? <div className="space-y-2">{events.data.map((event) => <div key={event.id} className="flex flex-wrap items-center gap-2 text-sm"><span className="text-zinc-200">{EVENT_LABELS[event.type]}</span>{event.toValue && <Badge>{event.toValue}</Badge>}<span className="inline-flex items-center gap-1 text-zinc-500">par <UserCell userId={event.actorId} /> · <TimeAgo iso={event.createdAt} /></span></div>)}</div> : <p className="text-sm text-zinc-500">Aucun événement M09 pour ce ticket historique.</p>}</div>
+          <div><h3 className="mb-3 text-sm font-semibold text-zinc-200">Timeline</h3>{events.isPending ? <SkeletonList rows={3} /> : events.isError ? <ErrorCard message="Impossible de charger la timeline." onRetry={() => void events.refetch()} /> : events.data.length ? <div className="space-y-2">{events.data.map((event) => <div key={event.id} className="flex flex-wrap items-center gap-2 text-sm"><span className="text-zinc-200">{EVENT_LABELS[event.type]}</span>{event.toValue && <Badge>{event.toValue}</Badge>}<span className="inline-flex items-center gap-1 text-zinc-500">par <UserCell userId={event.actorId} /> · <TimeAgo iso={event.createdAt} /></span></div>)}</div> : <p className="text-sm text-zinc-500">Aucun événement M09 pour ce ticket historique.</p>}</div>
           {detail.hasTranscript && <Button variant="secondary" onClick={() => { setTranscriptOf(detail); setDetail(null); }}>Charger le transcript</Button>}
         </div>}
       </Drawer>
 
       <Modal open={transcriptOf !== null} onClose={() => setTranscriptOf(null)} title={transcriptOf ? `Transcript du ticket #${String(transcriptOf.number).padStart(4, "0")}` : ""} size="2xl">
         {transcript.isPending && <SkeletonList rows={6} />}
-        {transcript.isError && <ErrorCard message="Transcript introuvable." />}
+        {transcript.isError && <ErrorCard message="Transcript introuvable." onRetry={() => void transcript.refetch()} />}
         {transcript.data && <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg bg-zinc-950 p-4 text-xs text-zinc-300">{transcript.data.transcript}</pre>}
       </Modal>
     </Card>

@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AutoRoleEntry, GuildOverview, RoleOption } from "@bot/shared";
 import { api, ApiError, fieldError } from "../lib/api.js";
-import { Button, Card, Chip, Field, InfoCard, Input, Toggle } from "../ui/kit.js";
+import { Button, Card, Chip, ErrorCard, Field, InfoCard, Input, Toggle } from "../ui/kit.js";
 import { ChannelSelect } from "../ui/entity-select.js";
 import { SaveBar, useDirty } from "../ui/savebar.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
@@ -110,7 +110,21 @@ export function ConfigPage() {
     setSelectedAutoRoles(autoRoles.data?.map((r) => r.roleId) ?? []);
   };
 
-  if (overview.isPending) return <SkeletonSettingsPage cards={3} />;
+  if (overview.isPending || roles.isPending || autoRoles.isPending) return <SkeletonSettingsPage cards={3} />;
+  if (overview.isError || roles.isError || autoRoles.isError) {
+    return (
+      <div className="max-w-5xl">
+        <ErrorCard
+          message="Impossible de charger la configuration complète du serveur."
+          onRetry={() => {
+            void overview.refetch();
+            void roles.refetch();
+            void autoRoles.refetch();
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     // fieldset disabled (M15) : neutralise tous les champs pour les accès lecture seule.
