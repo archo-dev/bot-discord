@@ -48,6 +48,15 @@ function studioOAuthErrorPage(c: Context<StudioContext>, message: string, status
   );
 }
 
+async function logTokenExchangeFailure(scope: "login" | "step-up", response: Response): Promise<void> {
+  const payload = (await response.json().catch(() => null)) as { error?: unknown; error_description?: unknown } | null;
+  const clean = (value: unknown): string =>
+    typeof value === "string" ? value.replace(/[\r\n\t]/g, " ").slice(0, 200) : "unknown";
+  console.error(
+    `studio oauth token exchange failed: scope=${scope} status=${response.status} error=${clean(payload?.error)} description=${clean(payload?.error_description)}`,
+  );
+}
+
 export const studioOAuthRouter = new Hono<StudioContext>();
 
 studioOAuthRouter.use("/studio/auth/*", requireStudioHost);
@@ -96,7 +105,7 @@ studioOAuthRouter.get("/studio/auth/callback", async (c) => {
     }),
   });
   if (!tokenRes.ok) {
-    console.error(`studio oauth token exchange failed: ${tokenRes.status}`);
+    await logTokenExchangeFailure("login", tokenRes);
     return studioOAuthErrorPage(c, "Discord n'a pas pu finaliser la connexion.", 502);
   }
   const token = (await tokenRes.json()) as TokenResponse;
@@ -178,7 +187,10 @@ studioOAuthRouter.get("/studio/auth/step-up/callback", async (c) => {
       redirect_uri: `${studioOrigin(c.env)}/studio/auth/step-up/callback`,
     }),
   });
-  if (!tokenRes.ok) return c.text("Discord token exchange failed. Please retry.", 502);
+  if (!tokenRes.ok) {
+    await logTokenExchangeFailure("step-up", tokenRes);
+    return c.text("Discord token exchange failed. Please retry.", 502);
+  }
   const token = (await tokenRes.json()) as TokenResponse;
 
   const userRes = await fetch(`${DISCORD_API}/users/@me`, { headers: { authorization: `Bearer ${token.access_token}` } });

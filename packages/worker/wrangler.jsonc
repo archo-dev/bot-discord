@@ -112,7 +112,7 @@
       ],
       "vars": {
         // Discord staging : callbacks et secrets configurés hors dépôt.
-        "DISCORD_CLIENT_ID": "1524597895859536074",
+        "DISCORD_CLIENT_ID": "1529353871619522600",
         "PANEL_ORIGIN": "https://botdiscord-staging.archodev.workers.dev",
         "PANEL_ALLOWED_ORIGINS": "https://botdiscord-staging.archodev.workers.dev",
         "STUDIO_HOST": "studio-staging.archolabs.com",
