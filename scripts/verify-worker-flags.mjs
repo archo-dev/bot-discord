@@ -6,8 +6,8 @@
 //
 // Production (top-level `vars`) : PLATFORM_ENTITLEMENTS/SUPPORT/LAUNCH = "true",
 //   PLATFORM_BILLING et PLATFORM_STUDIO ABSENTS (off).
-// Staging (env.staging.vars) : PLATFORM_ENTITLEMENTS/SUPPORT/BILLING = "true",
-//   PLATFORM_LAUNCH et PLATFORM_STUDIO absents.
+// Staging (env.staging.vars) : PLATFORM_ENTITLEMENTS/SUPPORT/BILLING/STUDIO =
+//   "true", PLATFORM_LAUNCH absent.
 // Aucune valeur secrète n'est lue ici (uniquement des booléens non secrets).
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -45,8 +45,8 @@ const specs = {
   staging: {
     block: stagingBlock,
     label: "env.staging",
-    on: ["PLATFORM_ENTITLEMENTS", "PLATFORM_SUPPORT", "PLATFORM_BILLING"],
-    off: ["PLATFORM_LAUNCH", "PLATFORM_STUDIO"],
+    on: ["PLATFORM_ENTITLEMENTS", "PLATFORM_SUPPORT", "PLATFORM_BILLING", "PLATFORM_STUDIO"],
+    off: ["PLATFORM_LAUNCH"],
   },
 };
 

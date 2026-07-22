@@ -90,6 +90,10 @@
     "staging": {
       "name": "botdiscord-staging",
       "workers_dev": true,
+      "routes": [
+        { "pattern": "studio-staging.archolabs.com/studio-api/*", "zone_name": "archolabs.com" },
+        { "pattern": "studio-staging.archolabs.com/studio/auth/*", "zone_name": "archolabs.com" }
+      ],
       // Pas de cron sur le staging (évite le bruit ; la prod garde les siens).
       "triggers": { "crons": [] },
       "d1_databases": [
@@ -107,12 +111,11 @@
         }
       ],
       "vars": {
-        // Discord : app dédiée staging à fournir (client id + secrets). La valeur
-        // prod ci-dessous n'est qu'un défaut ; l'OAuth staging exige des callbacks
-        // dédiés dans le Dev Portal (action propriétaire).
+        // Discord staging : callbacks et secrets configurés hors dépôt.
         "DISCORD_CLIENT_ID": "1524597895859536074",
         "PANEL_ORIGIN": "https://botdiscord-staging.archodev.workers.dev",
         "PANEL_ALLOWED_ORIGINS": "https://botdiscord-staging.archodev.workers.dev",
+        "STUDIO_HOST": "studio-staging.archolabs.com",
         "SECURITY_ORIGIN_MODE": "enforce",
         "SECURITY_CSP_MODE": "report",
         "SESSION_GLOBAL_VERSION": "1",
@@ -131,10 +134,10 @@
         "BILLING_PRICE_PREMIUM_YEAR": "price_1TvnQKIqkOtZZ1bv0LTdnE84",
         "BILLING_PRICE_BUSINESS_MONTH": "price_1TvnR0IqkOtZZ1bvRoRmIris",
         "BILLING_PRICE_BUSINESS_YEAR": "price_1TvnXcIqkOtZZ1bv2RLRoDhS",
-        // Billing activé sur le staging (checkout Stripe TEST hébergé).
-        "PLATFORM_BILLING": "true"
-        // Restent OFF : PLATFORM_STUDIO (owner ids + callbacks Discord),
-        // PLATFORM_LAUNCH (prix), LAUNCH_*, STUDIO_HOST.
+        // Billing TEST et Studio activés uniquement sur le staging.
+        "PLATFORM_BILLING": "true",
+        "PLATFORM_STUDIO": "true"
+        // Restent OFF : PLATFORM_LAUNCH (prix) et LAUNCH_*.
       }
     }
   }
