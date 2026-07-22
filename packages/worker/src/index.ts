@@ -54,8 +54,6 @@ app.use("/auth/*", bodyLimit({ maxSize: 8 * 1024, onError: (c) => c.json({ error
 app.use("/interactions", bodyLimit({ maxSize: 256 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
 app.use("/internal/*", bodyLimit({ maxSize: 512 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
 app.use("/webhooks/*", bodyLimit({ maxSize: 256 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
-app.use("/studio/*", bodyLimit({ maxSize: 8 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
-app.use("/studio-api/*", bodyLimit({ maxSize: 64 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
 app.get("/health", (c) => c.json({ ok: true }));
 app.route("/", interactionsRouter);
 app.route("/", authRouter);

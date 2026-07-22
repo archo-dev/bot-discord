@@ -65,6 +65,16 @@ export interface StudioGuildSummary {
 
 export type StudioGuildsListResponse = Paginated<StudioGuildSummary>;
 
+/** Minimized known-user row, derived only from existing operational tables. */
+export interface StudioUserSummary {
+  userId: string;
+  activeEntitlements: number;
+  supportTickets: number;
+  lastActivityAt: string;
+}
+
+export type StudioUsersListResponse = Paginated<StudioUserSummary>;
+
 /** Read-only entitlement/subscription row (no PII, no billing secrets). */
 export interface StudioSubscriptionSummary {
   id: number;
@@ -78,6 +88,22 @@ export interface StudioSubscriptionSummary {
 }
 
 export type StudioSubscriptionsListResponse = Paginated<StudioSubscriptionSummary>;
+
+/** Cross-user support queue row. Message bodies stay behind a dedicated detail workflow. */
+export interface StudioSupportTicketSummary {
+  id: number;
+  userId: string;
+  guildId: string | null;
+  planAtOpen: PlanId;
+  priority: StudioTicketPriority;
+  subject: string;
+  status: "open" | "pending" | "resolved" | "closed";
+  assignee: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type StudioSupportListResponse = Paginated<StudioSupportTicketSummary>;
 
 export type StudioUpdateStatus = "draft" | "scheduled" | "published" | "archived";
 

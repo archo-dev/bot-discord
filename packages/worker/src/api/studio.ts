@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 import type {
   PlanId,
@@ -7,11 +8,15 @@ import type {
   StudioAuditPage,
   StudioOverview,
   StudioSessionInfo,
+  StudioSupportListResponse,
+  StudioSupportTicketSummary,
   StudioSubscriptionsListResponse,
   StudioSubscriptionSummary,
   StudioUpdatesListResponse,
   StudioUpdateStatus,
   StudioUpdateSummary,
+  StudioUsersListResponse,
+  StudioUserSummary,
 } from "@bot/shared";
 import {
   requireDeveloper,
@@ -28,16 +33,20 @@ import {
   getPublishedReleaseNoteBySlug,
   listEntitlementsForStudio,
   listGuildsForStudio,
+  listSupportQueue,
+  listUsersForStudio,
   listAuditEvents,
   listPublishedReleaseNotes,
   listReleaseNotesForStudio,
   publishReleaseNote,
   type StudioEntitlementRow,
   type StudioGuildRow,
+  type StudioUserRow,
   type StudioReleaseNoteRow,
 } from "../db/queries.js";
 import { registerGrantRoutes } from "./studio-grants.js";
 import { registerObservabilityRoutes } from "./studio-observability.js";
+import { callerIp, writeStudioAudit } from "../security/studio-audit.js";
 
 /**
  * Isolated Studio API (M12+). Every route is host-gated (requireStudioHost) and
@@ -49,6 +58,8 @@ export const studioApiRouter = new Hono<StudioContext>();
 
 // Host isolation first: on the client host (or flag off) every /studio-api/* is 404.
 studioApiRouter.use("/studio-api/*", requireStudioHost);
+// Body parsing comes after host isolation: the client host must always see 404.
+studioApiRouter.use("/studio-api/*", bodyLimit({ maxSize: 64 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
 // Then a valid studio session (resolves the operator) on every route.
 studioApiRouter.use("/studio-api/*", requireStudioSession);
 studioApiRouter.use("/studio-api/*", studioMutationOrigin);
@@ -70,13 +81,14 @@ studioApiRouter.get("/studio-api/session", (c) => {
 });
 
 studioApiRouter.get("/studio-api/overview", async (c) => {
+  const now = new Date().toISOString();
   const [guilds, activeEntitlements, openTickets, latest] = await Promise.all([
     countGuildsForStudio(c.env.DB),
     countActiveEntitlements(c.env.DB),
     countOpenTicketsByPriority(c.env.DB),
-    listReleaseNotesForStudio(c.env.DB, 1, 1),
+    listPublishedReleaseNotes(c.env.DB, { now, page: 1, pageSize: 1 }),
   ]);
-  const published = latest.rows.find((r) => r.status === "published" && r.published_at);
+  const published = latest.rows[0];
   const body: StudioOverview = {
     guilds,
     activeEntitlements,
@@ -103,6 +115,28 @@ studioApiRouter.get("/studio-api/guilds", requireDeveloper("guilds.inspect"), as
   return c.json(body);
 });
 
+function toUserSummary(row: StudioUserRow): StudioUserSummary {
+  return {
+    userId: row.user_id,
+    activeEntitlements: row.active_entitlements,
+    supportTickets: row.support_tickets,
+    lastActivityAt: row.last_activity_at,
+  };
+}
+
+studioApiRouter.get("/studio-api/users", requireDeveloper("guilds.inspect"), async (c) => {
+  const parsed = pageSchema.safeParse({ page: c.req.query("page"), pageSize: c.req.query("pageSize") });
+  if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
+  const { rows, total } = await listUsersForStudio(c.env.DB, parsed.data.page, parsed.data.pageSize);
+  const body: StudioUsersListResponse = {
+    items: rows.map(toUserSummary),
+    total,
+    page: parsed.data.page,
+    pageSize: parsed.data.pageSize,
+  };
+  return c.json(body);
+});
+
 function toSubscriptionSummary(row: StudioEntitlementRow): StudioSubscriptionSummary {
   return {
     id: row.id,
@@ -122,6 +156,43 @@ studioApiRouter.get("/studio-api/subscriptions", requireDeveloper("subscriptions
   const { rows, total } = await listEntitlementsForStudio(c.env.DB, parsed.data.page, parsed.data.pageSize);
   const body: StudioSubscriptionsListResponse = {
     items: rows.map(toSubscriptionSummary),
+    total,
+    page: parsed.data.page,
+    pageSize: parsed.data.pageSize,
+  };
+  return c.json(body);
+});
+
+const supportQuerySchema = pageSchema.extend({
+  status: z.enum(["open", "pending", "resolved", "closed"]).optional(),
+});
+
+studioApiRouter.get("/studio-api/support", requireDeveloper("support.manage"), async (c) => {
+  const parsed = supportQuerySchema.safeParse({
+    page: c.req.query("page"),
+    pageSize: c.req.query("pageSize"),
+    status: c.req.query("status"),
+  });
+  if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
+  const { rows, total } = await listSupportQueue(
+    c.env.DB,
+    parsed.data.page,
+    parsed.data.pageSize,
+    parsed.data.status,
+  );
+  const body: StudioSupportListResponse = {
+    items: rows.map((row): StudioSupportTicketSummary => ({
+      id: row.id,
+      userId: row.user_id,
+      guildId: row.guild_id,
+      planAtOpen: row.plan_at_open as StudioSupportTicketSummary["planAtOpen"],
+      priority: row.priority as StudioSupportTicketSummary["priority"],
+      subject: row.subject,
+      status: row.status as StudioSupportTicketSummary["status"],
+      assignee: row.assignee,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    })),
     total,
     page: parsed.data.page,
     pageSize: parsed.data.pageSize,
@@ -168,6 +239,17 @@ studioApiRouter.post("/studio-api/updates", requireDeveloper("updates.publish"),
     author: c.get("operator").userId,
   });
   if (!created) return c.json({ error: "slug_conflict" }, 409);
+  const operator = c.get("operator");
+  c.executionCtx.waitUntil(
+    writeStudioAudit(c.env, {
+      actor: `operator:${operator.userId}`,
+      action: "updates.create",
+      targetType: "release_note",
+      targetId: parsed.data.slug,
+      metadata: { title: parsed.data.title, version: parsed.data.version ?? null },
+      ip: callerIp(c),
+    }),
+  );
   return c.json({ ok: true, slug: parsed.data.slug }, 201);
 });
 
@@ -177,6 +259,17 @@ studioApiRouter.post("/studio-api/updates/:slug/publish", requireDeveloper("upda
   const ok = await publishReleaseNote(c.env.DB, slug, new Date().toISOString());
   if (!ok) return c.json({ error: "not_found" }, 404);
   const published = await getPublishedReleaseNoteBySlug(c.env.DB, slug, new Date().toISOString());
+  const operator = c.get("operator");
+  c.executionCtx.waitUntil(
+    writeStudioAudit(c.env, {
+      actor: `operator:${operator.userId}`,
+      action: "updates.publish",
+      targetType: "release_note",
+      targetId: slug,
+      metadata: { published: published !== null },
+      ip: callerIp(c),
+    }),
+  );
   return c.json({ ok: true, slug, published: published !== null });
 });
 

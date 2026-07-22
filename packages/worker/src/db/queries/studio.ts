@@ -120,6 +120,48 @@ export async function listGuildsForStudio(
   return { rows, total };
 }
 
+export interface StudioUserRow {
+  user_id: string;
+  active_entitlements: number;
+  support_tickets: number;
+  last_activity_at: string;
+}
+
+/** Known users are derived from persisted product records; no session/token data is exposed. */
+export async function listUsersForStudio(
+  db: D1Database,
+  page: number,
+  pageSize: number,
+): Promise<{ rows: StudioUserRow[]; total: number }> {
+  const offset = (page - 1) * pageSize;
+  const knownUsers = `
+    SELECT user_id, created_at AS activity_at FROM entitlements
+    UNION ALL
+    SELECT user_id, updated_at AS activity_at FROM support_tickets
+    UNION ALL
+    SELECT user_id, created_at AS activity_at FROM billing_customers`;
+  const listStmt = db
+    .prepare(
+      `WITH known_users AS (${knownUsers}), aggregated AS (
+         SELECT user_id, MAX(activity_at) AS last_activity_at
+           FROM known_users GROUP BY user_id
+       )
+       SELECT a.user_id,
+              (SELECT COUNT(*) FROM entitlements e WHERE e.user_id = a.user_id AND e.status = 'active') AS active_entitlements,
+              (SELECT COUNT(*) FROM support_tickets s WHERE s.user_id = a.user_id) AS support_tickets,
+              a.last_activity_at
+         FROM aggregated a
+        ORDER BY a.last_activity_at DESC, a.user_id DESC LIMIT ?1 OFFSET ?2`,
+    )
+    .bind(pageSize, offset);
+  const countStmt = db.prepare(`WITH known_users AS (${knownUsers}) SELECT COUNT(DISTINCT user_id) AS n FROM known_users`);
+  const results = await db.batch<StudioUserRow | { n: number }>([listStmt, countStmt]);
+  return {
+    rows: (results[0]?.results ?? []) as StudioUserRow[],
+    total: ((results[1]?.results?.[0] as { n: number } | undefined)?.n) ?? 0,
+  };
+}
+
 export interface StudioEntitlementRow {
   id: number;
   user_id: string;

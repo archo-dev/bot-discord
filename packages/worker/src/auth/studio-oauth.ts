@@ -1,8 +1,9 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import type { Env } from "../env.js";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { isHttpsEnvironment } from "../security/browser.js";
-import { requireStudioHost, resolveOperator, type StudioContext } from "./studio-guard.js";
+import { requireStudioHost, resolveOperator, studioMutationOrigin, type StudioContext } from "./studio-guard.js";
 import {
   clearStudioOAuthStateCookie,
   clearStudioSessionCookie,
@@ -40,9 +41,18 @@ interface DiscordUser {
   avatar: string | null;
 }
 
+function studioOAuthErrorPage(c: Context<StudioContext>, message: string, status: 400 | 403 | 502) {
+  return c.html(
+    `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connexion Studio impossible</title></head><body><main><h1>Connexion Studio impossible</h1><p>${message}</p><p><a href="/studio/auth/login">Réessayer la connexion</a></p></main></body></html>`,
+    status,
+  );
+}
+
 export const studioOAuthRouter = new Hono<StudioContext>();
 
 studioOAuthRouter.use("/studio/auth/*", requireStudioHost);
+// Applied after host gating so oversized requests still reveal nothing on the client host.
+studioOAuthRouter.use("/studio/auth/*", bodyLimit({ maxSize: 8 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
 
 function studioOrigin(env: Env): string {
   return `https://${env.STUDIO_HOST}`;
@@ -64,10 +74,14 @@ studioOAuthRouter.get("/studio/auth/login", async (c) => {
 studioOAuthRouter.get("/studio/auth/callback", async (c) => {
   const code = c.req.query("code");
   const state = c.req.query("state");
+  const oauthError = c.req.query("error");
   const stateCookie = readStudioOAuthStateCookie(c);
   clearStudioOAuthStateCookie(c);
-  if (!code || !state || !(await consumeStudioOAuthState(c.env, state, stateCookie))) {
-    return c.text("Invalid OAuth state. Please retry from the Studio login page.", 400);
+  if (!state || !(await consumeStudioOAuthState(c.env, state, stateCookie))) {
+    return studioOAuthErrorPage(c, "La demande de connexion a expiré ou n'est plus valide.", 400);
+  }
+  if (oauthError || !code) {
+    return studioOAuthErrorPage(c, "La connexion a été annulée ou refusée par Discord.", 400);
   }
 
   const tokenRes = await fetch(`${DISCORD_API}/oauth2/token`, {
@@ -83,19 +97,19 @@ studioOAuthRouter.get("/studio/auth/callback", async (c) => {
   });
   if (!tokenRes.ok) {
     console.error(`studio oauth token exchange failed: ${tokenRes.status}`);
-    return c.text("Discord token exchange failed. Please retry.", 502);
+    return studioOAuthErrorPage(c, "Discord n'a pas pu finaliser la connexion.", 502);
   }
   const token = (await tokenRes.json()) as TokenResponse;
 
   const userRes = await fetch(`${DISCORD_API}/users/@me`, {
     headers: { authorization: `Bearer ${token.access_token}` },
   });
-  if (!userRes.ok) return c.text("Failed to fetch your Discord profile.", 502);
+  if (!userRes.ok) return studioOAuthErrorPage(c, "Le profil Discord n'a pas pu être chargé.", 502);
   const user = (await userRes.json()) as DiscordUser;
 
   // Server-side gate: no session unless the user is an eligible operator.
   const operator = await resolveOperator(c.env, user.id);
-  if (!operator) return c.text("This account is not a Studio operator.", 403);
+  if (!operator) return studioOAuthErrorPage(c, "Ce compte n'est pas autorisé à accéder au Studio.", 403);
 
   const sessionId = await createStudioSession(c.env, {
     userId: user.id,
@@ -109,7 +123,7 @@ studioOAuthRouter.get("/studio/auth/callback", async (c) => {
   return c.redirect(`${studioOrigin(c.env)}/`);
 });
 
-studioOAuthRouter.post("/studio/auth/logout", async (c) => {
+studioOAuthRouter.post("/studio/auth/logout", studioMutationOrigin, async (c) => {
   const sid = readStudioSessionCookie(c);
   if (sid) await deleteStudioSession(c.env, sid);
   clearStudioSessionCookie(c);

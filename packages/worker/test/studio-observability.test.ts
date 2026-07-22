@@ -104,12 +104,26 @@ describe("M15 — cohort rollout store + opt-in resolver", () => {
       body: JSON.stringify({ global: false, guilds: [GUILD_A] }),
     });
     expect(ok.status).toBe(200);
+    const global = await req(`https://${HOST}/studio-api/rollout/platform.support`, ck, e, {
+      method: "PUT", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ global: true, guilds: [] }),
+    });
+    expect(global.status).toBe(200);
+    expect((await global.json()) as { global: boolean }).toMatchObject({ global: true });
+    expect((await getRollout(env.KV, "platform.support")).global).toBe(true);
     const audit = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE action='features.manage' AND target_type='rollout'`).first<{ n: number }>();
-    expect(audit?.n).toBeGreaterThanOrEqual(1);
+    expect(audit?.n).toBeGreaterThanOrEqual(2);
   });
 });
 
 describe("M15 — permissions & isolation", () => {
+  it("returns a coherent 400 for invalid metric windows", async () => {
+    const e = studioEnv();
+    const ck = await cookie(e, OWNER);
+    expect((await req(`https://${HOST}/studio-api/metrics?hours=0`, ck, e)).status).toBe(400);
+    expect((await req(`https://${HOST}/studio-api/errors?hours=invalid`, ck, e)).status).toBe(400);
+  });
+
   it("403s /metrics without deployments.read; 403s PUT rollout without features.manage", async () => {
     const e = studioEnv();
     await insertStudioOperator(env.DB, { userId: OPERATOR });

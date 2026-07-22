@@ -77,6 +77,32 @@ describe("M14 audit — sensitive mutations emit one immutable row", () => {
     expect(row?.ip_hash).toBeTruthy();
     expect(row?.ip_hash).not.toContain("198.51.100.9");
   });
+
+  it("writes one audit row for update creation and one for publication", async () => {
+    const e = studioEnv();
+    const sid = await session(e, OWNER);
+    const slug = "audit-update";
+    const created = await req(`https://${HOST}/studio-api/updates`, sid, e, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ slug, title: "Audit update", version: "1.2.3" }),
+    });
+    expect(created.status).toBe(201);
+
+    const published = await req(`https://${HOST}/studio-api/updates/${slug}/publish`, sid, e, { method: "POST" });
+    expect(published.status).toBe(200);
+
+    const rows = await env.DB.prepare(
+      `SELECT actor, action, target_type, target_id
+       FROM audit_events
+       WHERE target_type = 'release_note' AND target_id = ?1
+       ORDER BY id ASC`,
+    ).bind(slug).all<{ actor: string; action: string; target_type: string; target_id: string }>();
+    expect(rows.results).toEqual([
+      { actor: `operator:${OWNER}`, action: "updates.create", target_type: "release_note", target_id: slug },
+      { actor: `operator:${OWNER}`, action: "updates.publish", target_type: "release_note", target_id: slug },
+    ]);
+  });
 });
 
 describe("M14 audit — append-only (no write/delete route)", () => {

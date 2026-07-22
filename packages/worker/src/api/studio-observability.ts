@@ -56,7 +56,9 @@ const rolloutPutSchema = z.object({
 
 export function registerObservabilityRoutes(router: Hono<StudioContext>): void {
   router.get("/studio-api/metrics", requireDeveloper("deployments.read"), async (c) => {
-    const hours = hoursSchema.parse(c.req.query("hours") ?? 24);
+    const parsed = hoursSchema.safeParse(c.req.query("hours") ?? 24);
+    if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
+    const hours = parsed.data;
     const rows = await aggregateMetricsForStudio(c.env.DB, hours);
     const modules = rows.map(toSummary);
     const body: StudioMetricsResponse = {
@@ -69,7 +71,9 @@ export function registerObservabilityRoutes(router: Hono<StudioContext>): void {
   });
 
   router.get("/studio-api/errors", requireDeveloper("deployments.read"), async (c) => {
-    const hours = hoursSchema.parse(c.req.query("hours") ?? 24);
+    const parsed = hoursSchema.safeParse(c.req.query("hours") ?? 24);
+    if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
+    const hours = parsed.data;
     const rows = await topErrorsForStudio(c.env.DB, hours, 20);
     const items: StudioErrorBucket[] = rows.map((r) => ({ module: r.module, operation: r.operation, errors: r.errors ?? 0, events: r.events ?? 0 }));
     const body: StudioErrorsResponse = { windowHours: hours, items };

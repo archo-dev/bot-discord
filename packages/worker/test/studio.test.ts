@@ -7,7 +7,10 @@ import { createStudioSession } from "../src/auth/studio-session.js";
 import {
   createDraftReleaseNote,
   grantStudioOperatorPermission,
+  insertEntitlement,
+  insertSupportTicket,
   insertStudioOperator,
+  publishReleaseNote,
   upsertGuild,
 } from "../src/db/queries.js";
 
@@ -48,6 +51,26 @@ describe("M12 studio — host isolation (zéro endpoint côté client)", () => {
     const cookie = await studioCookie(e, OWNER);
     const res = await req(`https://archodev.fr/studio-api/overview`, cookie, e);
     expect(res.status).toBe(404);
+    expect((await req(`https://archodev.fr/studio-api/users`, cookie, e)).status).toBe(404);
+    expect((await req(`https://archodev.fr/studio-api/support`, cookie, e)).status).toBe(404);
+  });
+
+  it("keeps returning 404 on the client host before body-size checks", async () => {
+    const e = studioEnv();
+    const cookie = await studioCookie(e, OWNER);
+    const oversized = "x".repeat(65 * 1024);
+    const res = await req(`https://archodev.fr/studio-api/updates`, cookie, e, {
+      method: "POST",
+      headers: { origin: "https://archodev.fr", "content-type": "application/json" },
+      body: oversized,
+    });
+    expect(res.status).toBe(404);
+    const studio = await req(`https://${HOST}/studio-api/updates`, cookie, e, {
+      method: "POST",
+      headers: { origin: `https://${HOST}`, "content-type": "application/json" },
+      body: oversized,
+    });
+    expect(studio.status).toBe(413);
   });
 
   it("404s on the studio host when the flag is off", async () => {
@@ -59,6 +82,60 @@ describe("M12 studio — host isolation (zéro endpoint côté client)", () => {
   it("401s on the studio host with the flag on but no session", async () => {
     const res = await req(`https://${HOST}/studio-api/overview`, null, studioEnv());
     expect(res.status).toBe(401);
+  });
+});
+
+describe("Studio operations — users and support", () => {
+  it("lists minimized known users and the priority-ordered support queue", async () => {
+    const e = studioEnv();
+    const cookie = await studioCookie(e, OWNER);
+    const userId = "750000000000000001";
+    await insertEntitlement(env.DB, {
+      userId,
+      planId: "premium",
+      source: "granted",
+      startAt: "2026-01-01T00:00:00.000Z",
+      endAt: "2999-01-01T00:00:00.000Z",
+    });
+    await insertSupportTicket(env.DB, {
+      userId,
+      guildId: "950000000000000001",
+      planAtOpen: "premium",
+      priority: "normal",
+      subject: "Besoin d'aide",
+    });
+
+    const users = await req(`https://${HOST}/studio-api/users`, cookie, e);
+    expect(users.status).toBe(200);
+    expect((await users.json() as { items: Array<Record<string, unknown>> }).items).toContainEqual(expect.objectContaining({
+      userId,
+      activeEntitlements: 1,
+      supportTickets: 1,
+    }));
+
+    const support = await req(`https://${HOST}/studio-api/support`, cookie, e);
+    expect(support.status).toBe(200);
+    expect((await support.json() as { items: Array<Record<string, unknown>> }).items).toContainEqual(expect.objectContaining({
+      userId,
+      priority: "normal",
+      subject: "Besoin d'aide",
+    }));
+  });
+
+  it("enforces the users and support permissions independently", async () => {
+    const e = studioEnv();
+    await insertStudioOperator(env.DB, { userId: OPERATOR, displayName: "Inspector" });
+    await grantStudioOperatorPermission(env.DB, OPERATOR, "guilds.inspect");
+    const inspector = await studioCookie(e, OPERATOR);
+    expect((await req(`https://${HOST}/studio-api/users`, inspector, e)).status).toBe(200);
+    expect((await req(`https://${HOST}/studio-api/support`, inspector, e)).status).toBe(403);
+
+    const supportOperator = "700000000000000004";
+    await insertStudioOperator(env.DB, { userId: supportOperator, displayName: "Support" });
+    await grantStudioOperatorPermission(env.DB, supportOperator, "support.manage");
+    const supportCookie = await studioCookie(e, supportOperator);
+    expect((await req(`https://${HOST}/studio-api/support`, supportCookie, e)).status).toBe(200);
+    expect((await req(`https://${HOST}/studio-api/users`, supportCookie, e)).status).toBe(403);
   });
 });
 
@@ -79,6 +156,13 @@ describe("M12 studio — dev-auth server-side", () => {
       accessToken: "t", tokenExpiresAt: Date.now() + 3_600_000, createdAt: Date.now(),
     });
     const res = await req(`https://${HOST}/studio-api/overview`, `session=${sid}`, e);
+    expect(res.status).toBe(401);
+  });
+
+  it("ignores the STUDIO cookie on the client API", async () => {
+    const e = studioEnv();
+    const cookie = await studioCookie(e, OWNER);
+    const res = await req(`https://archodev.fr/api/me`, cookie, e);
     expect(res.status).toBe(401);
   });
 });
@@ -166,5 +250,19 @@ describe("M12 studio — overview KPIs", () => {
     const body = (await res.json()) as { guilds: number; openTickets: Record<string, number> };
     expect(body.guilds).toBeGreaterThanOrEqual(1);
     expect(body.openTickets).toMatchObject({ low: expect.any(Number), normal: expect.any(Number), high: expect.any(Number) });
+  });
+
+  it("reports the latest published update even when a newer draft exists", async () => {
+    const e = studioEnv();
+    const cookie = await studioCookie(e, OWNER);
+    await createDraftReleaseNote(env.DB, { slug: "overview-published", title: "Published update" });
+    await publishReleaseNote(env.DB, "overview-published", new Date().toISOString());
+    await createDraftReleaseNote(env.DB, { slug: "overview-newer-draft", title: "Newer draft" });
+
+    const res = await req(`https://${HOST}/studio-api/overview`, cookie, e);
+    expect(res.status).toBe(200);
+    expect((await res.json()) as { latestUpdate: { slug: string } | null }).toMatchObject({
+      latestUpdate: { slug: "overview-published" },
+    });
   });
 });
