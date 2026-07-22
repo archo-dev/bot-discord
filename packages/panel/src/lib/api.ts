@@ -32,12 +32,22 @@ export function fieldError(error: unknown, field: string): string | undefined {
   return raw === undefined ? undefined : frenchifyZodMessage(raw);
 }
 
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+/** Garde-fou : aucune requête ne peut suspendre le rendu indéfiniment. Un fetch
+ *  qui ne répond pas (réseau bloqué, edge injoignable) est abandonné après ce
+ *  délai → la query passe en erreur au lieu de rester « pending » pour toujours.
+ *  Généreux pour ne pas couper une opération lente légitime. */
+const DEFAULT_TIMEOUT_MS = 20_000;
+
+export async function api<T>(path: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, signal, ...rest } = init ?? {};
+  // AbortSignal.timeout borne la requête ; on respecte aussi un signal fourni.
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
   const res = await fetch(path, {
-    ...init,
+    ...rest,
+    signal: signal ?? timeoutSignal,
     headers: {
-      ...(init?.body !== undefined ? { "content-type": "application/json" } : {}),
-      ...init?.headers,
+      ...(rest.body !== undefined ? { "content-type": "application/json" } : {}),
+      ...rest.headers,
     },
   });
   if (!res.ok) {

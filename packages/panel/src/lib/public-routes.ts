@@ -39,3 +39,15 @@ export function resolveShell(pathname: string, opts: { publicSite: boolean }): S
   if (normalize(pathname) === "/") return "root";
   return "connected";
 }
+
+/**
+ * Le home public (`/`) ne doit JAMAIS attendre `/api/me` : c'est une surface
+ * sans authentification. Avec le site public actif, on rend la vitrine dès que
+ * possible et l'état de connexion se remplit via l'en-tête quand `["me"]`
+ * résout ; un visiteur authentifié bascule vers son tableau de bord au succès.
+ * Fonction pure (miroir testable d'App.tsx) : `authenticated` = `me.isSuccess`.
+ * Renvoie true ⇒ rendre la home publique sans bloquer sur la requête auth.
+ */
+export function shouldRenderPublicHome(pathname: string, opts: { publicSite: boolean; authenticated: boolean }): boolean {
+  return opts.publicSite && !opts.authenticated && normalize(pathname) === "/";
+}

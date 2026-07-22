@@ -4,7 +4,7 @@ import { lazy, Suspense, useEffect } from "react";
 import type { MeResponse } from "@bot/shared";
 import { api, ApiError } from "./lib/api.js";
 import { getPlatformFlags } from "./lib/flags.js";
-import { isPublicPath } from "./lib/public-routes.js";
+import { isPublicPath, shouldRenderPublicHome } from "./lib/public-routes.js";
 import { Landing } from "./pages/Landing.js";
 import { LandingContent } from "./pages/LandingContent.js";
 import { GuildList } from "./pages/GuildList.js";
@@ -113,6 +113,21 @@ export function App() {
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+      </Suspense>
+    );
+  }
+
+  // Home public : ne bloque JAMAIS le rendu public sur /api/me. Avec le site
+  // public actif, la racine rend la vitrine tant que le visiteur n'est pas
+  // authentifié (l'en-tête reflète l'état de connexion quand ["me"] résout ; un
+  // visiteur connecté bascule vers son tableau de bord au succès). Empêche un
+  // écran de chargement infini si /api/me est lent, injoignable ou en échec.
+  if (shouldRenderPublicHome(location.pathname, { publicSite, authenticated: me.isSuccess })) {
+    return (
+      <Suspense fallback={<PublicFallback />}>
+        <PublicLayout>
+          <LandingContent />
+        </PublicLayout>
       </Suspense>
     );
   }
