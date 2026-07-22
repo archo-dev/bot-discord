@@ -113,10 +113,20 @@
         "INTERNAL_AUTH_MODE": "dual",
         // Flags staging activés (sans dépendance externe) pour les tests.
         "PLATFORM_ENTITLEMENTS": "true",
-        "PLATFORM_SUPPORT": "true"
-        // Restent OFF (dépendances externes / hand-off) : PLATFORM_BILLING (Stripe
-        // test), PLATFORM_STUDIO (owner ids + callbacks Discord), PLATFORM_LAUNCH
-        // (prix), LAUNCH_*, STUDIO_HOST.
+        "PLATFORM_SUPPORT": "true",
+        // --- Billing STAGING (Stripe TEST). STRIPE_SECRET_KEY = secret staging
+        //     (test, hors dépôt). Price IDs = config (non secrète). Checkout hébergé.
+        "BILLING_PROVIDER": "stripe",
+        "BILLING_SUCCESS_URL": "https://botdiscord-staging.archodev.workers.dev/app/billing?checkout=success",
+        "BILLING_CANCEL_URL": "https://botdiscord-staging.archodev.workers.dev/app/billing?checkout=cancel",
+        "BILLING_PRICE_PREMIUM_MONTH": "price_1TvnNwIqkOtZZ1bvQxy0TMbs",
+        "BILLING_PRICE_PREMIUM_YEAR": "price_1TvnQKIqkOtZZ1bv0LTdnE84",
+        "BILLING_PRICE_BUSINESS_MONTH": "price_1TvnR0IqkOtZZ1bvRoRmIris",
+        "BILLING_PRICE_BUSINESS_YEAR": "price_1TvnXcIqkOtZZ1bv2RLRoDhS",
+        // Billing activé sur le staging (checkout Stripe TEST hébergé).
+        "PLATFORM_BILLING": "true"
+        // Restent OFF : PLATFORM_STUDIO (owner ids + callbacks Discord),
+        // PLATFORM_LAUNCH (prix), LAUNCH_*, STUDIO_HOST.
       }
     }
   }
