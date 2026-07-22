@@ -72,4 +72,52 @@
   //   SESSION_SECRET, INTERNAL_API_TOKEN,
   //   STUDIO_OWNER_IDS (bootstrap propriétaire opérateur),
   //   STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET (LIVE — au lancement commercial).
+  ,
+  // --- STAGING : environnement Wrangler séparé, ressources DISTINCTES de la prod.
+  //     Déploiement uniquement via `wrangler deploy --env staging`.
+  //     Ne partage AUCUN binding avec la prod (worker/D1/KV distincts). Tous les
+  //     flags plateforme sont absents → off. Secrets Stripe = TEST uniquement,
+  //     posés hors dépôt (jamais committés).
+  "env": {
+    "staging": {
+      "name": "botdiscord-staging",
+      "workers_dev": true,
+      // Pas de cron sur le staging (évite le bruit ; la prod garde les siens).
+      "triggers": { "crons": [] },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "botdiscord-staging",
+          "database_id": "66794d5c-9302-4427-965c-19b937c6080a",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "KV",
+          "id": "356e7ad4a6654714a51b9fb8b823ac15"
+        }
+      ],
+      "vars": {
+        // Discord : app dédiée staging à fournir (client id + secrets). La valeur
+        // prod ci-dessous n'est qu'un défaut ; l'OAuth staging exige des callbacks
+        // dédiés dans le Dev Portal (action propriétaire).
+        "DISCORD_CLIENT_ID": "1524597895859536074",
+        "PANEL_ORIGIN": "https://botdiscord-staging.archodev.workers.dev",
+        "PANEL_ALLOWED_ORIGINS": "https://botdiscord-staging.archodev.workers.dev",
+        "SECURITY_ORIGIN_MODE": "enforce",
+        "SECURITY_CSP_MODE": "report",
+        "SESSION_GLOBAL_VERSION": "1",
+        "PRODUCT_ANALYTICS_ENABLED": "false",
+        "APP_VERSION": "staging",
+        "INTERNAL_AUTH_MODE": "dual",
+        // Flags staging activés (sans dépendance externe) pour les tests.
+        "PLATFORM_ENTITLEMENTS": "true",
+        "PLATFORM_SUPPORT": "true"
+        // Restent OFF (dépendances externes / hand-off) : PLATFORM_BILLING (Stripe
+        // test), PLATFORM_STUDIO (owner ids + callbacks Discord), PLATFORM_LAUNCH
+        // (prix), LAUNCH_*, STUDIO_HOST.
+      }
+    }
+  }
 }
