@@ -9,3 +9,5 @@ capture/
 .env
 .env.*
 !.env.example
+# Local Stripe credentials (never commit)
+stripe.txt
