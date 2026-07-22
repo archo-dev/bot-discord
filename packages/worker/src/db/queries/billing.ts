@@ -209,16 +209,77 @@ export async function setSubscriptionEntitlement(db: D1Database, subscriptionId:
     .run();
 }
 
-/** Record a verified webhook event for idempotency. Returns true if new (first time). */
-export async function recordWebhookEvent(db: D1Database, eventId: string, eventType: string, nowMs: number): Promise<boolean> {
-  const res = await db
+// --- Webhook event state machine (fix/stripe-webhook-ordering) ---
+// An event is only ever 'processed' once its business mutation actually
+// succeeded. A recoverable dependency leaves it 'retryable_failed' so Stripe can
+// redeliver. The claim is a single atomic statement so exactly one attempt
+// processes an event at a time (others get 'in_progress'/'duplicate'/'terminal').
+
+export type WebhookClaimDecision = "claimed" | "duplicate" | "in_progress" | "terminal";
+
+/** Reclaim window: a 'processing' row left by a crashed attempt is reclaimable. */
+const WEBHOOK_STALE_MS = 120_000;
+
+/**
+ * Atomically claim an event for processing. A brand-new event, a
+ * 'retryable_failed' one, or a stale 'processing' one is claimed → 'processing'.
+ * An already 'processed' event → duplicate; a fresh in-flight one → in_progress;
+ * a 'terminal_failed' one → terminal. Returns the (incremented) attempt count.
+ */
+export async function claimWebhookEvent(
+  db: D1Database,
+  eventId: string,
+  eventType: string,
+  nowMs: number,
+  staleMs: number = WEBHOOK_STALE_MS,
+): Promise<{ decision: WebhookClaimDecision; attempts: number }> {
+  const claimed = await db
     .prepare(
-      `INSERT INTO billing_webhook_events (event_id, event_type, processed_at) VALUES (?1, ?2, ?3)
-       ON CONFLICT(event_id) DO NOTHING`,
+      `INSERT INTO billing_webhook_events (event_id, event_type, status, attempts, processed_at, updated_at)
+         VALUES (?1, ?2, 'processing', 1, ?3, ?3)
+       ON CONFLICT(event_id) DO UPDATE SET
+         status = 'processing',
+         attempts = billing_webhook_events.attempts + 1,
+         updated_at = ?3
+       WHERE billing_webhook_events.status IN ('received', 'retryable_failed')
+          OR (billing_webhook_events.status = 'processing' AND billing_webhook_events.updated_at < ?4)
+       RETURNING attempts`,
     )
-    .bind(eventId, eventType, nowMs)
+    .bind(eventId, eventType, nowMs, nowMs - staleMs)
+    .first<{ attempts: number }>();
+  if (claimed) return { decision: "claimed", attempts: claimed.attempts };
+
+  const row = await db
+    .prepare(`SELECT status, attempts FROM billing_webhook_events WHERE event_id = ?1`)
+    .bind(eventId)
+    .first<{ status: string; attempts: number }>();
+  const attempts = row?.attempts ?? 0;
+  if (row?.status === "processed") return { decision: "duplicate", attempts };
+  if (row?.status === "terminal_failed") return { decision: "terminal", attempts };
+  return { decision: "in_progress", attempts }; // 'processing' held by another attempt, not yet stale
+}
+
+/** Statement that flips a claimed event to 'processed' (batched atomically with its audit). */
+export function webhookProcessedStatement(db: D1Database, eventId: string, nowMs: number): D1PreparedStatement {
+  return db
+    .prepare(`UPDATE billing_webhook_events SET status = 'processed', processed_at = ?2, updated_at = ?2 WHERE event_id = ?1`)
+    .bind(eventId, nowMs);
+}
+
+/** Mark a claimed event as recoverable → a future delivery reclaims it. */
+export async function markWebhookEventRetryable(db: D1Database, eventId: string, nowMs: number): Promise<void> {
+  await db
+    .prepare(`UPDATE billing_webhook_events SET status = 'retryable_failed', updated_at = ?2 WHERE event_id = ?1`)
+    .bind(eventId, nowMs)
     .run();
-  return (res.meta.changes ?? 0) === 1;
+}
+
+/** Give up on an event after too many attempts (stop retries; never reprocessed). */
+export async function markWebhookEventTerminal(db: D1Database, eventId: string, nowMs: number): Promise<void> {
+  await db
+    .prepare(`UPDATE billing_webhook_events SET status = 'terminal_failed', processed_at = ?2, updated_at = ?2 WHERE event_id = ?1`)
+    .bind(eventId, nowMs)
+    .run();
 }
 
 export interface SubscriptionEventInput {
@@ -231,9 +292,11 @@ export interface SubscriptionEventInput {
   payload?: unknown;
 }
 
-/** Append-only entitlement/subscription transition journal (audit, invariant 5). */
-export async function insertSubscriptionEvent(db: D1Database, input: SubscriptionEventInput): Promise<void> {
-  await db
+/** Prepared statement for the audit journal insert (append-only, invariant 5).
+ *  Exposed so the webhook can batch it atomically with the 'processed' flip —
+ *  guaranteeing the audit row and the terminal state commit together (exactly once). */
+export function subscriptionEventStatement(db: D1Database, input: SubscriptionEventInput): D1PreparedStatement {
+  return db
     .prepare(
       `INSERT INTO subscription_events
          (entitlement_id, billing_subscription_id, type, from_status, to_status, actor, payload_json)
@@ -247,6 +310,10 @@ export async function insertSubscriptionEvent(db: D1Database, input: Subscriptio
       input.toStatus ?? null,
       input.actor,
       input.payload === undefined ? null : JSON.stringify(input.payload),
-    )
-    .run();
+    );
+}
+
+/** Append-only entitlement/subscription transition journal (audit, invariant 5). */
+export async function insertSubscriptionEvent(db: D1Database, input: SubscriptionEventInput): Promise<void> {
+  await subscriptionEventStatement(db, input).run();
 }

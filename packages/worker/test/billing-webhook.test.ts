@@ -143,10 +143,14 @@ describe("M10 webhook — paid lifecycle (verified events only)", () => {
     expect(await paidEntitlements(OTHER)).toHaveLength(0);
   });
 
-  it("ignores a subscription for an unmapped customer (no entitlement)", async () => {
+  it("returns a RETRYABLE 503 (never 200) when the customer isn't mapped yet — the event is not lost", async () => {
     const res = await deliver(subEvent("evt_2", "customer.subscription.created", "sub_1", "cus_unknown", "active", "price_pm"));
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(503);
+    expect(res.body.error).toBe("webhook_dependency_not_ready");
     expect(await paidEntitlements(USER)).toHaveLength(0);
+    // NOT marked processed → a later delivery (after checkout maps the customer) reclaims it.
+    const row = await env.DB.prepare(`SELECT status FROM billing_webhook_events WHERE event_id='evt_2'`).first<{ status: string }>();
+    expect(row?.status).toBe("retryable_failed");
   });
 
   it("journals each transition in subscription_events (audit)", async () => {
@@ -155,6 +159,72 @@ describe("M10 webhook — paid lifecycle (verified events only)", () => {
     await deliver(subEvent("evt_3", "customer.subscription.updated", "sub_1", "cus_1", "past_due", "price_pm"));
     const row = await env.DB.prepare(`SELECT COUNT(*) AS n FROM subscription_events WHERE actor = 'webhook'`).first<{ n: number }>();
     expect(row!.n).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("webhook ordering fix — out-of-order Stripe deliveries are not lost", () => {
+  async function count(sql: string): Promise<number> {
+    return (await env.DB.prepare(sql).first<{ n: number }>())!.n;
+  }
+
+  it("subscription.created BEFORE checkout → 503 retryable, then reclaimed after checkout; paid/subscription/audit created exactly once; replay → duplicate", async () => {
+    // 1) subscription.created arrives first → customer not mapped → retryable 503, nothing created.
+    const first = await deliver(subEvent("evt_sub", "customer.subscription.created", "sub_1", "cus_1", "active", "price_pm"));
+    expect(first.status).toBe(503);
+    expect(first.body.error).toBe("webhook_dependency_not_ready");
+    expect(await paidEntitlements(USER)).toHaveLength(0);
+
+    // 2) checkout maps the customer (idempotent, order-independent).
+    expect((await deliver(checkoutEvent("evt_co", USER, "cus_1"))).status).toBe(200);
+    expect(await getBillingCustomerByProviderId(env.DB, "stripe", "cus_1")).not.toBeNull();
+
+    // 3) Stripe redelivers the SAME subscription event id → now the dependency is satisfied.
+    const retry = await deliver(subEvent("evt_sub", "customer.subscription.created", "sub_1", "cus_1", "active", "price_pm"));
+    expect(retry.status).toBe(200);
+    expect(retry.body.received).toBe(true);
+
+    expect(await paidEntitlements(USER)).toHaveLength(1);
+    expect((await paidEntitlements(USER))[0]!.plan_id).toBe("premium");
+    expect(await count(`SELECT COUNT(*) AS n FROM billing_subscriptions WHERE provider_subscription_id='sub_1'`)).toBe(1);
+    expect(await count(`SELECT COUNT(*) AS n FROM subscription_events WHERE actor='webhook'`)).toBe(1);
+
+    const st = await env.DB.prepare(`SELECT status, attempts FROM billing_webhook_events WHERE event_id='evt_sub'`).first<{ status: string; attempts: number }>();
+    expect(st?.status).toBe("processed");
+    expect(st!.attempts).toBeGreaterThanOrEqual(2);
+
+    // 4) A further replay of the now-processed event → 200 duplicate, no re-processing.
+    const replay = await deliver(subEvent("evt_sub", "customer.subscription.created", "sub_1", "cus_1", "active", "price_pm"));
+    expect(replay.body.duplicate).toBe(true);
+    expect(await paidEntitlements(USER)).toHaveLength(1);
+    expect(await count(`SELECT COUNT(*) AS n FROM subscription_events WHERE actor='webhook'`)).toBe(1);
+  });
+
+  it("two concurrent deliveries of the same claimable event → exactly one processes (no double entitlement/subscription/audit)", async () => {
+    expect((await deliver(checkoutEvent("evt_co2", USER, "cus_1"))).status).toBe(200);
+    const ev = subEvent("evt_conc", "customer.subscription.created", "sub_c", "cus_1", "active", "price_pm");
+    const [a, b] = await Promise.all([deliver(ev), deliver(ev)]);
+
+    // Never two 200-received: at most one processes; the other is duplicate (200) or in_progress (503).
+    expect([a.status, b.status].filter((s) => s === 200 && "received").length).toBeGreaterThanOrEqual(1);
+    expect(await paidEntitlements(USER)).toHaveLength(1);
+    expect(await count(`SELECT COUNT(*) AS n FROM billing_subscriptions WHERE provider_subscription_id='sub_c'`)).toBe(1);
+    expect(await count(`SELECT COUNT(*) AS n FROM subscription_events WHERE actor='webhook'`)).toBe(1);
+  });
+
+  it("subscription.deleted BEFORE its create → retryable 503 (cancellation is never dropped)", async () => {
+    const res = await deliver(subEvent("evt_del", "customer.subscription.deleted", "sub_x", "cus_1", "canceled", "price_pm"));
+    expect(res.status).toBe(503);
+    expect(res.body.error).toBe("webhook_dependency_not_ready");
+    const row = await env.DB.prepare(`SELECT status FROM billing_webhook_events WHERE event_id='evt_del'`).first<{ status: string }>();
+    expect(row?.status).toBe("retryable_failed");
+  });
+
+  it("unknown event type → acknowledged 200 and marked processed (documented no-op, not retried)", async () => {
+    const res = await deliver({ id: "evt_unknown", type: "invoice.paid", data: { object: {} } });
+    expect(res.status).toBe(200);
+    expect(res.body.received).toBe(true);
+    const row = await env.DB.prepare(`SELECT status FROM billing_webhook_events WHERE event_id='evt_unknown'`).first<{ status: string }>();
+    expect(row?.status).toBe("processed");
   });
 });
 

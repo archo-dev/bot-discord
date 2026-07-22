@@ -15,22 +15,38 @@ import {
   type StripeEvent,
 } from "./stripe-webhook.js";
 import {
+  claimWebhookEvent,
   getBillingCustomerByProviderId,
   getEntitlementById,
   getSubscriptionByProviderId,
   insertEntitlement,
-  insertSubscriptionEvent,
-  recordWebhookEvent,
+  markWebhookEventRetryable,
+  markWebhookEventTerminal,
   setSubscriptionEntitlement,
+  subscriptionEventStatement,
   updatePaidEntitlement,
   upsertBillingCustomer,
   upsertBillingSubscription,
+  webhookProcessedStatement,
+  type SubscriptionEventInput,
 } from "../db/queries.js";
 
 export interface WebhookResult {
   status: number;
   body: Record<string, unknown>;
 }
+
+/**
+ * Outcome of processing one event. `retry` means a recoverable dependency is not
+ * ready yet (e.g. the customer.subscription.* event arrived before the checkout
+ * that maps the customer) — the event is NOT marked processed and the route
+ * returns a retryable 503 so Stripe redelivers. `done` carries the audit row to
+ * be committed atomically with the 'processed' flip (never before success).
+ */
+type ProcessResult = { outcome: "done"; audit?: SubscriptionEventInput } | { outcome: "retry" };
+
+/** Give up (→ 'terminal_failed', 200) after this many recoverable failures. */
+const MAX_ATTEMPTS = 10;
 
 function str(obj: Record<string, unknown>, key: string): string | null {
   const v = obj[key];
@@ -67,32 +83,37 @@ function epochSecToIso(sec: number | null, fallbackMs: number): string {
 }
 
 /** Map customer → Discord user, so a paid entitlement is only ever attached to
- *  the user identified by the checkout's client_reference_id. */
-async function handleCheckoutCompleted(db: D1Database, obj: Record<string, unknown>): Promise<void> {
+ *  the user identified by the checkout's client_reference_id. Idempotent
+ *  (ON CONFLICT upsert) and order-independent: it never depends on the
+ *  subscription events, and the subscription events retry until it has run. */
+async function handleCheckoutCompleted(db: D1Database, obj: Record<string, unknown>): Promise<ProcessResult> {
   const userId = str(obj, "client_reference_id");
   const customerId = str(obj, "customer");
-  if (!userId || !customerId) return;
+  if (!userId || !customerId) return { outcome: "done" }; // nothing to map → acknowledge
   await upsertBillingCustomer(db, {
     userId,
     provider: "stripe",
     providerCustomerId: customerId,
     email: extractEmail(obj),
   });
+  return { outcome: "done" };
 }
 
-/** Sync a subscription + create/update its paid entitlement (idempotent). */
-async function handleSubscriptionUpsert(db: D1Database, env: Env, obj: Record<string, unknown>, nowMs: number): Promise<void> {
+/** Sync a subscription + create/update its paid entitlement (idempotent). Returns
+ *  `retry` (recoverable) when the customer isn't mapped yet or the price/plan
+ *  can't be resolved — so the event is redelivered rather than silently dropped. */
+async function handleSubscriptionUpsert(db: D1Database, env: Env, obj: Record<string, unknown>, nowMs: number): Promise<ProcessResult> {
   const providerSubId = str(obj, "id");
   const customerId = str(obj, "customer");
   const status = str(obj, "status");
-  if (!providerSubId || !customerId || !status) return;
+  if (!providerSubId || !customerId || !status) return { outcome: "done" }; // malformed → nothing to process
 
   const customer = await getBillingCustomerByProviderId(db, "stripe", customerId);
-  if (!customer) return; // customer not mapped yet (checkout not processed) → no-op
+  if (!customer) return { outcome: "retry" }; // customer not mapped yet (checkout not processed) → recoverable
 
   const priceId = firstPriceId(obj);
   const plan = priceId ? resolvePlanFromPriceId(env, priceId) : null;
-  if (!plan) return; // unknown price → cannot determine plan → no-op
+  if (!plan) return { outcome: "retry" }; // price/plan not resolvable yet → recoverable (config may lag)
 
   const billingStatus = normalizeStripeSubStatus(status);
   const endAtIso = epochSecToIso(num(obj, "current_period_end"), nowMs);
@@ -136,23 +157,28 @@ async function handleSubscriptionUpsert(db: D1Database, env: Env, obj: Record<st
     await setSubscriptionEntitlement(db, subId, entitlementId);
   }
 
-  await insertSubscriptionEvent(db, {
-    entitlementId,
-    billingSubscriptionId: subId,
-    type: `subscription.${billingStatus}`,
-    fromStatus,
-    toStatus: entStatus,
-    actor: "webhook",
-    payload: { providerSubId, plan: plan.planId, interval: plan.interval },
-  });
+  return {
+    outcome: "done",
+    audit: {
+      entitlementId,
+      billingSubscriptionId: subId,
+      type: `subscription.${billingStatus}`,
+      fromStatus,
+      toStatus: entStatus,
+      actor: "webhook",
+      payload: { providerSubId, plan: plan.planId, interval: plan.interval },
+    },
+  };
 }
 
-/** Subscription ended: expire the mirror + the paid entitlement (never revoked). */
-async function handleSubscriptionDeleted(db: D1Database, obj: Record<string, unknown>, nowMs: number): Promise<void> {
+/** Subscription ended: expire the mirror + the paid entitlement (never revoked).
+ *  Returns `retry` when the subscription mirror doesn't exist yet (a delete that
+ *  raced ahead of its create) — so the cancellation is never lost. */
+async function handleSubscriptionDeleted(db: D1Database, obj: Record<string, unknown>, nowMs: number): Promise<ProcessResult> {
   const providerSubId = str(obj, "id");
-  if (!providerSubId) return;
+  if (!providerSubId) return { outcome: "done" };
   const subRow = await getSubscriptionByProviderId(db, "stripe", providerSubId);
-  if (!subRow) return;
+  if (!subRow) return { outcome: "retry" }; // mirror not created yet → recoverable (don't drop the cancellation)
 
   await upsertBillingSubscription(db, {
     customerId: subRow.customer_id,
@@ -170,40 +196,47 @@ async function handleSubscriptionDeleted(db: D1Database, obj: Record<string, unk
     const ent = await getEntitlementById(db, subRow.entitlement_id);
     const endAt = subRow.current_period_end ?? new Date(nowMs).toISOString();
     if (ent && ent.source === "paid") await updatePaidEntitlement(db, subRow.entitlement_id, ent.plan_id as PlanId, "expired", endAt);
-    await insertSubscriptionEvent(db, {
-      entitlementId: subRow.entitlement_id,
-      billingSubscriptionId: subRow.id,
-      type: "subscription.expired",
-      fromStatus: ent?.status ?? null,
-      toStatus: "expired",
-      actor: "webhook",
-      payload: { providerSubId },
-    });
+    return {
+      outcome: "done",
+      audit: {
+        entitlementId: subRow.entitlement_id,
+        billingSubscriptionId: subRow.id,
+        type: "subscription.expired",
+        fromStatus: ent?.status ?? null,
+        toStatus: "expired",
+        actor: "webhook",
+        payload: { providerSubId },
+      },
+    };
   }
+  return { outcome: "done" };
 }
 
-async function processEvent(db: D1Database, env: Env, event: StripeEvent, nowMs: number): Promise<void> {
+async function processEvent(db: D1Database, env: Env, event: StripeEvent, nowMs: number): Promise<ProcessResult> {
   const obj = event.data.object;
   switch (event.type) {
     case "checkout.session.completed":
-      await handleCheckoutCompleted(db, obj);
-      return;
+      return handleCheckoutCompleted(db, obj);
     case "customer.subscription.created":
     case "customer.subscription.updated":
-      await handleSubscriptionUpsert(db, env, obj, nowMs);
-      return;
+      return handleSubscriptionUpsert(db, env, obj, nowMs);
     case "customer.subscription.deleted":
-      await handleSubscriptionDeleted(db, obj, nowMs);
-      return;
+      return handleSubscriptionDeleted(db, obj, nowMs);
     default:
-      return; // unhandled type → no-op (still deduplicated)
+      return { outcome: "done" }; // unknown type → acknowledged no-op (marked processed, not retried)
   }
 }
 
 /**
- * Full webhook pipeline. Returns the HTTP status/body for the route. Only a
- * verified event, with the billing flag on, reaches the mutations — and each is
- * idempotent, so replays are safe no-ops.
+ * Full webhook pipeline. Signature → billing flag → atomic claim → business
+ * mutation → 'processed'. An event is only ever marked processed once its
+ * mutation actually succeeded; a recoverable dependency (e.g. the customer isn't
+ * mapped yet because checkout.session.completed hasn't been processed) returns a
+ * retryable 503 so Stripe redelivers — never a 200 that would drop the event.
+ * The claim serializes concurrent deliveries of the same event (only one
+ * processes); every business mutation is an idempotent upsert, and the audit row
+ * is committed atomically with the 'processed' flip → no double entitlement,
+ * subscription, or audit.
  */
 export async function handleStripeWebhook(
   db: D1Database,
@@ -223,11 +256,37 @@ export async function handleStripeWebhook(
   // Kill-switch: with billing off, acknowledge without mutating (no retries).
   if (!getWorkerFlags(env)["platform.billing"]) return { status: 200, body: { received: true, ignored: true } };
 
-  // Idempotency: a replayed event id is a no-op.
-  if (!(await recordWebhookEvent(db, event.id, event.type, nowMs))) {
-    return { status: 200, body: { received: true, duplicate: true } };
+  // Atomic claim: exactly one attempt processes an event at a time.
+  const claim = await claimWebhookEvent(db, event.id, event.type, nowMs);
+  if (claim.decision === "duplicate") return { status: 200, body: { received: true, duplicate: true } };
+  if (claim.decision === "terminal") return { status: 200, body: { received: true, terminal: true } };
+  if (claim.decision === "in_progress") return { status: 503, body: { error: "webhook_processing_in_progress" } };
+
+  // Claimed → run the (idempotent) mutation. Any throw leaves the event
+  // retryable so it is redelivered rather than stuck as processed.
+  let result: ProcessResult;
+  try {
+    result = await processEvent(db, env, event, nowMs);
+  } catch {
+    await markWebhookEventRetryable(db, event.id, nowMs);
+    return { status: 503, body: { error: "webhook_processing_error" } };
   }
 
-  await processEvent(db, env, event, nowMs);
+  if (result.outcome === "retry") {
+    // Bound the retries: give up after MAX_ATTEMPTS so a permanently-stuck event
+    // (e.g. a price never in our config) stops instead of retrying forever.
+    if (claim.attempts >= MAX_ATTEMPTS) {
+      await markWebhookEventTerminal(db, event.id, nowMs);
+      return { status: 200, body: { received: true, terminal: true } };
+    }
+    await markWebhookEventRetryable(db, event.id, nowMs);
+    return { status: 503, body: { error: "webhook_dependency_not_ready" } };
+  }
+
+  // Success: journal the transition (if any) and flip to 'processed' atomically.
+  const statements: D1PreparedStatement[] = [];
+  if (result.audit) statements.push(subscriptionEventStatement(db, result.audit));
+  statements.push(webhookProcessedStatement(db, event.id, nowMs));
+  await db.batch(statements);
   return { status: 200, body: { received: true } };
 }
