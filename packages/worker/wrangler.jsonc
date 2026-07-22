@@ -61,10 +61,18 @@
     "SESSION_GLOBAL_VERSION": "1",
     "PRODUCT_ANALYTICS_ENABLED": "true",
     "APP_VERSION": "m16",
-    "INTERNAL_AUTH_MODE": "signed"
-    // Platform flags (PLATFORM_ENTITLEMENTS/BILLING/SUPPORT/STUDIO/LAUNCH) and
-    // launch prices (LAUNCH_*) are DELIBERATELY absent → all off in prod. Enable
-    // per cohort at go-live via the M15 rollout store, then globally last.
+    "INTERNAL_AUTH_MODE": "signed",
+    // --- Flags plateforme PRODUCTION persistés (Phase 1). Déclarés ici pour
+    //     qu'un `wrangler deploy` NU reproduise toujours l'état de prod validé,
+    //     sans dépendre d'un `--var` oublié. Contrôlés par
+    //     scripts/verify-worker-flags.mjs (lancé par `deploy:production`).
+    //       ON  : entitlements (espace client M8), support (M11), launch (M16).
+    //       OFF : billing (M9) et studio (M12) restent ABSENTS ⇒ off.
+    //     Les prix de lancement (LAUNCH_*) restent hors code (endpoint /api/pricing).
+    "PLATFORM_ENTITLEMENTS": "true",
+    "PLATFORM_SUPPORT": "true",
+    "PLATFORM_LAUNCH": "true"
+    // PLATFORM_BILLING / PLATFORM_STUDIO : volontairement absents (off en prod).
   }
   // Secrets (wrangler secret bulk fichier.json — jamais `secret put` sous
   // PowerShell : CRLF → 401 Ed25519). Requis en prod :

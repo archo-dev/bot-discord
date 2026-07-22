@@ -1,0 +1,17 @@
+{
+  "$comment": "Source de vérité UNIQUE des feature flags de plateforme côté FRONTEND (panel). Non secret — versionné. Chaque mode de build injecte exactement ces flags dans le bundle via scripts/build.mjs, et scripts/verify-flags.mjs relit le bundle produit pour refuser tout déploiement incohérent. Les flags backend (worker) vivent dans wrangler.jsonc (top-level = production, env.staging = staging) et sont contrôlés par scripts/verify-worker-flags.mjs. Voir docs/deploy.md.",
+  "production": {
+    "publicSite": true,
+    "entitlements": true,
+    "support": true,
+    "launch": true,
+    "billing": false
+  },
+  "staging": {
+    "publicSite": true,
+    "entitlements": true,
+    "support": true,
+    "billing": true,
+    "launch": false
+  }
+}

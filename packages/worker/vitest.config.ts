@@ -32,6 +32,13 @@ export default defineWorkersConfig(async () => {
               SECURITY_CSP_MODE: "report",
               SESSION_GLOBAL_VERSION: "1",
               INTERNAL_AUTH_MODE: "dual",
+              // Tests are isolated from persisted production/staging rollout
+              // defaults. Individual cases opt in by overriding their Env.
+              PLATFORM_ENTITLEMENTS: "false",
+              PLATFORM_SUPPORT: "false",
+              PLATFORM_LAUNCH: "false",
+              PLATFORM_BILLING: "false",
+              PLATFORM_STUDIO: "false",
             },
           },
         },

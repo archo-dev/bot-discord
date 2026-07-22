@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
     "check": "tsc --noEmit",
     "test": "vitest run",
     "migrate:local": "wrangler d1 migrations apply botdiscord --local",

@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/check-bundle-budget.mjs",
+    "build": "node scripts/build.mjs production",
+    "build:staging": "node scripts/build.mjs staging",
     "check:bundle": "node scripts/check-bundle-budget.mjs",
     "check": "tsc --noEmit",
     "test": "vitest run"
