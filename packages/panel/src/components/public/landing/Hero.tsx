@@ -12,7 +12,7 @@ const DiscordMark = ({ className }: { className?: string }) => (
 export function Hero() {
   const invite = useQuery({
     queryKey: ["invite"],
-    queryFn: () => api<OnboardingInvite>("/api/invite"),
+    queryFn: ({ signal }) => api<OnboardingInvite>("/api/invite", { signal }),
     staleTime: 5 * 60_000,
     retry: false,
   });

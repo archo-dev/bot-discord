@@ -41,7 +41,7 @@ export function VoiceLogPage() {
 
   const channels = useQuery({
     queryKey: ["channels", guildId],
-    queryFn: () => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`),
+    queryFn: ({ signal }) => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`, { signal }),
     staleTime: 60_000,
   });
   const channelName = (id: string | null) =>
@@ -49,7 +49,7 @@ export function VoiceLogPage() {
 
   const logs = useInfiniteQuery({
     queryKey: ["voice-logs", guildId, { userId, channelId, action, from, to }],
-    queryFn: ({ pageParam }) => {
+    queryFn: ({ pageParam, signal }) => {
       const params = new URLSearchParams();
       if (userId) params.set("userId", userId);
       if (channelId) params.set("channelId", channelId);
@@ -57,7 +57,7 @@ export function VoiceLogPage() {
       if (from) params.set("from", from);
       if (to) params.set("to", to);
       if (pageParam) params.set("cursor", pageParam);
-      return api<VoiceLogPage>(`/api/guilds/${guildId}/voice-logs?${params.toString()}`);
+      return api<VoiceLogPage>(`/api/guilds/${guildId}/voice-logs?${params.toString()}`, { signal });
     },
     initialPageParam: "",
     getNextPageParam: (last) => last.nextCursor ?? undefined,

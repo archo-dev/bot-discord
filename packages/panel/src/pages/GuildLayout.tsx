@@ -1,11 +1,12 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useParams } from "react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { GuildOverview, MeResponse } from "@bot/shared";
-import { api, ApiError, avatarUrl, guildIconUrl } from "../lib/api.js";
+import { abortPendingApiRequests, api, ApiError, avatarUrl, guildIconUrl } from "../lib/api.js";
 import { Icon, type IconName } from "../ui/icons.js";
 import { IconButton, ErrorCard } from "../ui/kit.js";
 import { ChunkErrorBoundary } from "../ui/error-boundary.js";
+import { readStoredValue, writeStoredValue } from "../lib/resilience.js";
 import { Skeleton, SkeletonSettingsPage } from "../ui/skeleton.js";
 import { MemberResolveProvider } from "../lib/members.js";
 import { AccessContext } from "../lib/access.js";
@@ -106,14 +107,19 @@ export function matchesItem(item: NavItem, rel: string): boolean {
 
 const FOCUSABLE = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+export function isValidGuildId(value: string | undefined): value is string {
+  return typeof value === "string" && /^\d{5,20}$/.test(value);
+}
+
 export function GuildLayout({ me }: { me: MeResponse }) {
+  const queryClient = useQueryClient();
   const { guildId } = useParams<{ guildId: string }>();
+  const validGuildId = isValidGuildId(guildId);
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
-      const value = JSON.parse(localStorage.getItem(FAVORITES_KEY) ?? "[]") as unknown;
-      return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+      return readStoredValue(localStorage, FAVORITES_KEY, (value): value is string[] => Array.isArray(value) && value.every((item) => typeof item === "string")) ?? [];
     } catch {
       return [];
     }
@@ -123,12 +129,13 @@ export function GuildLayout({ me }: { me: MeResponse }) {
 
   const overview = useQuery({
     queryKey: ["guild", guildId],
-    queryFn: () => api<GuildOverview>(`/api/guilds/${guildId}`),
+    queryFn: ({ signal }) => api<GuildOverview>(`/api/guilds/${guildId}`, { signal }),
+    enabled: validGuildId,
   });
   const logout = useMutation({
     mutationFn: () => api<{ ok: true }>("/auth/logout", { method: "POST" }),
     meta: { errorMessage: "La déconnexion a échoué — réessayez." },
-    onSuccess: () => window.location.reload(),
+    onSuccess: () => { abortPendingApiRequests(); queryClient.clear(); window.location.assign("/"); },
   });
 
   const g = overview.data;
@@ -150,7 +157,7 @@ export function GuildLayout({ me }: { me: MeResponse }) {
     setFavorites((current) => {
       const next = current.includes(to) ? current.filter((item) => item !== to) : [...current, to];
       try {
-        localStorage.setItem(FAVORITES_KEY, JSON.stringify(next));
+        writeStoredValue(localStorage, FAVORITES_KEY, next);
       } catch {
         // La navigation reste fonctionnelle si le stockage navigateur est bloqué.
       }
@@ -195,6 +202,15 @@ export function GuildLayout({ me }: { me: MeResponse }) {
       menuButtonRef.current?.focus();
     };
   }, [drawerOpen]);
+
+  if (!validGuildId) {
+    return (
+      <div className="mx-auto max-w-md px-4 py-16">
+        <ErrorCard message="L’identifiant du serveur est invalide." />
+        <div className="mt-4 text-center"><Link to="/" className="text-sm text-indigo-400 hover:underline">← Retour à mes serveurs</Link></div>
+      </div>
+    );
+  }
 
   if (overview.isError) {
     const err = overview.error;
@@ -437,7 +453,7 @@ export function GuildLayout({ me }: { me: MeResponse }) {
             {/* Chargement du chunk de page (M04, code-splitting) : la nav et l'en-tête
                 restent affichés, seul le contenu montre un squelette Nocturne. Le boundary
                 rattrape un échec de chargement de chunk (redéploiement / réseau). */}
-            <ChunkErrorBoundary>
+            <ChunkErrorBoundary zone="guild" resetKey={location.pathname}>
               <Suspense fallback={<SkeletonSettingsPage />}>
                 <Outlet />
               </Suspense>

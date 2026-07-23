@@ -25,8 +25,8 @@ export function BackupImport({ guildId, onClose }: { guildId: string; onClose: (
   const [modules, setModules] = useState<BackupModuleId[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
 
-  const channels = useQuery({ queryKey: ["channels", guildId], queryFn: () => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`) });
-  const roles = useQuery({ queryKey: ["roles", guildId], queryFn: () => api<RoleOption[]>(`/api/guilds/${guildId}/roles`) });
+  const channels = useQuery({ queryKey: ["channels", guildId], queryFn: ({ signal }) => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`, { signal }) });
+  const roles = useQuery({ queryKey: ["roles", guildId], queryFn: ({ signal }) => api<RoleOption[]>(`/api/guilds/${guildId}/roles`, { signal }) });
 
   const validate = useMutation({
     mutationFn: (parsed: ConfigExport) => api<ImportValidateResult>(`/api/guilds/${guildId}/config-import/validate`, { method: "POST", body: JSON.stringify({ export: parsed }) }),

@@ -14,7 +14,7 @@ import { PublicNav } from "./PublicNav.js";
  * succès → « Ouvrir le panel ». Menu mobile repliable, fermé à Échap.
  */
 export function PublicHeader() {
-  const me = useQuery({ queryKey: ["me"], queryFn: () => api<MeResponse>("/api/me"), retry: false });
+  const me = useQuery({ queryKey: ["me"], queryFn: ({ signal }) => api<MeResponse>("/api/me", { signal }), retry: false });
   const isAuthed = me.isSuccess;
   const [open, setOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);

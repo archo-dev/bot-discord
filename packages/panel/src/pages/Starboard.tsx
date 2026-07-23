@@ -17,7 +17,7 @@ export function StarboardPage() {
 
   const settings = useQuery({
     queryKey: ["starboard-settings", guildId],
-    queryFn: () => api<StarboardSettingsDto>(`/api/guilds/${guildId}/starboard-settings`),
+    queryFn: ({ signal }) => api<StarboardSettingsDto>(`/api/guilds/${guildId}/starboard-settings`, { signal }),
   });
 
   const [s, setS] = useState<StarboardSettingsDto | null>(null);

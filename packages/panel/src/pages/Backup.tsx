@@ -50,7 +50,7 @@ export function BackupPage() {
 
   const snapshots = useQuery({
     queryKey: ["config-snapshots", guildId],
-    queryFn: () => api<ConfigSnapshotList>(`/api/guilds/${guildId}/config-snapshots`),
+    queryFn: ({ signal }) => api<ConfigSnapshotList>(`/api/guilds/${guildId}/config-snapshots`, { signal }),
   });
 
   const create = useMutation({
@@ -141,7 +141,7 @@ export function BackupPage() {
 function DiffModal({ guildId, snapshotId, onClose }: { guildId: string; snapshotId: string; onClose: () => void }) {
   const diff = useQuery({
     queryKey: ["config-snapshot-diff", guildId, snapshotId],
-    queryFn: () => api<ConfigSnapshotDiff>(`/api/guilds/${guildId}/config-snapshots/${snapshotId}/diff`),
+    queryFn: ({ signal }) => api<ConfigSnapshotDiff>(`/api/guilds/${guildId}/config-snapshots/${snapshotId}/diff`, { signal }),
   });
   const total = diff.data?.modules.reduce((n, m) => n + m.changes.length, 0) ?? 0;
   return (

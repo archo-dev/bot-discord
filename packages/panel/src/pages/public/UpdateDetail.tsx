@@ -16,7 +16,7 @@ export function UpdateDetailPage() {
   const { slug = "" } = useParams<{ slug: string }>();
   const query = useQuery({
     queryKey: ["updates", "detail", slug],
-    queryFn: () => api<ReleaseNoteDetail>(`/api/updates/${encodeURIComponent(slug)}`),
+    queryFn: ({ signal }) => api<ReleaseNoteDetail>(`/api/updates/${encodeURIComponent(slug)}`, { signal }),
     retry: false,
   });
 

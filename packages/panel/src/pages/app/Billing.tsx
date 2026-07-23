@@ -24,7 +24,7 @@ export function BillingPage() {
     document.title = "Facturation — Panel du bot";
   }, []);
 
-  const billing = useQuery({ queryKey: ["billing"], queryFn: () => api<BillingResponse>("/api/billing"), retry: false });
+  const billing = useQuery({ queryKey: ["billing"], queryFn: ({ signal }) => api<BillingResponse>("/api/billing", { signal }), retry: false });
   const [interval, setInterval] = useState<BillingInterval>("month");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

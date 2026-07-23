@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, useLocation } from "react-router";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useEffect } from "react";
 import type { MeResponse } from "@bot/shared";
@@ -12,6 +12,9 @@ import { GuildLayout } from "./pages/GuildLayout.js";
 import { Dashboard } from "./pages/Dashboard.js";
 import { ErrorCard } from "./ui/kit.js";
 import { Skeleton, SkeletonGuildGrid } from "./ui/skeleton.js";
+import { PanelErrorBoundary } from "./ui/error-boundary.js";
+import { consumeReturnRoute } from "./lib/resilience.js";
+import { recoverExpiredSession } from "./lib/session-recovery.js";
 
 /*
  * Découpage de code (M04) — chaque page secondaire vit dans son propre chunk,
@@ -77,23 +80,41 @@ function PublicFallback() {
   );
 }
 
+function NotFoundPage({ scope = "panel" }: { scope?: "panel" | "guild" }) {
+  return (
+    <div className="mx-auto flex min-h-[55vh] max-w-md items-center px-4">
+      <ErrorCard
+        message={scope === "guild" ? "Cette page du serveur n’existe pas." : "Cette page n’existe pas ou n’est plus disponible."}
+        onRetry={() => window.location.assign(scope === "guild" ? ".." : "/")}
+      />
+    </div>
+  );
+}
+
 export function App() {
   const queryClient = useQueryClient();
   const location = useLocation();
+  const navigate = useNavigate();
   const flags = getPlatformFlags();
   const publicSite = flags["platform.publicSite"];
   const entitlements = flags["platform.entitlements"];
   useEffect(() => {
-    const refreshSession = () => void queryClient.invalidateQueries({ queryKey: ["me"], exact: true });
-    window.addEventListener("panel:session-expired", refreshSession);
-    return () => window.removeEventListener("panel:session-expired", refreshSession);
+    const recoverSession = () => void recoverExpiredSession(queryClient);
+    window.addEventListener("panel:session-expired", recoverSession);
+    return () => window.removeEventListener("panel:session-expired", recoverSession);
   }, [queryClient]);
 
   const me = useQuery({
     queryKey: ["me"],
-    queryFn: () => api<MeResponse>("/api/me"),
+    queryFn: ({ signal }) => api<MeResponse>("/api/me", { signal }),
     retry: false,
   });
+
+  useEffect(() => {
+    if (!me.isSuccess || location.pathname !== "/") return;
+    const intended = consumeReturnRoute();
+    if (intended && intended !== "/") navigate(intended, { replace: true });
+  }, [location.pathname, me.isSuccess, navigate]);
 
   // Shell public (M2) : les chemins publics dédiés ne dépendent pas de la
   // session → court-circuit AVANT la gate ["me"]. Actif uniquement flag ON ;
@@ -111,7 +132,7 @@ export function App() {
             <Route path="/legal" element={<Navigate to="/legal/mentions" replace />} />
             <Route path="/legal/:doc" element={<LegalPage />} />
           </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>
     );
@@ -164,7 +185,11 @@ export function App() {
       <div className="mx-auto flex min-h-screen max-w-md items-center px-4">
         <div className="w-full">
           <ErrorCard
-            message="Erreur de connexion au serveur — réessayez plus tard."
+            message={me.error instanceof ApiError && me.error.category === "network"
+              ? "Connexion indisponible — vérifiez votre réseau puis réessayez."
+              : me.error instanceof ApiError && me.error.category === "timeout"
+                ? "Le serveur met trop de temps à répondre — réessayez."
+                : "Erreur de connexion au serveur — réessayez plus tard."}
             onRetry={() => void me.refetch()}
           />
         </div>
@@ -177,9 +202,9 @@ export function App() {
       <Route path="/" element={<GuildList me={me.data} />} />
       {/* Espace client (M8) — gardé par platform.entitlements ; sinon catch-all → "/". */}
       {entitlements && (
-        <Route path="/app" element={<Suspense fallback={<PublicFallback />}><AppLayout /></Suspense>}>
+        <Route path="/app" element={<PanelErrorBoundary zone="client" resetKey={location.pathname}><Suspense fallback={<PublicFallback />}><AppLayout /></Suspense></PanelErrorBoundary>}>
           <Route index element={<Navigate to="subscription" replace />} />
-          <Route path="subscription" element={<SubscriptionPage />} />
+          <Route path="subscription" element={<PanelErrorBoundary zone="subscription" resetKey={location.pathname}><SubscriptionPage /></PanelErrorBoundary>} />
           <Route path="account" element={<AccountPage />} />
           {/* Facturation (M9) — flag additionnel platform.billing. */}
           {flags["platform.billing"] && <Route path="billing" element={<BillingPage />} />}
@@ -193,16 +218,16 @@ export function App() {
         <Route path="stats" element={<StatsPage />} />
         <Route path="health" element={<HealthPage />} />
         <Route path="audit" element={<AuditPage />} />
-        <Route path="modules" element={<ModulesPage />} />
+        <Route path="modules" element={<PanelErrorBoundary zone="modules" resetKey={location.pathname}><ModulesPage /></PanelErrorBoundary>} />
         <Route path="config" element={<ConfigPage />} />
         <Route path="backup" element={<BackupPage />} />
         <Route path="privacy" element={<PrivacyPage />} />
         <Route path="commands" element={<CommandsPage />} />
         <Route path="commands/new" element={<CommandEditorPage />} />
         <Route path="commands/:commandId" element={<CommandEditorPage />} />
-        <Route path="automations" element={<AutomationsPage />} />
-        <Route path="automations/new" element={<AutomationEditorPage />} />
-        <Route path="automations/:automationId" element={<AutomationEditorPage />} />
+        <Route path="automations" element={<PanelErrorBoundary zone="automations" resetKey={location.pathname}><AutomationsPage /></PanelErrorBoundary>} />
+        <Route path="automations/new" element={<PanelErrorBoundary zone="automations" resetKey={location.pathname}><AutomationEditorPage /></PanelErrorBoundary>} />
+        <Route path="automations/:automationId" element={<PanelErrorBoundary zone="automations" resetKey={location.pathname}><AutomationEditorPage /></PanelErrorBoundary>} />
         <Route path="tickets" element={<TicketsPage />} />
         <Route path="roles" element={<RolesPage />} />
         <Route path="welcome" element={<WelcomePage />} />
@@ -217,8 +242,9 @@ export function App() {
         <Route path="apply" element={<ApplySanctionPage />} />
         <Route path="voicelog" element={<VoiceLogPage />} />
         <Route path="access" element={<PanelAccessPage />} />
+        <Route path="*" element={<NotFoundPage scope="guild" />} />
       </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }

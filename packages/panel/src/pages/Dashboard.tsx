@@ -21,33 +21,33 @@ export function Dashboard() {
   const { guildId } = useParams<{ guildId: string }>();
   const overview = useQuery({
     queryKey: ["guild", guildId],
-    queryFn: () => api<GuildOverview>(`/api/guilds/${guildId}`),
+    queryFn: ({ signal }) => api<GuildOverview>(`/api/guilds/${guildId}`, { signal }),
   });
   const channels = useQuery({
     queryKey: ["channels", guildId],
-    queryFn: () => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`),
+    queryFn: ({ signal }) => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`, { signal }),
   });
   const actions = useQuery({
     queryKey: ["mod-actions", guildId, 1, ""],
-    queryFn: () => api<Paginated<ModActionDto>>(`/api/guilds/${guildId}/mod-actions?page=1`),
+    queryFn: ({ signal }) => api<Paginated<ModActionDto>>(`/api/guilds/${guildId}/mod-actions?page=1`, { signal }),
   });
   // Mini-stats (M19) — best-effort : chaque carte se dégrade proprement si vide/erreur.
   const memberStats = useQuery({
     queryKey: ["stats-members", guildId, 7],
-    queryFn: () => api<MemberStatsDto>(`/api/guilds/${guildId}/stats/members?days=7`),
+    queryFn: ({ signal }) => api<MemberStatsDto>(`/api/guilds/${guildId}/stats/members?days=7`, { signal }),
   });
   const presence = useQuery({
     queryKey: ["stats-presence", guildId],
-    queryFn: () => api<PresenceStatsDto | null>(`/api/guilds/${guildId}/stats/presence`),
+    queryFn: ({ signal }) => api<PresenceStatsDto | null>(`/api/guilds/${guildId}/stats/presence`, { signal }),
   });
   const channelStats = useQuery({
     queryKey: ["stats-channels", guildId, 7],
-    queryFn: () => api<ChannelStatsDto>(`/api/guilds/${guildId}/stats/channels?days=7`),
+    queryFn: ({ signal }) => api<ChannelStatsDto>(`/api/guilds/${guildId}/stats/channels?days=7`, { signal }),
   });
   // Encart de prise en main, masqué une fois la configuration marquée terminée (best-effort).
   const onboarding = useQuery({
     queryKey: ["onboarding", guildId],
-    queryFn: () => api<OnboardingResponse>(`/api/guilds/${guildId}/onboarding`),
+    queryFn: ({ signal }) => api<OnboardingResponse>(`/api/guilds/${guildId}/onboarding`, { signal }),
   });
 
   if (overview.isPending) return <SkeletonDashboard />;

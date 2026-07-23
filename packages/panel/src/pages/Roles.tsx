@@ -31,15 +31,15 @@ export function RolesPage() {
 
   const messages = useQuery({
     queryKey: ["button-roles", guildId],
-    queryFn: () => api<ButtonRoleMessageDto[]>(`/api/guilds/${guildId}/button-roles`),
+    queryFn: ({ signal }) => api<ButtonRoleMessageDto[]>(`/api/guilds/${guildId}/button-roles`, { signal }),
   });
   const channels = useQuery({
     queryKey: ["channels", guildId],
-    queryFn: () => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`),
+    queryFn: ({ signal }) => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`, { signal }),
   });
   const roles = useQuery({
     queryKey: ["roles", guildId],
-    queryFn: () => api<RoleOption[]>(`/api/guilds/${guildId}/roles`),
+    queryFn: ({ signal }) => api<RoleOption[]>(`/api/guilds/${guildId}/roles`, { signal }),
   });
 
   const [channelId, setChannelId] = useState("");

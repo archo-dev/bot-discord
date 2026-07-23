@@ -17,7 +17,7 @@ export function TempVoicePage() {
 
   const settings = useQuery({
     queryKey: ["temp-voice-settings", guildId],
-    queryFn: () => api<TempVoiceSettingsDto>(`/api/guilds/${guildId}/temp-voice-settings`),
+    queryFn: ({ signal }) => api<TempVoiceSettingsDto>(`/api/guilds/${guildId}/temp-voice-settings`, { signal }),
   });
 
   const [s, setS] = useState<TempVoiceSettingsDto | null>(null);

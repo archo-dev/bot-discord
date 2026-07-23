@@ -12,6 +12,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { build as viteBuild } from "vite";
+import { execFileSync } from "node:child_process";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = join(__dirname, "..");
@@ -37,6 +38,9 @@ const VITE_KEYS = {
 
 const previousEnv = new Map();
 const summary = [];
+const buildVersion = (process.env.CF_VERSION_METADATA_ID || execFileSync("git", ["rev-parse", "--short=12", "HEAD"], { cwd: join(pkgRoot, "../.."), encoding: "utf8" }).trim()).slice(0, 64);
+previousEnv.set("VITE_BUILD_VERSION", process.env.VITE_BUILD_VERSION);
+process.env.VITE_BUILD_VERSION = buildVersion;
 for (const [flag, viteKey] of Object.entries(VITE_KEYS)) {
   previousEnv.set(viteKey, process.env[viteKey]);
   process.env[viteKey] = flags[flag] === true ? "true" : "false";
@@ -59,3 +63,4 @@ try {
 
 await import("./check-bundle-budget.mjs");
 await import("./verify-flags.mjs");
+await import("./check-csp-bundle.mjs");

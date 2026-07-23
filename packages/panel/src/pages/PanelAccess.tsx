@@ -46,12 +46,12 @@ export function PanelAccessPage() {
 
   const entries = useQuery({
     queryKey: ["panel-access", guildId],
-    queryFn: () => api<PanelAccessEntry[]>(`/api/guilds/${guildId}/panel-access`),
+    queryFn: ({ signal }) => api<PanelAccessEntry[]>(`/api/guilds/${guildId}/panel-access`, { signal }),
     retry: false,
   });
   const roles = useQuery({
     queryKey: ["roles", guildId],
-    queryFn: () => api<RoleOption[]>(`/api/guilds/${guildId}/roles`),
+    queryFn: ({ signal }) => api<RoleOption[]>(`/api/guilds/${guildId}/roles`, { signal }),
   });
 
   const [roleGrants, setRoleGrants] = useState<Grant[]>([]);

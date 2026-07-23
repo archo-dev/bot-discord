@@ -6,6 +6,10 @@ import { App } from "./App.js";
 import { queryClient } from "./lib/queryClient.js";
 import { Toaster } from "./ui/toast.js";
 import { ChunkErrorBoundary } from "./ui/error-boundary.js";
+import { createDiagnosticId } from "./lib/resilience.js";
+import { installGlobalFailureTelemetry, installLoginGuard, renderBootFailure, startNonBlockingHealthCheck } from "./lib/bootstrap.js";
+import { reportClientEvent } from "./lib/telemetry.js";
+import { ConnectionStatus } from "./ui/connection-status.js";
 import "./index.css";
 
 // Data router (route splat unique, l'arbre <Routes> vit dans App) :
@@ -17,13 +21,27 @@ const router = createBrowserRouter([{ path: "*", element: <App /> }]);
 // chargement de chunk (ex. hashes obsolètes après un redéploiement) déclenche un
 // rechargement unique ; toute autre erreur de rendu affiche un écran d'erreur
 // récupérable — jamais un écran de chargement infini ni une page blanche.
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ChunkErrorBoundary>
-        <RouterProvider router={router} />
-      </ChunkErrorBoundary>
-      <Toaster />
-    </QueryClientProvider>
-  </StrictMode>,
-);
+installGlobalFailureTelemetry();
+installLoginGuard();
+startNonBlockingHealthCheck();
+
+const rootElement = document.getElementById("root");
+if (rootElement) {
+  try {
+    createRoot(rootElement).render(
+      <StrictMode>
+        <QueryClientProvider client={queryClient}>
+          <ChunkErrorBoundary zone="root">
+            <RouterProvider router={router} />
+          </ChunkErrorBoundary>
+          <ConnectionStatus />
+          <Toaster />
+        </QueryClientProvider>
+      </StrictMode>,
+    );
+  } catch {
+    const diagnosticId = createDiagnosticId();
+    reportClientEvent({ event: "app_boot_failed", diagnosticId, category: "boot" });
+    renderBootFailure(rootElement, diagnosticId);
+  }
+}

@@ -41,6 +41,7 @@ import { runScheduled } from "./cron.js";
 import { requestTelemetry, type TelemetryVariables } from "./telemetry/request.js";
 import { browserMutationOrigin, securityResponseHeaders } from "./security/browser.js";
 import { adminAudit, durablePanelQuota } from "./security/panel.js";
+import { frontendTelemetryRouter } from "./telemetry/frontend.js";
 
 const app = new Hono<{ Bindings: Env; Variables: TelemetryVariables }>();
 
@@ -49,17 +50,26 @@ app.use("*", requestTelemetry);
 app.use("/api/*", browserMutationOrigin);
 app.use("/auth/logout", browserMutationOrigin);
 app.use("/auth/revoke-all", browserMutationOrigin);
+app.use("/telemetry/frontend", browserMutationOrigin);
 app.use("/api/*", bodyLimit({ maxSize: 64 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
 app.use("/auth/*", bodyLimit({ maxSize: 8 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
+app.use("/telemetry/frontend", bodyLimit({ maxSize: 4 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
 app.use("/interactions", bodyLimit({ maxSize: 256 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
 app.use("/internal/*", bodyLimit({ maxSize: 512 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
 app.use("/webhooks/*", bodyLimit({ maxSize: 256 * 1024, onError: (c) => c.json({ error: "body_too_large" }, 413) }));
-app.get("/health", (c) => c.json({ ok: true }));
+app.get("/health", (c) => c.json({ ok: true, appVersion: c.env.APP_VERSION ?? "unknown", panelOrigin: new URL(c.env.PANEL_ORIGIN).origin }));
+app.route("/", frontendTelemetryRouter);
 app.route("/", interactionsRouter);
 app.route("/", authRouter);
 app.route("/", internalRouter);
 // Public landing endpoints — registered before the session-guarded /api sub-app.
 app.route("/", publicRouter);
+// A browser navigation receives the SPA; monitoring fetches (Accept: */* or
+// application/json) retain the public JSON contract at this same URL.
+app.get("/status", async (c, next) => {
+  if ((c.req.header("accept") ?? "").includes("text/html")) return serveIndex(c);
+  await next();
+});
 // Public operational status (M15): component health only, no PII, no session.
 app.route("/", statusRouter);
 // Public launch pricing (M16): config-driven, no hardcoded amounts, no session.
@@ -144,6 +154,9 @@ app.get("/assets/*", async (c) => {
 
 app.get("/", (c) => serveIndex(c));
 app.get("/index.html", (c) => serveIndex(c));
+for (const route of ["/app", "/app/*", "/guilds/*", "/features", "/pricing", "/updates", "/updates/*", "/legal", "/legal/*"]) {
+  app.get(route, (c) => serveIndex(c));
+}
 
 // Cron trigger (wrangler.jsonc → triggers.crons): daily retention purge.
 const scheduled = async (event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> => {

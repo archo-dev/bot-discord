@@ -1,22 +1,23 @@
 import { useEffect } from "react";
 import { Link } from "react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { GuildSummary, MeResponse } from "@bot/shared";
-import { api, avatarUrl, guildIconUrl } from "../lib/api.js";
+import { abortPendingApiRequests, api, avatarUrl, guildIconUrl } from "../lib/api.js";
 import { getPlatformFlags } from "../lib/flags.js";
 import { Card, EmptyState, ErrorCard, IconButton, PageHeader } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
 import { SkeletonGuildGrid } from "../ui/skeleton.js";
 
 export function GuildList({ me }: { me: MeResponse }) {
+  const queryClient = useQueryClient();
   const guilds = useQuery({
     queryKey: ["guilds"],
-    queryFn: () => api<GuildSummary[]>("/api/guilds"),
+    queryFn: ({ signal }) => api<GuildSummary[]>("/api/guilds", { signal }),
   });
   const logout = useMutation({
     mutationFn: () => api<{ ok: true }>("/auth/logout", { method: "POST" }),
     meta: { errorMessage: "La déconnexion a échoué — réessayez." },
-    onSuccess: () => location.reload(),
+    onSuccess: () => { abortPendingApiRequests(); queryClient.clear(); window.location.assign("/"); },
   });
 
   useEffect(() => {

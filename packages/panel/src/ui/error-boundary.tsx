@@ -1,72 +1,106 @@
-import { Component, type ReactNode } from "react";
-import { ErrorCard } from "./kit.js";
+import { Component, type ErrorInfo, type ReactNode } from "react";
+import { createDiagnosticId, readStoredValue, writeStoredValue, type StorageLike } from "../lib/resilience.js";
+import { classifyClientErrorType, reportClientEvent } from "../lib/telemetry.js";
+import { Button } from "./kit.js";
 
-/*
- * Filet de sécurité du code-splitting (M04). Avec React.lazy, l'échec de
- * chargement d'un chunk (réseau transitoire, ou surtout un index.html périmé
- * demandant un hash supprimé par un redéploiement — servi en 404 par le worker)
- * rejette pendant le rendu. Sans ce boundary, l'erreur remonte à la racine et
- * casse tout l'écran. Ici :
- *  - erreur de chargement de chunk → un SEUL rechargement automatique (garde
- *    anti-boucle en sessionStorage) pour récupérer un index.html à jour ;
- *  - si le rechargement ne résout pas (réseau réellement coupé) ou pour toute
- *    autre erreur de rendu → carte d'erreur Nocturne avec rechargement manuel.
- * L'état se réinitialise à chaque navigation car le parent monte ce boundary
- * sous une clé de route (`key={location.pathname}` dans GuildLayout).
- */
+const RELOAD_GUARD_KEY = "panel:chunk-reload:v1";
+const RELOAD_GUARD_MS = 60_000;
 
-const RELOAD_GUARD_KEY = "panel:chunk-reload-at";
-const RELOAD_GUARD_MS = 10_000;
-
-/** Vrai si l'erreur ressemble à un échec de chargement de module dynamique. */
 export function isChunkLoadError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
-  const text = `${error.name} ${error.message}`;
   return /chunkloaderror|dynamically imported module|importing a module script failed|failed to fetch dynamically|error loading|module script/i.test(
-    text,
+    `${error.name} ${error.message}`,
   );
 }
 
-/** Recharge une seule fois par fenêtre de garde ; renvoie false si déjà tenté (boucle). */
-function tryReloadOnce(): boolean {
+export function claimRecoveryReload(storage: StorageLike, now = Date.now()): boolean {
+  const last = readStoredValue(storage, RELOAD_GUARD_KEY, (value): value is number => typeof value === "number", now);
+  if (last !== null && now - last < RELOAD_GUARD_MS) return false;
+  return writeStoredValue(storage, RELOAD_GUARD_KEY, now, now + RELOAD_GUARD_MS);
+}
+
+function tryReloadOnce(diagnosticId: string): boolean {
   try {
-    const last = Number(sessionStorage.getItem(RELOAD_GUARD_KEY) ?? "0");
-    if (Date.now() - last < RELOAD_GUARD_MS) return false; // déjà rechargé récemment
-    sessionStorage.setItem(RELOAD_GUARD_KEY, String(Date.now()));
+    if (!claimRecoveryReload(sessionStorage)) return false;
   } catch {
-    // sessionStorage indisponible (mode privé strict) : ne pas boucler.
     return false;
   }
+  reportClientEvent({ event: "recovery_reload_triggered", diagnosticId, category: "chunk" });
   window.location.reload();
   return true;
 }
 
+interface BoundaryProps {
+  children: ReactNode;
+  zone?: "root" | "client" | "guild" | "modules" | "automations" | "subscription";
+  resetKey?: string;
+}
+
 interface State {
   failed: boolean;
+  chunk: boolean;
+  diagnosticId: string | null;
+  copied: boolean;
 }
 
-export class ChunkErrorBoundary extends Component<{ children: ReactNode }, State> {
-  state: State = { failed: false };
+export class PanelErrorBoundary extends Component<BoundaryProps, State> {
+  state: State = { failed: false, chunk: false, diagnosticId: null, copied: false };
 
-  static getDerivedStateFromError(): State {
-    return { failed: true };
+  static getDerivedStateFromError(error: unknown): State {
+    return { failed: true, chunk: isChunkLoadError(error), diagnosticId: createDiagnosticId(), copied: false };
   }
 
-  componentDidCatch(error: unknown): void {
-    // Cas le plus courant après un redéploiement : recharger pour obtenir un
-    // index.html avec les hashes courants. Une seule fois (garde anti-boucle).
-    if (isChunkLoadError(error) && tryReloadOnce()) return;
+  componentDidCatch(error: unknown, _info: ErrorInfo): void {
+    const diagnosticId = this.state.diagnosticId ?? createDiagnosticId();
+    const chunk = isChunkLoadError(error);
+    reportClientEvent({
+      event: chunk ? "chunk_load_failed" : "error_boundary_triggered",
+      diagnosticId,
+      category: chunk ? "chunk" : "render",
+      zone: this.props.zone ?? "root",
+      errorType: classifyClientErrorType(error),
+    });
+    if (chunk) tryReloadOnce(diagnosticId);
   }
+
+  componentDidUpdate(previous: BoundaryProps): void {
+    if (this.state.failed && previous.resetKey !== this.props.resetKey) this.setState({ failed: false, chunk: false, diagnosticId: null, copied: false });
+  }
+
+  private logout = async (): Promise<void> => {
+    try { await fetch("/auth/logout", { method: "POST" }); } finally { window.location.assign("/"); }
+  };
+
+  private copyDiagnostic = async (): Promise<void> => {
+    if (!this.state.diagnosticId) return;
+    try {
+      await navigator.clipboard.writeText(this.state.diagnosticId);
+      this.setState({ copied: true });
+    } catch { /* clipboard can be unavailable */ }
+  };
 
   render(): ReactNode {
-    if (this.state.failed) {
-      return (
-        <ErrorCard
-          message="Impossible de charger cette page. Rechargez le panel pour récupérer la dernière version."
-          onRetry={() => window.location.reload()}
-        />
-      );
-    }
-    return this.props.children;
+    if (!this.state.failed) return this.props.children;
+    return (
+      <div className="mx-auto flex min-h-[55vh] max-w-xl items-center px-4 py-10" role="alert">
+        <div className="w-full rounded-xl border border-(--border) bg-zinc-900 p-6 text-center">
+          <h1 className="font-display text-xl font-semibold text-zinc-100">
+            {this.state.chunk ? "Une nouvelle version du panel est disponible" : "Cette zone du panel a rencontré une erreur"}
+          </h1>
+          <p className="mt-2 text-sm text-zinc-400">
+            Vos données n’ont pas été modifiées. Vous pouvez réessayer ou recharger la version courante.
+          </p>
+          <p className="mt-3 font-mono text-xs text-zinc-500">Diagnostic : {this.state.diagnosticId}</p>
+          <div className="mt-5 flex flex-wrap justify-center gap-2">
+            <Button variant="secondary" size="sm" onClick={() => this.setState({ failed: false, chunk: false, diagnosticId: null, copied: false })}>Réessayer</Button>
+            <Button variant="secondary" size="sm" onClick={() => window.location.reload()}>Recharger</Button>
+            <Button variant="ghost" size="sm" onClick={() => void this.copyDiagnostic()}>{this.state.copied ? "Copié" : "Copier le diagnostic"}</Button>
+            <Button variant="ghost" size="sm" onClick={() => void this.logout()}>Se déconnecter</Button>
+          </div>
+        </div>
+      </div>
+    );
   }
 }
+
+export const ChunkErrorBoundary = PanelErrorBoundary;

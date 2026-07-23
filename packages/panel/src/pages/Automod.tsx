@@ -22,15 +22,15 @@ export function AutomodPage() {
 
   const settings = useQuery({
     queryKey: ["automod", guildId],
-    queryFn: () => api<AutomodSettingsDto>(`/api/guilds/${guildId}/automod`),
+    queryFn: ({ signal }) => api<AutomodSettingsDto>(`/api/guilds/${guildId}/automod`, { signal }),
   });
   const channels = useQuery({
     queryKey: ["channels", guildId],
-    queryFn: () => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`),
+    queryFn: ({ signal }) => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`, { signal }),
   });
   const roles = useQuery({
     queryKey: ["roles", guildId],
-    queryFn: () => api<RoleOption[]>(`/api/guilds/${guildId}/roles`),
+    queryFn: ({ signal }) => api<RoleOption[]>(`/api/guilds/${guildId}/roles`, { signal }),
   });
 
   const [s, setS] = useState<AutomodSettingsDto | null>(null);

@@ -15,7 +15,7 @@ import { formatUpdateDate } from "../../../pages/public/updates-format.js";
 export function LatestUpdates() {
   const query = useQuery({
     queryKey: ["updates", "landing-preview"],
-    queryFn: () => api<ReleaseNotesListResponse>("/api/updates?pageSize=3"),
+    queryFn: ({ signal }) => api<ReleaseNotesListResponse>("/api/updates?pageSize=3", { signal }),
     retry: false,
     staleTime: 5 * 60_000,
   });

@@ -37,12 +37,12 @@ export function AuditPage() {
   const [outcome, setOutcome] = useState("");
   const logs = useInfiniteQuery({
     queryKey: ["admin-audit", guildId, { capability, outcome }],
-    queryFn: ({ pageParam }) => {
+    queryFn: ({ pageParam, signal }) => {
       const params = new URLSearchParams({ limit: "25" });
       if (capability) params.set("capability", capability);
       if (outcome) params.set("outcome", outcome);
       if (pageParam) params.set("cursor", pageParam);
-      return api<AdminAuditPage>(`/api/guilds/${guildId}/audit?${params}`);
+      return api<AdminAuditPage>(`/api/guilds/${guildId}/audit?${params}`, { signal });
     },
     initialPageParam: "",
     getNextPageParam: (last) => last.nextCursor ?? undefined,

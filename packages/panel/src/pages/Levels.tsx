@@ -17,15 +17,15 @@ export function LevelsPage() {
 
   const settings = useQuery({
     queryKey: ["xp-settings", guildId],
-    queryFn: () => api<XpSettingsDto>(`/api/guilds/${guildId}/xp-settings`),
+    queryFn: ({ signal }) => api<XpSettingsDto>(`/api/guilds/${guildId}/xp-settings`, { signal }),
   });
   const leaderboard = useQuery({
     queryKey: ["leaderboard", guildId],
-    queryFn: () => api<LeaderboardEntry[]>(`/api/guilds/${guildId}/leaderboard`),
+    queryFn: ({ signal }) => api<LeaderboardEntry[]>(`/api/guilds/${guildId}/leaderboard`, { signal }),
   });
   const roles = useQuery({
     queryKey: ["roles", guildId],
-    queryFn: () => api<RoleOption[]>(`/api/guilds/${guildId}/roles`),
+    queryFn: ({ signal }) => api<RoleOption[]>(`/api/guilds/${guildId}/roles`, { signal }),
   });
 
   const [s, setS] = useState<XpSettingsDto | null>(null);

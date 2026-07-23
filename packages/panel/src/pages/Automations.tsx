@@ -34,21 +34,21 @@ export function AutomationsPage() {
 
   const workflows = useQuery({
     queryKey: ["automations", guildId],
-    queryFn: () => api<AutomationWorkflowDto[]>(`/api/guilds/${guildId}/automations`),
+    queryFn: ({ signal }) => api<AutomationWorkflowDto[]>(`/api/guilds/${guildId}/automations`, { signal }),
   });
   const stats = useQuery({
     queryKey: ["automation-stats", guildId],
-    queryFn: () => api<AutomationStatsDto>(`/api/guilds/${guildId}/automations/stats`),
+    queryFn: ({ signal }) => api<AutomationStatsDto>(`/api/guilds/${guildId}/automations/stats`, { signal }),
   });
   const executions = useQuery({
     queryKey: ["automation-executions", guildId],
-    queryFn: () => api<AutomationExecutionDto[]>(`/api/guilds/${guildId}/automations/executions`),
+    queryFn: ({ signal }) => api<AutomationExecutionDto[]>(`/api/guilds/${guildId}/automations/executions`, { signal }),
     enabled: showExecutions,
     refetchInterval: 30_000,
   });
   const modules = useQuery({
     queryKey: ["modules", guildId],
-    queryFn: () => api<GuildModulesResponse>(`/api/guilds/${guildId}/modules`),
+    queryFn: ({ signal }) => api<GuildModulesResponse>(`/api/guilds/${guildId}/modules`, { signal }),
   });
   const automationModule = modules.data?.modules.find((module) => module.id === "automations");
   const invalidate = () => {
