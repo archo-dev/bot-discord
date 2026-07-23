@@ -10,6 +10,11 @@ import { listUserEntitlements, rowToEntitlementInput } from "../db/queries.js";
 
 export const subscriptionRouter = new Hono<AppContext>();
 
+// D29 (feature-to-plan mapping) is not decided yet. Expose the effective
+// backend policy explicitly so the panel never implies that the displayed
+// commercial plan is already used to gate client features.
+const FEATURE_ACCESS_MODE = "early_access" as const;
+
 /**
  * Effective plan of a user, resolved server-side (M6). When the entitlements
  * flag is off, resolution is skipped entirely and everyone is Gratuit — the
@@ -38,6 +43,7 @@ export async function buildSubscriptionResponse(
     isLifetime: effective.isLifetime,
     endAt: effective.endAt,
     entitlementsEnabled,
+    featureAccessMode: FEATURE_ACCESS_MODE,
   };
 }
 

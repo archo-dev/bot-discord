@@ -7,7 +7,7 @@ import { Button, Card, ErrorCard, PageHeader } from "../../ui/kit.js";
 import { Skeleton } from "../../ui/skeleton.js";
 import { PlanBadge } from "../../components/PlanBadge.js";
 import { SlotMeter } from "../../components/SlotMeter.js";
-import { countSuspended, entitlementSourceLabel, formatDateTime } from "../../lib/subscription.js";
+import { countSuspended, entitlementSourceLabel, featureAccessMessage, formatDateTime } from "../../lib/subscription.js";
 import { assignmentStateLabel } from "../../lib/slots.js";
 
 /*
@@ -26,6 +26,7 @@ export function SubscriptionPage() {
     queryFn: () => api<SubscriptionAssignmentsResponse>("/api/subscription/assignments"),
     retry: false,
   });
+  const accessMessage = sub.data ? featureAccessMessage(sub.data.featureAccessMode) : null;
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
@@ -61,6 +62,12 @@ export function SubscriptionPage() {
               </div>
             ) : null}
           </dl>
+          {accessMessage && (
+            <p className="mt-4 text-sm text-zinc-300">
+              <span className="font-medium text-zinc-100">Accès anticipé.</span>{" "}
+              {accessMessage}
+            </p>
+          )}
           {!sub.data.entitlementsEnabled && (
             <p className="mt-4 text-xs text-zinc-500">
               Les offres payantes ne sont pas encore actives — vous êtes sur l'offre gratuite. Les abonnements arriveront bientôt.

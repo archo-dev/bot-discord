@@ -3,7 +3,14 @@
  * testables en node. La vérité (plan effectif, emplacements) vient du backend
  * (GET /api/subscription[/assignments], /api/account) ; ces helpers formatent.
  */
-import type { EntitlementSource } from "@bot/shared";
+import type { EntitlementSource, FeatureAccessMode } from "@bot/shared";
+
+/** Message explaining the backend feature-access policy, when applicable. */
+export function featureAccessMessage(mode: FeatureAccessMode): string | null {
+  return mode === "early_access"
+    ? "Toutes les fonctionnalités client sont débloquées pendant la bêta."
+    : null;
+}
 
 /** Libellé FR de l'origine d'un entitlement (`null` = Gratuit par défaut). */
 export function entitlementSourceLabel(source: EntitlementSource | null): string {

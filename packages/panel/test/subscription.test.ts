@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { countSuspended, entitlementSourceLabel, formatDateTime } from "../src/lib/subscription.js";
+import { countSuspended, entitlementSourceLabel, featureAccessMessage, formatDateTime } from "../src/lib/subscription.js";
 
 /* Cible les helpers PURS de l'espace abonnement/compte (M8). */
 
 describe("subscription display helpers (M8)", () => {
+  it("explique l'accès bêta sans modifier le plan affiché", () => {
+    expect(featureAccessMessage("early_access")).toBe(
+      "Toutes les fonctionnalités client sont débloquées pendant la bêta.",
+    );
+    expect(featureAccessMessage("plan_enforced")).toBeNull();
+  });
+
   it("libellé FR de l'origine (null = gratuit)", () => {
     expect(entitlementSourceLabel(null)).toBe("Offre gratuite");
     expect(entitlementSourceLabel("paid")).toBe("Abonnement payant");
