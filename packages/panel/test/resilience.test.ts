@@ -12,6 +12,7 @@ import {
   type StorageLike,
 } from "../src/lib/resilience.js";
 import { claimRecoveryReload, isChunkLoadError, PanelErrorBoundary } from "../src/ui/error-boundary.js";
+import { RouterErrorFallback } from "../src/ui/router-error.js";
 import { isValidGuildId } from "../src/pages/GuildLayout.js";
 import { claimClientEvent, classifyClientErrorType } from "../src/lib/telemetry.js";
 
@@ -69,6 +70,7 @@ describe("bounded recovery", () => {
     const page = PanelErrorBoundary.getDerivedStateFromError(new Error("page"));
     expect(startup).toMatchObject({ failed: true, chunk: false });
     expect(page.diagnosticId).toMatch(/^[A-Za-z0-9-]+$/);
+    expect(typeof RouterErrorFallback).toBe("function");
   });
 });
 

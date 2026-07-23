@@ -19,7 +19,7 @@ export function claimRecoveryReload(storage: StorageLike, now = Date.now()): boo
   return writeStoredValue(storage, RELOAD_GUARD_KEY, now, now + RELOAD_GUARD_MS);
 }
 
-function tryReloadOnce(diagnosticId: string): boolean {
+export function attemptChunkRecoveryReload(diagnosticId: string): boolean {
   try {
     if (!claimRecoveryReload(sessionStorage)) return false;
   } catch {
@@ -60,7 +60,7 @@ export class PanelErrorBoundary extends Component<BoundaryProps, State> {
       zone: this.props.zone ?? "root",
       errorType: classifyClientErrorType(error),
     });
-    if (chunk) tryReloadOnce(diagnosticId);
+    if (chunk) attemptChunkRecoveryReload(diagnosticId);
   }
 
   componentDidUpdate(previous: BoundaryProps): void {

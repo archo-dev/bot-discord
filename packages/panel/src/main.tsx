@@ -10,11 +10,12 @@ import { createDiagnosticId } from "./lib/resilience.js";
 import { installGlobalFailureTelemetry, installLoginGuard, renderBootFailure, startNonBlockingHealthCheck } from "./lib/bootstrap.js";
 import { reportClientEvent } from "./lib/telemetry.js";
 import { ConnectionStatus } from "./ui/connection-status.js";
+import { RouterErrorFallback } from "./ui/router-error.js";
 import "./index.css";
 
 // Data router (route splat unique, l'arbre <Routes> vit dans App) :
 // requis par useBlocker (garde de navigation de la SaveBar, D.S. v2 §4.9).
-const router = createBrowserRouter([{ path: "*", element: <App /> }]);
+const router = createBrowserRouter([{ path: "*", element: <App />, errorElement: <RouterErrorFallback /> }]);
 
 // ChunkErrorBoundary AU NIVEAU RACINE : couvre désormais tout l'arbre (racine,
 // site public, routes lazy), pas seulement l'espace connecté. Un échec de
