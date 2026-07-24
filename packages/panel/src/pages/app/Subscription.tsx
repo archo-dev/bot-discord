@@ -20,10 +20,10 @@ export function SubscriptionPage() {
     document.title = "Mon abonnement — Panel du bot";
   }, []);
 
-  const sub = useQuery({ queryKey: ["subscription"], queryFn: () => api<SubscriptionResponse>("/api/subscription"), retry: false });
+  const sub = useQuery({ queryKey: ["subscription"], queryFn: ({ signal }) => api<SubscriptionResponse>("/api/subscription", { signal }), retry: false });
   const slots = useQuery({
     queryKey: ["subscription", "assignments"],
-    queryFn: () => api<SubscriptionAssignmentsResponse>("/api/subscription/assignments"),
+    queryFn: ({ signal }) => api<SubscriptionAssignmentsResponse>("/api/subscription/assignments", { signal }),
     retry: false,
   });
 

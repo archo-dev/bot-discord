@@ -59,8 +59,8 @@ export function UpdatesPage() {
 
   const query = useQuery({
     queryKey: ["updates", module],
-    queryFn: () =>
-      api<ReleaseNotesListResponse>(`/api/updates?pageSize=20${module ? `&module=${encodeURIComponent(module)}` : ""}`),
+    queryFn: ({ signal }) =>
+      api<ReleaseNotesListResponse>(`/api/updates?pageSize=20${module ? `&module=${encodeURIComponent(module)}` : ""}`, { signal }),
     retry: false,
   });
 

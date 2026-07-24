@@ -20,7 +20,7 @@ const BASE_LINKS = [
 ];
 
 export function AppLayout() {
-  const me = useQuery({ queryKey: ["me"], queryFn: () => api<MeResponse>("/api/me"), retry: false });
+  const me = useQuery({ queryKey: ["me"], queryFn: ({ signal }) => api<MeResponse>("/api/me", { signal }), retry: false });
   const flags = getPlatformFlags();
   const LINKS = [
     ...BASE_LINKS,

@@ -73,28 +73,28 @@ export function StatsPage() {
 
   const members = useQuery({
     queryKey: ["stats-members", guildId, memberDays],
-    queryFn: () => api<MemberStatsDto>(`/api/guilds/${guildId}/stats/members?days=${memberDays}`),
+    queryFn: ({ signal }) => api<MemberStatsDto>(`/api/guilds/${guildId}/stats/members?days=${memberDays}`, { signal }),
     enabled: view === "audience",
   });
   const channels = useQuery({
     queryKey: ["stats-channels", guildId, channelDays],
-    queryFn: () => api<ChannelStatsDto>(`/api/guilds/${guildId}/stats/channels?days=${channelDays}`),
+    queryFn: ({ signal }) => api<ChannelStatsDto>(`/api/guilds/${guildId}/stats/channels?days=${channelDays}`, { signal }),
     enabled: view === "activity",
   });
   const presence = useQuery({
     queryKey: ["stats-presence", guildId],
-    queryFn: () => api<PresenceStatsDto | null>(`/api/guilds/${guildId}/stats/presence`),
+    queryFn: ({ signal }) => api<PresenceStatsDto | null>(`/api/guilds/${guildId}/stats/presence`, { signal }),
     enabled: view === "audience",
     refetchInterval: 30_000,
   });
   const events = useQuery({
     queryKey: ["stats-events", guildId],
-    queryFn: () => api<ScheduledEventDto[]>(`/api/guilds/${guildId}/stats/events`),
+    queryFn: ({ signal }) => api<ScheduledEventDto[]>(`/api/guilds/${guildId}/stats/events`, { signal }),
     enabled: view === "activity",
   });
   const channelList = useQuery({
     queryKey: ["channels", guildId],
-    queryFn: () => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`),
+    queryFn: ({ signal }) => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`, { signal }),
     enabled: view === "activity",
     staleTime: 60_000,
   });

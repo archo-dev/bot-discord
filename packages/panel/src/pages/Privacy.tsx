@@ -17,7 +17,7 @@ export function PrivacyPage() {
 
   const privacy = useQuery({
     queryKey: ["privacy", guildId],
-    queryFn: () => api<GuildPrivacyResponse>(`/api/guilds/${guildId}/privacy`),
+    queryFn: ({ signal }) => api<GuildPrivacyResponse>(`/api/guilds/${guildId}/privacy`, { signal }),
   });
   const update = useMutation({
     mutationFn: (enabled: boolean) => api<GuildPrivacyResponse>(`/api/guilds/${guildId}/privacy`, {

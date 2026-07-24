@@ -37,7 +37,7 @@ export function HealthPage() {
   const { guildId } = useParams<{ guildId: string }>();
   const health = useQuery({
     queryKey: ["health", guildId],
-    queryFn: () => api<GuildHealthResponse>(`/api/guilds/${guildId}/health`),
+    queryFn: ({ signal }) => api<GuildHealthResponse>(`/api/guilds/${guildId}/health`, { signal }),
     refetchInterval: 60_000,
   });
 

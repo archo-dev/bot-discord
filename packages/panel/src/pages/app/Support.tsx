@@ -28,7 +28,7 @@ function StatusBadge({ status }: { status: SupportTicketSummary["status"] }) {
 function TicketList({ onOpen, onNew }: { onOpen: (id: number) => void; onNew: () => void }) {
   const tickets = useQuery({
     queryKey: ["support", "tickets"],
-    queryFn: () => api<SupportTicketsListResponse>("/api/support/tickets"),
+    queryFn: ({ signal }) => api<SupportTicketsListResponse>("/api/support/tickets", { signal }),
     retry: false,
   });
   return (
@@ -118,7 +118,7 @@ function TicketDetail({ id, onBack }: { id: number; onBack: () => void }) {
   const [reply, setReply] = useState("");
   const ticket = useQuery({
     queryKey: ["support", "ticket", id],
-    queryFn: () => api<SupportTicketDetail>(`/api/support/tickets/${id}`),
+    queryFn: ({ signal }) => api<SupportTicketDetail>(`/api/support/tickets/${id}`, { signal }),
     retry: false,
   });
   const invalidate = () => {

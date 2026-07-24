@@ -31,7 +31,7 @@ interface ChannelSelectProps {
 export function ChannelSelect({ guildId, value, onChange, types = [0, 5], placeholder = "Choisir un salon…", clearable = true, invalid, id }: ChannelSelectProps) {
   const channels = useQuery({
     queryKey: ["channels", guildId],
-    queryFn: () => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`),
+    queryFn: ({ signal }) => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`, { signal }),
     staleTime: 60_000,
   });
   const options: ComboOption[] = useMemo(
@@ -74,7 +74,7 @@ interface RoleSelectProps {
 export function RoleSelect({ guildId, value, onChange, excludeManaged = false, placeholder = "Choisir un rôle…", clearable = true, invalid, id }: RoleSelectProps) {
   const roles = useQuery({
     queryKey: ["roles", guildId],
-    queryFn: () => api<RoleOption[]>(`/api/guilds/${guildId}/roles`),
+    queryFn: ({ signal }) => api<RoleOption[]>(`/api/guilds/${guildId}/roles`, { signal }),
     staleTime: 60_000,
   });
   const options: ComboOption[] = useMemo(
@@ -130,7 +130,7 @@ export function MemberCombobox({ guildId, value, onChange, placeholder = "Recher
   const debounced = useDebounced(query.trim(), 250);
   const search = useQuery({
     queryKey: ["member-search", guildId, debounced],
-    queryFn: () => api<ResolvedMember[]>(`/api/guilds/${guildId}/members/search?q=${encodeURIComponent(debounced)}`),
+    queryFn: ({ signal }) => api<ResolvedMember[]>(`/api/guilds/${guildId}/members/search?q=${encodeURIComponent(debounced)}`, { signal }),
     enabled: debounced.length > 0,
     staleTime: 30_000,
   });

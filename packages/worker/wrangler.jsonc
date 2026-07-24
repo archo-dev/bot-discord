@@ -26,7 +26,17 @@
       "/studio/*",
       "/",
       "/index.html",
-      "/assets/*"
+      "/assets/*",
+      "/app",
+      "/app/*",
+      "/guilds/*",
+      "/features",
+      "/pricing",
+      "/updates",
+      "/updates/*",
+      "/legal",
+      "/legal/*",
+      "/telemetry/frontend"
     ]
   },
   // D1 + KV created on the production Cloudflare account (see README).

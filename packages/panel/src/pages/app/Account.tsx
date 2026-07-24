@@ -16,7 +16,7 @@ export function AccountPage() {
     document.title = "Mon compte — Panel du bot";
   }, []);
 
-  const account = useQuery({ queryKey: ["account"], queryFn: () => api<AccountResponse>("/api/account"), retry: false });
+  const account = useQuery({ queryKey: ["account"], queryFn: ({ signal }) => api<AccountResponse>("/api/account", { signal }), retry: false });
   const revokeAll = useMutation({
     mutationFn: () => api<{ ok: true }>("/auth/revoke-all", { method: "POST" }),
     meta: { errorMessage: "La déconnexion globale a échoué — réessayez." },

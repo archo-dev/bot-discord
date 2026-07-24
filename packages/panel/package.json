@@ -8,6 +8,7 @@
     "build": "node scripts/build.mjs production",
     "build:staging": "node scripts/build.mjs staging",
     "check:bundle": "node scripts/check-bundle-budget.mjs",
+    "check:csp": "node scripts/check-csp-bundle.mjs",
     "check": "tsc --noEmit",
     "test": "vitest run"
   },

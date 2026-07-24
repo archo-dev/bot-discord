@@ -73,11 +73,11 @@ export function WelcomePage() {
 
   const welcome = useQuery({
     queryKey: ["welcome", guildId],
-    queryFn: () => api<WelcomeSettingsDto>(`/api/guilds/${guildId}/welcome`),
+    queryFn: ({ signal }) => api<WelcomeSettingsDto>(`/api/guilds/${guildId}/welcome`, { signal }),
   });
   const logs = useQuery({
     queryKey: ["log-settings", guildId],
-    queryFn: () => api<LogSettingsDto>(`/api/guilds/${guildId}/log-settings`),
+    queryFn: ({ signal }) => api<LogSettingsDto>(`/api/guilds/${guildId}/log-settings`, { signal }),
   });
   const [welcomeEnabled, setWelcomeEnabled] = useState(false);
   const [welcomeChannelId, setWelcomeChannelId] = useState("");

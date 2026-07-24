@@ -78,7 +78,7 @@ export function OnboardingPage() {
 
   const onboarding = useQuery({
     queryKey,
-    queryFn: () => api<OnboardingResponse>(`/api/guilds/${guildId}/onboarding`),
+    queryFn: ({ signal }) => api<OnboardingResponse>(`/api/guilds/${guildId}/onboarding`, { signal }),
   });
 
   useEffect(() => {

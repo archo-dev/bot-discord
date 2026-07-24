@@ -57,7 +57,7 @@ function AllActions() {
   if (search.trim()) query.set("q", search.trim());
   if (from) query.set("from", from);
   if (to) query.set("to", `${to} 23:59:59`); // inclusive end of the selected day (created_at = "YYYY-MM-DD HH:MM:SS")
-  const history = useQuery({ queryKey: ["mod-actions", guildId, query.toString()], queryFn: () => api<Paginated<ModActionDto>>(`/api/guilds/${guildId}/mod-actions?${query}`) });
+  const history = useQuery({ queryKey: ["mod-actions", guildId, query.toString()], queryFn: ({ signal }) => api<Paginated<ModActionDto>>(`/api/guilds/${guildId}/mod-actions?${query}`, { signal }) });
   const revoke = useMutation({
     mutationFn: (id: number) => api(`/api/guilds/${guildId}/sanctions/${id}/revoke`, { method: "POST", body: JSON.stringify({}) }),
     meta: { successMessage: "Sanction révoquée" },
@@ -94,7 +94,7 @@ function Warnings() {
   const canWrite = useCanWrite();
   const [userFilter, setUserFilter] = useState("");
   const [toRevoke, setToRevoke] = useState<WarningDto | null>(null);
-  const warnings = useQuery({ queryKey: ["warnings", guildId, userFilter], queryFn: () => api<WarningDto[]>(`/api/guilds/${guildId}/warnings${userFilter ? `?userId=${userFilter}` : ""}`) });
+  const warnings = useQuery({ queryKey: ["warnings", guildId, userFilter], queryFn: ({ signal }) => api<WarningDto[]>(`/api/guilds/${guildId}/warnings${userFilter ? `?userId=${userFilter}` : ""}`, { signal }) });
   const revoke = useMutation({
     mutationFn: (id: number) => api(`/api/guilds/${guildId}/warnings/${id}`, { method: "DELETE" }),
     meta: { successMessage: "Avertissement révoqué" },
@@ -109,8 +109,8 @@ function Warnings() {
 
 function Settings() {
   const { guildId } = useParams<{ guildId: string }>(); const canWrite = useCanWrite(); const client = useQueryClient(); const [filter, setFilter] = useState("");
-  const exemptions = useQuery({ queryKey: ["sanction-exemptions", guildId], queryFn: () => api<SanctionExemptionsDto>(`/api/guilds/${guildId}/sanction-exemptions`) });
-  const roles = useQuery({ queryKey: ["roles", guildId], queryFn: () => api<RoleOption[]>(`/api/guilds/${guildId}/roles`) });
+  const exemptions = useQuery({ queryKey: ["sanction-exemptions", guildId], queryFn: ({ signal }) => api<SanctionExemptionsDto>(`/api/guilds/${guildId}/sanction-exemptions`, { signal }) });
+  const roles = useQuery({ queryKey: ["roles", guildId], queryFn: ({ signal }) => api<RoleOption[]>(`/api/guilds/${guildId}/roles`, { signal }) });
   const [draft, setDraft] = useState<SanctionExemptionsDto | null>(null);
   const value = draft ?? exemptions.data ?? { warn: [], timeout: [], kick: [], ban: [] };
   const save = useMutation({ mutationFn: () => api(`/api/guilds/${guildId}/sanction-exemptions`, { method: "PUT", body: JSON.stringify(value) }), meta: { successMessage: "Exemptions enregistrées" }, onSuccess: () => { setDraft(null); void client.invalidateQueries({ queryKey: ["sanction-exemptions", guildId] }); } });

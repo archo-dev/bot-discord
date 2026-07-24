@@ -34,20 +34,20 @@ export function CommandEditorPage() {
 
   const existing = useQuery({
     queryKey: ["command", guildId, commandId],
-    queryFn: () => api<CustomCommandDto>(`/api/guilds/${guildId}/commands/${commandId}`),
+    queryFn: ({ signal }) => api<CustomCommandDto>(`/api/guilds/${guildId}/commands/${commandId}`, { signal }),
     enabled: isEditing,
   });
   const roles = useQuery({
     queryKey: ["roles", guildId],
-    queryFn: () => api<RoleOption[]>(`/api/guilds/${guildId}/roles`),
+    queryFn: ({ signal }) => api<RoleOption[]>(`/api/guilds/${guildId}/roles`, { signal }),
   });
   const channels = useQuery({
     queryKey: ["channels", guildId],
-    queryFn: () => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`),
+    queryFn: ({ signal }) => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`, { signal }),
   });
   const revisions = useQuery({
     queryKey: ["revisions", guildId, commandId],
-    queryFn: () => api<CommandRevisionDto[]>(`/api/guilds/${guildId}/commands/${commandId}/revisions`),
+    queryFn: ({ signal }) => api<CommandRevisionDto[]>(`/api/guilds/${guildId}/commands/${commandId}/revisions`, { signal }),
     enabled: isEditing,
   });
 

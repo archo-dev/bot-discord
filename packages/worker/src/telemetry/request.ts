@@ -44,6 +44,7 @@ export interface ClassifiedRequest {
 /** Converts a URL into bounded dimensions; raw paths are never logged/stored. */
 export function classifyRequest(method: string, pathname: string): ClassifiedRequest | null {
   if (pathname === "/health") return { module: "core", operation: "read" };
+  if (pathname === "/telemetry/frontend") return { module: "core", operation: "write" };
   if (pathname === "/interactions") return { module: "interactions", operation: "interaction" };
   if (pathname.startsWith("/auth/")) return { module: "auth", operation: method === "GET" ? "read" : "write" };
   if (!pathname.startsWith("/api/") && !pathname.startsWith("/internal/")) return null;

@@ -125,11 +125,11 @@ export function AutomationEditorPage() {
   const [showSimulation, setShowSimulation] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
-  const catalog = useQuery({ queryKey: ["automation-catalog", guildId], queryFn: () => api<AutomationCatalogDto>(`/api/guilds/${guildId}/automations/catalog`) });
-  const existing = useQuery({ queryKey: ["automation", guildId, automationId], queryFn: () => api<AutomationWorkflowDto>(`/api/guilds/${guildId}/automations/${automationId}`), enabled: isEditing });
-  const roles = useQuery({ queryKey: ["roles", guildId], queryFn: () => api<RoleOption[]>(`/api/guilds/${guildId}/roles`) });
-  const channels = useQuery({ queryKey: ["channels", guildId], queryFn: () => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`) });
-  const revisions = useQuery({ queryKey: ["automation-revisions", guildId, automationId], queryFn: () => api<AutomationRevisionDto[]>(`/api/guilds/${guildId}/automations/${automationId}/revisions`), enabled: isEditing && showHistory });
+  const catalog = useQuery({ queryKey: ["automation-catalog", guildId], queryFn: ({ signal }) => api<AutomationCatalogDto>(`/api/guilds/${guildId}/automations/catalog`, { signal }) });
+  const existing = useQuery({ queryKey: ["automation", guildId, automationId], queryFn: ({ signal }) => api<AutomationWorkflowDto>(`/api/guilds/${guildId}/automations/${automationId}`, { signal }), enabled: isEditing });
+  const roles = useQuery({ queryKey: ["roles", guildId], queryFn: ({ signal }) => api<RoleOption[]>(`/api/guilds/${guildId}/roles`, { signal }) });
+  const channels = useQuery({ queryKey: ["channels", guildId], queryFn: ({ signal }) => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`, { signal }) });
+  const revisions = useQuery({ queryKey: ["automation-revisions", guildId, automationId], queryFn: ({ signal }) => api<AutomationRevisionDto[]>(`/api/guilds/${guildId}/automations/${automationId}/revisions`, { signal }), enabled: isEditing && showHistory });
 
   useEffect(() => { if (existing.data) setWorkflow(existing.data); }, [existing.data]);
   useEffect(() => {

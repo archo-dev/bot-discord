@@ -46,8 +46,8 @@ export function MusicPage() {
   const stateKey = ["music-state", guildId] as const;
   const state = useQuery<MusicStateDto>({
     queryKey: stateKey,
-    queryFn: async () => {
-      const incoming = await api<MusicStateDto>(`/api/guilds/${guildId}/music-state`);
+    queryFn: async ({ signal }) => {
+      const incoming = await api<MusicStateDto>(`/api/guilds/${guildId}/music-state`, { signal });
       return newestMusicState(queryClient.getQueryData<MusicStateDto>(stateKey), incoming);
     },
     refetchInterval: (query) => musicPollInterval(
@@ -63,7 +63,7 @@ export function MusicPage() {
   });
   const playlists = useQuery({
     queryKey: ["playlists", guildId],
-    queryFn: () => api<PlaylistSummaryDto[]>(`/api/guilds/${guildId}/playlists`),
+    queryFn: ({ signal }) => api<PlaylistSummaryDto[]>(`/api/guilds/${guildId}/playlists`, { signal }),
   });
 
   const control = useMutation<MusicCommandResult, Error, MusicControlRequest>({

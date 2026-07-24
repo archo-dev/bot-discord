@@ -68,15 +68,15 @@ export function TicketsPage() {
   const canWrite = useCanWrite();
   const settings = useQuery({
     queryKey: ["ticket-settings", guildId],
-    queryFn: () => api<TicketSettingsDto>(`/api/guilds/${guildId}/tickets/settings`),
+    queryFn: ({ signal }) => api<TicketSettingsDto>(`/api/guilds/${guildId}/tickets/settings`, { signal }),
   });
   const channels = useQuery({
     queryKey: ["channels", guildId],
-    queryFn: () => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`),
+    queryFn: ({ signal }) => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`, { signal }),
   });
   const roles = useQuery({
     queryKey: ["roles", guildId],
-    queryFn: () => api<RoleOption[]>(`/api/guilds/${guildId}/roles`),
+    queryFn: ({ signal }) => api<RoleOption[]>(`/api/guilds/${guildId}/roles`, { signal }),
   });
 
   const [enabled, setEnabled] = useState(false);
@@ -287,7 +287,7 @@ export function TicketsPage() {
 }
 
 function TicketStats({ guildId }: { guildId: string }) {
-  const stats = useQuery({ queryKey: ["ticket-stats", guildId], queryFn: () => api<TicketStatsDto>(`/api/guilds/${guildId}/tickets/stats`) });
+  const stats = useQuery({ queryKey: ["ticket-stats", guildId], queryFn: ({ signal }) => api<TicketStatsDto>(`/api/guilds/${guildId}/tickets/stats`, { signal }) });
   if (stats.isPending) return <SkeletonList rows={2} />;
   if (stats.isError) return <ErrorCard message="Impossible de charger les statistiques de tickets." onRetry={() => void stats.refetch()} />;
   const values = [
@@ -314,23 +314,23 @@ function TicketList({ guildId, form, canWrite }: { guildId: string; form: Ticket
   const [assignee, setAssignee] = useState<"" | "unassigned">("");
   const [detail, setDetail] = useState<TicketDto | null>(null);
   const [transcriptOf, setTranscriptOf] = useState<TicketDto | null>(null);
-  const me = useQuery({ queryKey: ["me"], queryFn: () => api<MeResponse>("/api/me") });
+  const me = useQuery({ queryKey: ["me"], queryFn: ({ signal }) => api<MeResponse>("/api/me", { signal }) });
   const params = new URLSearchParams({ page: String(page) });
   if (state) params.set("state", state);
   if (priority) params.set("priority", priority);
   if (assignee) params.set("assignee", assignee);
   const tickets = useQuery({
     queryKey: ["tickets", guildId, page, state, priority, assignee],
-    queryFn: () => api<Paginated<TicketDto>>(`/api/guilds/${guildId}/tickets?${params.toString()}`),
+    queryFn: ({ signal }) => api<Paginated<TicketDto>>(`/api/guilds/${guildId}/tickets?${params.toString()}`, { signal }),
   });
   const events = useQuery({
     queryKey: ["ticket-events", guildId, detail?.id],
-    queryFn: () => api<TicketEventDto[]>(`/api/guilds/${guildId}/tickets/${detail!.id}/events`),
+    queryFn: ({ signal }) => api<TicketEventDto[]>(`/api/guilds/${guildId}/tickets/${detail!.id}/events`, { signal }),
     enabled: detail !== null,
   });
   const transcript = useQuery({
     queryKey: ["ticket-transcript", guildId, transcriptOf?.id],
-    queryFn: () => api<{ number: number; transcript: string }>(`/api/guilds/${guildId}/tickets/${transcriptOf!.id}/transcript`),
+    queryFn: ({ signal }) => api<{ number: number; transcript: string }>(`/api/guilds/${guildId}/tickets/${transcriptOf!.id}/transcript`, { signal }),
     enabled: transcriptOf !== null,
   });
   const patch = useMutation({

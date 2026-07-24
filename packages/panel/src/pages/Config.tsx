@@ -17,15 +17,15 @@ export function ConfigPage() {
 
   const overview = useQuery({
     queryKey: ["guild", guildId],
-    queryFn: () => api<GuildOverview>(`/api/guilds/${guildId}`),
+    queryFn: ({ signal }) => api<GuildOverview>(`/api/guilds/${guildId}`, { signal }),
   });
   const roles = useQuery({
     queryKey: ["roles", guildId],
-    queryFn: () => api<RoleOption[]>(`/api/guilds/${guildId}/roles`),
+    queryFn: ({ signal }) => api<RoleOption[]>(`/api/guilds/${guildId}/roles`, { signal }),
   });
   const autoRoles = useQuery({
     queryKey: ["auto-roles", guildId],
-    queryFn: () => api<AutoRoleEntry[]>(`/api/guilds/${guildId}/auto-roles`),
+    queryFn: ({ signal }) => api<AutoRoleEntry[]>(`/api/guilds/${guildId}/auto-roles`, { signal }),
   });
 
   const [logChannelId, setLogChannelId] = useState<string>("");

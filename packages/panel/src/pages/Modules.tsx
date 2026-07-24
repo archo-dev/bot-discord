@@ -43,7 +43,7 @@ export function ModulesPage() {
 
   const modules = useQuery({
     queryKey: ["modules", guildId],
-    queryFn: () => api<GuildModulesResponse>(`/api/guilds/${guildId}/modules`),
+    queryFn: ({ signal }) => api<GuildModulesResponse>(`/api/guilds/${guildId}/modules`, { signal }),
     refetchInterval: 60_000,
   });
   const toggle = useMutation({

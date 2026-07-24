@@ -31,7 +31,11 @@ export const queryClient = new QueryClient({
     onError: (error, _variables, _context, mutation) => {
       if (mutation.meta?.silentError) return;
       const fallback = error instanceof ApiError
-        ? error.code === "target_is_guild_owner"
+        ? error.category === "network"
+          ? "Connexion indisponible — vérifiez votre réseau puis réessayez."
+          : error.category === "timeout"
+            ? "Le serveur met trop de temps à répondre — réessayez."
+          : error.code === "target_is_guild_owner"
           ? "Action refusée : le propriétaire du serveur ne peut pas être sanctionné. Un avertissement automatique a été enregistré."
           : error.code === "quota_exceeded"
           ? "Quota de sécurité atteint — réessayez demain."
@@ -48,13 +52,26 @@ export const queryClient = new QueryClient({
   }),
   defaultOptions: {
     queries: {
-      retry: (failureCount, error) => {
-        if (error instanceof ApiError && (error.status === 401 || error.status === 403 || error.status === 404)) {
-          return false;
-        }
-        return failureCount < 2;
-      },
+      retry: shouldRetryQuery,
+      retryDelay: retryDelayMs,
       staleTime: 30_000,
+      gcTime: 10 * 60_000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
     },
+    mutations: { retry: false },
   },
 });
+
+export function shouldRetryQuery(failureCount: number, error: unknown): boolean {
+  if (!(error instanceof ApiError)) return false;
+  if (error.status === 0) return failureCount < 2;
+  return error.status >= 500 && failureCount < 2;
+}
+
+export function retryDelayMs(attempt: number, error: unknown): number {
+  if (error instanceof ApiError && error.retryAfterSeconds !== undefined) {
+    return Math.min(error.retryAfterSeconds * 1_000, 10_000);
+  }
+  return Math.min(500 * 2 ** attempt, 4_000);
+}

@@ -18,7 +18,7 @@ export function CommandsPage() {
 
   const commands = useQuery({
     queryKey: ["commands", guildId],
-    queryFn: () => api<CustomCommandDto[]>(`/api/guilds/${guildId}/commands`),
+    queryFn: ({ signal }) => api<CustomCommandDto[]>(`/api/guilds/${guildId}/commands`, { signal }),
   });
 
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ["commands", guildId] });
