@@ -36,10 +36,32 @@ pnpm --filter @bot/worker run deploy   # TOUJOURS `run` (pnpm 10)
 ```
 Rollback : re-deploy de la version précédente (Cloudflare garde l'historique).
 
-## Étape 5 — Studio (déploiement séparé, domaine distinct)
+## Étape 5 — Studio (host isolé `studio.archolabs.com`, modèle Pages + routes Worker)
 
-- Router `studio.archodev.fr` vers le Worker studio ; définir `STUDIO_HOST`, `STUDIO_OWNER_IDS`.
-- Rollback : ne pas router `studio.archodev.fr` → Studio injoignable, zéro impact client. `STUDIO_KILL_SWITCH=true` en coupe-circuit.
+Modèle retenu (**Option 1**, identique au staging) : la **SPA Studio est servie par un projet
+Cloudflare Pages** (`botdiscord-studio-production`, custom domain `studio.archolabs.com`), et
+**seuls deux préfixes d'API sont routés vers le Worker** `botdiscord` (les patterns de route
+surclassent le custom domain Pages) :
+
+- `studio.archolabs.com/studio-api/*` → Worker
+- `studio.archolabs.com/studio/auth/*` → Worker
+
+Ces deux routes sont déclarées dans `packages/worker/wrangler.jsonc` (bloc production). **Jamais**
+de route `studio.archolabs.com/*` générique (sinon collision : le Worker attrape-tout servirait le
+panel client sur `/`).
+
+⚠️ **Prérequis bascule — détacher l'ancien Custom Domain Worker.** `studio.archolabs.com` était
+rattaché comme **Custom Domain du Worker** `botdiscord` (attrape-tout) et servait donc le **panel
+client** sur `/`. Avant d'attacher le host à Pages, il faut **détacher ce Custom Domain Worker**
+(un hostname = un seul propriétaire). Séquence complète : voir `archolabs-cutover.md`.
+
+- Définir `STUDIO_HOST=studio.archolabs.com` (déjà en prod) et poser le secret `STUDIO_OWNER_IDS`.
+- **Activation** : le host-gating Studio (`studioEnabled`) dépend **uniquement** de la variable
+  `PLATFORM_STUDIO` (env). Tant qu'elle est **absente/false**, toutes les routes `/studio-*`
+  renvoient 404 (dark), **quel que soit** l'état d'un éventuel cohort rollout KV.
+- Rollback : détacher le host de Pages + le réattacher au Custom Domain Worker (retour à l'état
+  antérieur, `/` = panel client) ; retirer les deux routes ; `STUDIO_KILL_SWITCH=true` en
+  coupe-circuit immédiat (503 sur le host studio, le host client reste 404).
 
 ## Étape 6 — Gateway (si mise à jour requise)
 
@@ -47,11 +69,21 @@ Rollback : re-deploy de la version précédente (Cloudflare garde l'historique).
 
 ## Étape 7 — Activation progressive (M15 rollout par cohortes)
 
-Pour chaque flag (`platform.entitlements`, puis `platform.billing`, `platform.support`, `platform.studio`, enfin `platform.launch`) :
+Pour les flags **guild-scopés** (`platform.entitlements`, `platform.billing`, `platform.support`,
+enfin `platform.launch`) :
 1. `PUT /studio-api/rollout/<flag>` avec 1–3 **guildes pilotes** (sans redeploy).
 2. Smoke tests sur les pilotes.
 3. Élargir la cohorte → général (flag global on) uniquement après validation.
 Rollback : retirer la cohorte / flag global off (instantané).
+
+> ⚠️ **`platform.studio` n'est PAS géré par le rollout par cohortes.** Le host-gating Studio
+> (`studioEnabled`, `src/auth/studio-guard.ts`) lit **exclusivement** la variable d'env
+> `PLATFORM_STUDIO` ; `resolveGuildFlag`/les cohortes KV (`src/config/rollout.ts`) sont
+> **guild-scopés** et n'ont **aucun** effet sur l'activation du Studio. Un
+> `PUT /studio-api/rollout/platform.studio` **n'active donc PAS** le Studio. Activation réelle =
+> déclarer `PLATFORM_STUDIO=true` + redeploy (global). Tant que la variable est absente → 404
+> partout (dark). En prod, `verify-worker-flags.mjs` attend `PLATFORM_STUDIO` **absent** : sa règle
+> devra être mise à jour au moment de l'activation (hors dark launch).
 
 ## Étape 8 — Smoke tests prod (voir `12-testing-and-release-strategy.md` §9)
 

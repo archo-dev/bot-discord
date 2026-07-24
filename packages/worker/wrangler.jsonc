@@ -4,6 +4,22 @@
   "main": "src/index.ts",
   "compatibility_date": "2025-09-01",
   "placement": { "mode": "smart" },
+  // --- Studio production (dark launch, Option 1 — modèle identique au staging).
+  //     La SPA Studio est servie par le projet Pages `botdiscord-studio-production`
+  //     (custom domain `studio.archolabs.com`) ; SEULS ces deux préfixes d'API sont
+  //     routés vers ce Worker. Les patterns de route surclassent le custom domain
+  //     Pages → `/studio-api/*` et `/studio/auth/*` atteignent le Worker, tout le
+  //     reste (`/`, `/assets/*`) reste servi par Pages.
+  //     ⚠️ Prérequis bascule : DÉTACHER l'ancien Custom Domain Worker de
+  //        `studio.archolabs.com` (sinon le Worker attrape-tout sert le panel client
+  //        sur `/`). Voir docs/platform-split/execution/launch/archolabs-cutover.md.
+  //     Dark tant que PLATFORM_STUDIO est ABSENT : `requireStudioHost` renvoie 404
+  //     sur ces routes (studioEnabled = flag && STUDIO_HOST). AUCUNE route
+  //     `studio.archolabs.com/*` générique, AUCUNE modif d'`archolabs.com`.
+  "routes": [
+    { "pattern": "studio.archolabs.com/studio-api/*", "zone_name": "archolabs.com" },
+    { "pattern": "studio.archolabs.com/studio/auth/*", "zone_name": "archolabs.com" }
+  ],
   // Daily retention purge (src/cron.ts). 04:23 UTC — off-peak, avoids :00 rushes.
   "triggers": { "crons": ["* * * * *", "23 4 * * *"] },
   // Panel SPA served by the same Worker (build it first: pnpm build).

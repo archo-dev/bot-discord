@@ -24,11 +24,29 @@
 - **Nouveaux pour le socle** : `STUDIO_OWNER_IDS` (snowflake(s) propriétaire), **avant** d'activer `platform.studio`.
 - **Au lancement commercial uniquement** : `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` **LIVE**.
 
-### 1.3 Studio front-end (⚠️ écart M12 non résolu)
-La SPA `@bot/developer-studio` **n'est pas servie** par le Worker `botdiscord` (seuls `/studio-api/*` et `/studio/auth/*` le sont, host-gated). En l'état, `studio.archolabs.com` servirait le **panel client**. Avant d'activer `platform.studio` :
-- **Option A** : héberger la SPA studio séparément (Cloudflare Pages / Worker dédié) sur `studio.archolabs.com`, en proxyfiant `/studio-api/*` + `/studio/auth/*` vers le Worker `botdiscord`.
-- **Option B** : câbler un second binding d'assets + routage par host dans le Worker (évolution code, hors ce commit).
-Tant que ce n'est pas fait, garder `platform.studio` **off** (le Studio reste inaccessible, sans impact client).
+### 1.3 Studio front-end — **Option 1 retenue** (modèle Pages + routes Worker, identique au staging)
+État constaté en prod (audit dark-launch) : `studio.archolabs.com` est rattaché comme **Custom
+Domain du Worker `botdiscord`** (attrape-tout) et sert donc le **panel client** sur `/`, avec les
+routes `/studio-api/*` et `/studio/auth/*` en 404 (dark, flag off). La SPA `@bot/developer-studio`
+**n'est pas servie** par le Worker.
+
+**Option 1 (retenue)** — héberger la SPA Studio sur un projet **Cloudflare Pages dédié**
+(`botdiscord-studio-production`, custom domain `studio.archolabs.com`) ; **seuls** `/studio-api/*`
+et `/studio/auth/*` sont routés vers le Worker `botdiscord` via `wrangler.jsonc` (les patterns de
+route surclassent le custom domain Pages). C'est exactement le montage du staging
+(`botdiscord-studio-staging` + `env.staging.routes`).
+
+**Bascule (ordre impératif — un hostname = un seul propriétaire) :**
+1. Sauvegarder la config actuelle du Custom Domain Worker de `studio.archolabs.com`.
+2. **Détacher** `studio.archolabs.com` du Custom Domain du Worker `botdiscord`.
+3. **Attacher** `studio.archolabs.com` au projet Pages `botdiscord-studio-production`.
+4. Déployer le Worker avec **uniquement** les deux routes spécifiques (déjà dans `wrangler.jsonc`).
+
+> Option B (rejetée) : second binding d'assets host-routé dans le Worker (évolution code).
+
+Tant que `PLATFORM_STUDIO` reste absent, `platform.studio` est **off** → `/studio-api/*` et
+`/studio/auth/*` renvoient 404 (dark), `studio.archolabs.com/` sert la SPA Studio (login inopérant,
+API 404), **aucun** impact sur le panel client `archolabs.com`.
 
 ### 1.4 Décisions produit/juridique (dossier §1) — bloquantes pour le lancement commercial
 D1 (prix → `LAUNCH_*`), D3 (prestataire + clés live), D12/D18/D20 (remboursement/rétention/TVA), **D21 (brouillons juridiques à faire valider par un avocat)**. `platform.launch` **en dernier**.
