@@ -5,6 +5,9 @@
 import type { EntitlementSource, EntitlementStatus, PlanId } from "../entitlement.js";
 import type { AssignmentState } from "../assignments.js";
 
+/** Commercial feature-access policy currently enforced by the backend. */
+export type FeatureAccessMode = "early_access" | "plan_enforced";
+
 export interface SubscriptionResponse {
   planId: PlanId;
   planRank: number;
@@ -19,6 +22,8 @@ export interface SubscriptionResponse {
   endAt: string | null;
   /** Whether the platform.entitlements flag is on (panel awareness). */
   entitlementsEnabled: boolean;
+  /** Whether client features are beta-unlocked or restricted by plan. */
+  featureAccessMode: FeatureAccessMode;
 }
 
 /** One server slot occupied by (or suspended under) the user's entitlement. */

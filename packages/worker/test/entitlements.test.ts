@@ -39,12 +39,14 @@ describe("M6 entitlements — resolution service", () => {
     expect(r.planId).toBe("free");
     expect(r.source).toBeNull();
     expect(r.entitlementsEnabled).toBe(false);
+    expect(r.featureAccessMode).toBe("early_access");
   });
 
   it("flag ON, no entitlement → Gratuit", async () => {
     const r = await buildSubscriptionResponse(env.DB, USER, true);
     expect(r.planId).toBe("free");
     expect(r.entitlementsEnabled).toBe(true);
+    expect(r.featureAccessMode).toBe("early_access");
   });
 
   it("flag ON, active granted premium → Premium", async () => {
@@ -105,7 +107,7 @@ describe("M6 entitlements — GET /api/subscription", () => {
     expect(body.entitlementsEnabled).toBe(false);
     // No internal origin fields leak into the response shape.
     expect(Object.keys(body).sort()).toEqual(
-      ["displayName", "endAt", "entitlementsEnabled", "isLifetime", "planId", "planRank", "slots", "source", "status"].sort(),
+      ["displayName", "endAt", "entitlementsEnabled", "featureAccessMode", "isLifetime", "planId", "planRank", "slots", "source", "status"].sort(),
     );
   });
 });
