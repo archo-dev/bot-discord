@@ -4,6 +4,7 @@ import type { ConfigCache } from "./config-cache.js";
 import type { WorkerApi } from "./worker-api.js";
 import { sendTo } from "./events.js";
 import { isGatewayModuleEnabled } from "./module-config.js";
+import { observe } from "./observability.js";
 
 const COLORS = { green: 0x57f287, red: 0xed4245, blurple: 0x5865f2, grey: 0x99aab5 } as const;
 
@@ -85,8 +86,17 @@ export function registerVoice(client: Client, cache: ConfigCache, api: WorkerApi
     const actions = classify(oldState, newState);
     if (actions.length === 0) return;
 
+    observe("info", "voice_event_received", { guildId: guild.id });
+
     const cfg = await cache.get(guild.id).catch(() => null);
-    if (!cfg || !isGatewayModuleEnabled(cfg, "voice_logs")) return;
+    if (!cfg) {
+      observe("warn", "voice_log_skipped", { guildId: guild.id, reason: "config_missing" });
+      return;
+    }
+    if (!isGatewayModuleEnabled(cfg, "voice_logs")) {
+      observe("info", "voice_log_skipped", { guildId: guild.id, reason: "module_disabled" });
+      return;
+    }
     const logs = cfg.logs;
 
     const member = newState.member ?? oldState.member;
@@ -102,10 +112,26 @@ export function registerVoice(client: Client, cache: ConfigCache, api: WorkerApi
           .postVoiceLogs(guild.id, [
             { userId, userTag, action: a.action, channelId: a.channelId, fromChannelId: a.fromChannelId },
           ])
-          .catch(() => {});
+          .then(() => observe("info", "voice_event_persisted", { guildId: guild.id, action: a.action }))
+          .catch(() => observe("error", "voice_log_failed", { guildId: guild.id, action: a.action, reason: "persist_error" }));
       }
-      if (toggleFor(logs, a.action) && logs.channelId) {
-        await sendTo(guild, logs.channelId, { embeds: [embedFor(who, a)] });
+
+      if (!toggleFor(logs, a.action)) {
+        observe("info", "voice_log_skipped", { guildId: guild.id, action: a.action, reason: "toggle_off" });
+        continue;
+      }
+      if (!logs.channelId) {
+        observe("info", "voice_log_skipped", { guildId: guild.id, action: a.action, reason: "no_channel" });
+        continue;
+      }
+      const outcome = await sendTo(guild, logs.channelId, { embeds: [embedFor(who, a)] });
+      if (outcome === "sent") {
+        observe("info", "voice_log_sent", { guildId: guild.id, action: a.action });
+      } else if (outcome === "failed") {
+        observe("error", "voice_log_failed", { guildId: guild.id, action: a.action, reason: "send_error" });
+      } else {
+        // no_channel already handled above; here: channel_missing | channel_not_text
+        observe("warn", "voice_log_skipped", { guildId: guild.id, action: a.action, reason: outcome === "channel_not_text" ? "channel_not_text" : "channel_missing" });
       }
     }
   });

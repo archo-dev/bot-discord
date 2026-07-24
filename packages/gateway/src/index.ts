@@ -19,6 +19,8 @@ import { buildGatewayRuntimeSnapshot } from "./health.js";
 import { createOutbox } from "./outbox/index.js";
 import { registerAutomations } from "./automations.js";
 import { verifyDiscordApplicationId } from "./discord-identity.js";
+import { SessionWatchdog, type WatchdogConfig } from "./session-watchdog.js";
+import { observe } from "./observability.js";
 
 // 120 s (TTL KV côté Worker = 300 s) : reste sous le quota d'écritures KV du
 // plan gratuit (1000/jour) tout en gardant le badge « Gateway » fiable.
@@ -32,6 +34,17 @@ const api = createWorkerApi(env);
 const outbox = createOutbox(env, (events) => api.postReliableBatch(events));
 api.attachOutbox(outbox);
 const configCache = createConfigCache(api);
+
+// Détection des sessions zombie (incident 07-23/24) : voir session-watchdog.ts.
+const watchdogEnabled = env.GATEWAY_WATCHDOG_ENABLED === "true";
+const watchdogConfig: WatchdogConfig = {
+  readyGraceMs: env.GATEWAY_WATCHDOG_READY_GRACE_MS,
+  applicativeSilenceMs: env.GATEWAY_WATCHDOG_SILENCE_MS,
+  resumeWindowMs: env.GATEWAY_WATCHDOG_RESUME_WINDOW_MS,
+  resumeLoopThreshold: env.GATEWAY_WATCHDOG_RESUME_LOOP,
+  heartbeatStaleMs: env.GATEWAY_WATCHDOG_HEARTBEAT_STALE_MS,
+};
+const watchdog = new SessionWatchdog(watchdogConfig);
 
 // GuildMembers + MessageContent are privileged: they must also be enabled in
 // the Developer Portal (Bot → Server Members Intent + Message Content Intent),
@@ -97,6 +110,9 @@ function collectPresence(): Record<string, PresenceCounts> | undefined {
 }
 
 async function heartbeat(): Promise<void> {
+  // Le tick du heartbeat prouve que la boucle d'événements vit et que le
+  // transport WS répond — indépendamment de la joignabilité du Worker.
+  watchdog.onHeartbeat(Date.now());
   const requestId = crypto.randomUUID();
   const health = api.getHealthSnapshot();
   try {
@@ -127,6 +143,12 @@ async function heartbeat(): Promise<void> {
   }
 }
 
+client.on(Events.ClientReady, () => {
+  // ClientReady refires on a full re-IDENTIFY (fresh session) — reset the
+  // watchdog baselines and the post-READY grace each time.
+  watchdog.onReady(Date.now());
+});
+
 client.once(Events.ClientReady, (c) => {
   console.log(`gateway ready as ${c.user.tag} (${c.guilds.cache.size} guilds)`);
   outbox.start(); // drains any events persisted from a previous run, then live traffic
@@ -135,10 +157,13 @@ client.once(Events.ClientReady, (c) => {
 });
 
 // --- Résilience session Discord --------------------------------------------
-// Panne du 14/07 : la session WS est devenue zombie (transport vivant, plus
-// aucun événement de dispatch) et discord.js n'a rien logué ni relancé →
-// 3 jours sans logs vocaux/stats. Deux gardes ; dans les deux cas on SORT et
-// systemd (Restart=always) relance avec une session fraîche (IDENTIFY).
+// Panne du 14/07 puis 23/07 : la session WS devient zombie (transport vivant,
+// heartbeat frais, mais plus aucun dispatch applicatif) et discord.js ne relance
+// rien. Le 23/07 le shard RESUMEait « avec succès » toutes les 1-3 h sans jamais
+// délivrer d'événements : l'ancien watchdog basé sur Events.Raw était réarmé par
+// le dispatch RESUMED → jamais de restart. Voir session-watchdog.ts.
+// Dans tous les cas on SORT proprement et systemd (Restart=always) relance avec
+// une session fraîche (IDENTIFY).
 
 // 1. Session invalidée : discord.js cesse définitivement de se reconnecter.
 client.on(Events.Invalidated, () => {
@@ -146,25 +171,40 @@ client.on(Events.Invalidated, () => {
   shutdown("session-invalidated");
 });
 
-// 2. Watchdog zombie : un serveur avec des membres en ligne produit des paquets
-// en continu (présences, messages, voice) ; 60 min de silence total = session
-// morte même si le ping WS répond encore.
-const DISPATCH_WATCHDOG_MS = 60 * 60_000;
-let lastDispatchAt = Date.now();
-client.on(Events.Raw, () => {
-  lastDispatchAt = Date.now();
+// 2. Watchdog zombie : suit le dernier dispatch APPLICATIF (READY/RESUMED exclus)
+// et les RESUME successifs. N'agit que sur « transport frais + zéro dispatch
+// applicatif + boucle de RESUME » — jamais sur une simple inactivité.
+client.on(Events.Raw, (packet: unknown) => {
+  const type = typeof packet === "object" && packet !== null && "t" in packet ? (packet as { t?: unknown }).t : undefined;
+  watchdog.onDispatch(typeof type === "string" ? type : undefined, Date.now());
 });
-setInterval(() => {
-  if (Date.now() - lastDispatchAt > DISPATCH_WATCHDOG_MS) {
-    console.error(`no gateway dispatch for ${Math.round((Date.now() - lastDispatchAt) / 60000)} min — exiting (zombie session)`);
-    shutdown("dispatch-watchdog");
-  }
-}, 60_000).unref();
+if (watchdogEnabled) {
+  setInterval(() => {
+    const decision = watchdog.evaluate(Date.now());
+    if (decision.kind === "zombie") {
+      observe("error", "gateway_zombie_suspected", {
+        reason: decision.reason,
+        resumesInWindow: decision.resumesInWindow,
+        silenceSeconds: decision.applicativeSilenceMs / 1000,
+      });
+      observe("error", "gateway_restart_requested", { reason: decision.reason });
+      console.error(
+        `zombie session suspected (${decision.resumesInWindow} resumes, ${Math.round(decision.applicativeSilenceMs / 60000)} min without applicative dispatch) — exiting for a fresh IDENTIFY`,
+      );
+      shutdown("zombie-resume-loop");
+    }
+  }, 60_000).unref();
+}
 
 // Traces de cycle de vie du shard : une prochaine coupure laissera un journal.
 client.on(Events.ShardDisconnect, (event, id) => console.error(`shard ${id} disconnected (code ${event.code})`));
 client.on(Events.ShardReconnecting, (id) => console.log(`shard ${id} reconnecting`));
-client.on(Events.ShardResume, (id, replayed) => console.log(`shard ${id} resumed (${replayed} events replayed)`));
+client.on(Events.ShardResume, (id, replayed) => {
+  const now = Date.now();
+  watchdog.onResume(now);
+  observe("warn", "gateway_resume_detected", { resumesInWindow: watchdog.snapshot(now).resumesInWindow });
+  console.log(`shard ${id} resumed (${replayed} events replayed)`);
+});
 client.on(Events.ShardError, (error, id) => console.error(`shard ${id} error: ${error.message}`));
 
 const server = serve({ fetch: createHttpApp(env, client, music).fetch, port: env.GATEWAY_PORT }, (info) => {

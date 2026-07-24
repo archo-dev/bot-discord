@@ -58,6 +58,12 @@ async function buildMemberCards(guild: Guild, content: string): Promise<APIEmbed
 }
 
 /**
+ * Delivery outcome for callers that want to observe it (voice logs). Callers may
+ * ignore the return — behavior is unchanged from the original void signature.
+ */
+export type SendOutcome = "sent" | "no_channel" | "channel_missing" | "channel_not_text" | "failed";
+
+/**
  * Guild-scoped channel lookup: a channel id from another guild resolves to nothing.
  * When `opts.mentionCards` is set, appends a member card per user mentioned in
  * `payload.content` (M20).
@@ -67,19 +73,22 @@ export async function sendTo(
   channelId: string | null,
   payload: { content?: string; embeds?: (EmbedBuilder | APIEmbed)[] },
   opts: { mentionCards?: boolean } = {},
-): Promise<void> {
-  if (!channelId) return;
+): Promise<SendOutcome> {
+  if (!channelId) return "no_channel";
   try {
     const channel = guild.channels.cache.get(channelId) ?? (await guild.channels.fetch(channelId).catch(() => null));
-    if (!channel?.isTextBased()) return;
+    if (!channel) return "channel_missing";
+    if (!channel.isTextBased()) return "channel_not_text";
     let embeds = payload.embeds;
     if (opts.mentionCards && payload.content) {
       const cards = await buildMemberCards(guild, payload.content);
       if (cards.length > 0) embeds = [...(embeds ?? []), ...cards];
     }
     await channel.send({ ...payload, embeds });
+    return "sent";
   } catch (err) {
     console.error(`send to ${guild.id}/${channelId} failed:`, errMsg(err));
+    return "failed";
   }
 }
 

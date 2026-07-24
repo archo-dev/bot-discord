@@ -54,6 +54,20 @@ const envSchema = z.object({
   GATEWAY_OUTBOX_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(2),
   /** Dead-letter is bounded: only the most recent N are kept (older ones purged). */
   GATEWAY_OUTBOX_MAX_DEAD: z.coerce.number().int().min(0).max(1_000_000).default(5_000),
+
+  // --- Détection session zombie (voir session-watchdog.ts) -----------------
+  /** Master switch. false = pas d'auto-restart zombie (diagnostic manuel seul). */
+  GATEWAY_WATCHDOG_ENABLED: z.enum(["true", "false"]).default("true"),
+  /** Délai de grâce après READY avant toute évaluation. */
+  GATEWAY_WATCHDOG_READY_GRACE_MS: z.coerce.number().int().min(10_000).max(3_600_000).default(120_000),
+  /** Silence applicatif toléré (transport frais) avant de suspecter un zombie. */
+  GATEWAY_WATCHDOG_SILENCE_MS: z.coerce.number().int().min(60_000).max(24 * 3_600_000).default(15 * 60_000),
+  /** Fenêtre glissante de comptage des RESUME. */
+  GATEWAY_WATCHDOG_RESUME_WINDOW_MS: z.coerce.number().int().min(60_000).max(24 * 3_600_000).default(3 * 60 * 60_000),
+  /** Nombre de RESUME sans dispatch applicatif valant zombie. */
+  GATEWAY_WATCHDOG_RESUME_LOOP: z.coerce.number().int().min(1).max(100).default(2),
+  /** Au-delà, le transport est réputé mort → reconnexion discord.js (pas notre rôle). */
+  GATEWAY_WATCHDOG_HEARTBEAT_STALE_MS: z.coerce.number().int().min(60_000).max(3_600_000).default(5 * 60_000),
 });
 
 export type GatewayEnv = z.infer<typeof envSchema>;
