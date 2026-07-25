@@ -4,8 +4,8 @@
 //
 //   node scripts/verify-worker-flags.mjs <production|staging>
 //
-// Production (top-level `vars`) : PLATFORM_ENTITLEMENTS/SUPPORT/LAUNCH = "true",
-//   PLATFORM_BILLING et PLATFORM_STUDIO ABSENTS (off).
+// Production (top-level `vars`) : PLATFORM_ENTITLEMENTS/SUPPORT/LAUNCH/STUDIO =
+//   "true", PLATFORM_BILLING ABSENT (off).
 // Staging (env.staging.vars) : PLATFORM_ENTITLEMENTS/SUPPORT/BILLING/STUDIO =
 //   "true", PLATFORM_LAUNCH absent.
 // Aucune valeur secrète n'est lue ici (uniquement des booléens non secrets).
@@ -39,8 +39,8 @@ const specs = {
   production: {
     block: topLevel,
     label: "top-level (production)",
-    on: ["PLATFORM_ENTITLEMENTS", "PLATFORM_SUPPORT", "PLATFORM_LAUNCH"],
-    off: ["PLATFORM_BILLING", "PLATFORM_STUDIO"],
+    on: ["PLATFORM_ENTITLEMENTS", "PLATFORM_SUPPORT", "PLATFORM_LAUNCH", "PLATFORM_STUDIO"],
+    off: ["PLATFORM_BILLING"],
   },
   staging: {
     block: stagingBlock,
