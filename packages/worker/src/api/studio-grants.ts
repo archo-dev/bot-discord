@@ -13,6 +13,7 @@ import {
   requireStepUp,
   studioActionRateLimit,
   type StudioContext,
+  type StudioOperator,
 } from "../auth/studio-guard.js";
 import { callerIp, writeStudioAudit } from "../security/studio-audit.js";
 import {
@@ -74,6 +75,22 @@ function toSummary(row: GrantJoinRow): GrantSummary {
   };
 }
 
+/**
+ * Self-attribution policy (D11). A normal operator can NEVER grant to themselves,
+ * even holding every permission — that guard is unconditional for non-owners. The
+ * SINGLE explicit exception is the bootstrap owner (from STUDIO_OWNER_IDS, resolved
+ * server-side as operator.isOwner): the owner may grant themselves an offered
+ * access. This exception relaxes ONLY the actor===target equality check; every
+ * other control (permission, step-up, LIFETIME confirmation, plan/duration/reason
+ * validation, rate limit, CSRF, audit) still applies unchanged.
+ */
+type GrantTargetDecision = "other" | "owner_self" | "forbidden_self";
+
+function classifyGrantTarget(operator: StudioOperator, targetUserId: string): GrantTargetDecision {
+  if (targetUserId !== operator.userId) return "other";
+  return operator.isOwner ? "owner_self" : "forbidden_self";
+}
+
 export function registerGrantRoutes(router: Hono<StudioContext>): void {
   router.get("/studio-api/subscriptions/granted", requireDeveloper("subscriptions.read"), async (c) => {
     const page = Number(c.req.query("page") ?? 1) || 1;
@@ -87,8 +104,10 @@ export function registerGrantRoutes(router: Hono<StudioContext>): void {
     const parsed = grantSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ error: "invalid_body", fields: parsed.error.flatten().fieldErrors }, 400);
     const operator = c.get("operator");
-    // Auto-attribution forbidden (D11): an operator can never grant to themselves.
-    if (parsed.data.userId === operator.userId) return c.json({ error: "self_grant_forbidden" }, 403);
+    // Auto-attribution (D11): forbidden for everyone EXCEPT the bootstrap owner.
+    const targeting = classifyGrantTarget(operator, parsed.data.userId);
+    if (targeting === "forbidden_self") return c.json({ error: "self_grant_forbidden" }, 403);
+    const isOwnerSelfGrant = targeting === "owner_self";
 
     const startAt = new Date().toISOString();
     let window;
@@ -118,10 +137,18 @@ export function registerGrantRoutes(router: Hono<StudioContext>): void {
     c.executionCtx.waitUntil(
       writeStudioAudit(c.env, {
         actor: `operator:${operator.userId}`,
-        action: "subscriptions.grant",
+        action: isOwnerSelfGrant ? "self_grant" : "subscriptions.grant",
         targetType: "entitlement",
         targetId: String(entitlementId),
-        metadata: { grantId, userId: parsed.data.userId, planId: parsed.data.planId, durationKind: parsed.data.durationKind, reason: parsed.data.reason },
+        metadata: {
+          grantId,
+          userId: parsed.data.userId,
+          planId: parsed.data.planId,
+          durationKind: parsed.data.durationKind,
+          isLifetime: window.isLifetime,
+          reason: parsed.data.reason,
+          ...(isOwnerSelfGrant ? { isOwner: true } : {}),
+        },
         ip: callerIp(c),
       }),
     );
@@ -139,7 +166,10 @@ export function registerGrantRoutes(router: Hono<StudioContext>): void {
     // Anti-error explicit typing — lifetime is a permanent commitment (doc 06 §lifetime).
     if (parsed.data.confirm !== "LIFETIME") return c.json({ error: "confirmation_required" }, 400);
     const operator = c.get("operator");
-    if (parsed.data.userId === operator.userId) return c.json({ error: "self_grant_forbidden" }, 403);
+    // Auto-attribution (D11): forbidden for everyone EXCEPT the bootstrap owner.
+    const targeting = classifyGrantTarget(operator, parsed.data.userId);
+    if (targeting === "forbidden_self") return c.json({ error: "self_grant_forbidden" }, 403);
+    const isOwnerSelfGrant = targeting === "owner_self";
 
     const startAt = new Date().toISOString();
     const window = resolveGrantWindow("lifetime", startAt);
@@ -164,10 +194,18 @@ export function registerGrantRoutes(router: Hono<StudioContext>): void {
     c.executionCtx.waitUntil(
       writeStudioAudit(c.env, {
         actor: `operator:${operator.userId}`,
-        action: "subscriptions.grant_lifetime",
+        action: isOwnerSelfGrant ? "self_grant" : "subscriptions.grant_lifetime",
         targetType: "entitlement",
         targetId: String(entitlementId),
-        metadata: { grantId, userId: parsed.data.userId, planId: parsed.data.planId, reason: parsed.data.reason },
+        metadata: {
+          grantId,
+          userId: parsed.data.userId,
+          planId: parsed.data.planId,
+          durationKind: "lifetime",
+          isLifetime: true,
+          reason: parsed.data.reason,
+          ...(isOwnerSelfGrant ? { isOwner: true } : {}),
+        },
         ip: callerIp(c),
       }),
     );
