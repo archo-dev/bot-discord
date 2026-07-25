@@ -84,6 +84,10 @@ describe("M6 entitlements — resolution service", () => {
     expect(r.planId).toBe("business");
     expect(r.isLifetime).toBe(true);
     expect(r.endAt).toBeNull();
+    // A plain granted lifetime is NOT early_access: origin stays 'granted' so the
+    // panel labels it « Lifetime offert », never « Accès anticipé » (prod bug fix).
+    expect(r.source).toBe("granted");
+    expect(r.originKind).toBe("granted");
   });
 });
 

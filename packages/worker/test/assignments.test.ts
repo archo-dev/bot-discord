@@ -127,6 +127,34 @@ describe("M7 slot assignments — service", () => {
     expect(r.assignments).toHaveLength(0);
     expect(r.used).toBe(0);
   });
+
+  it("expired entitlement → capacity 0, existing assignments never counted as used", async () => {
+    // Assign while active, then the backing entitlement lapses (end_at in the past).
+    await insertEntitlement(env.DB, {
+      userId: USER, planId: "business", source: "granted",
+      startAt: "2020-01-01T00:00:00.000Z", endAt: "2000-01-01T00:00:00.000Z",
+    });
+    const ent = await env.DB.prepare(`SELECT id FROM entitlements WHERE user_id = ?1`).bind(USER).first<{ id: number }>();
+    await insertAssignment(env.DB, ent!.id, G(1), USER, "2020-02-01T00:00:00.000Z");
+    const r = await buildAssignmentsResponse(env.DB, USER, true);
+    expect(r.planId).toBe("free");
+    expect(r.slots).toBe(0);
+    expect(r.used).toBe(0);
+    expect(r.available).toBe(0);
+    // The row is kept (history), but derived over-capacity → suspended, never 'used'.
+    expect(r.assignments.every((a) => a.state === "suspended")).toBe(true);
+  });
+
+  it("scheduled entitlement (start in the future) → capacity 0, nothing counted", async () => {
+    await insertEntitlement(env.DB, {
+      userId: USER, planId: "business", source: "granted", startAt: FUTURE, endAt: "2999-12-31T00:00:00.000Z",
+    });
+    const ent = await env.DB.prepare(`SELECT id FROM entitlements WHERE user_id = ?1`).bind(USER).first<{ id: number }>();
+    await insertAssignment(env.DB, ent!.id, G(1), USER, "2026-01-01T00:00:00.000Z");
+    const r = await buildAssignmentsResponse(env.DB, USER, true);
+    expect(r.slots).toBe(0);
+    expect(r.used).toBe(0);
+  });
 });
 
 describe("M7 guild plan resolution (gateway config)", () => {

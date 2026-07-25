@@ -17,6 +17,47 @@ export function featureAccessMessage(mode: FeatureAccessMode): string | null {
     : null;
 }
 
+/**
+ * La note globale « accès bêta » ne concerne QUE les comptes sans entitlement
+ * explicite : un Business Lifetime offert ne doit jamais être re-libellé
+ * « accès anticipé » simplement parce que le mode backend vaut early_access
+ * (bug prod M17). Un entitlement plus précis (source ≠ null) prime toujours ;
+ * son origine réelle est portée par [[subscriptionSourceLabel]].
+ */
+export function showGlobalEarlyAccessNote(
+  mode: FeatureAccessMode,
+  source: EntitlementSource | null,
+): boolean {
+  return source === null && mode === "early_access";
+}
+
+/**
+ * Libellé FR unique de l'origine effective présentée sur « Mon abonnement ».
+ * Prend en compte le caractère lifetime (orthogonal à l'origine). `null` = Gratuit.
+ * Ne mentionne jamais de facture/prix pour un accès offert (accès bêta compris).
+ */
+export function subscriptionSourceLabel(
+  originKind: EntitlementOriginKind | null,
+  isLifetime: boolean,
+): string {
+  switch (originKind) {
+    case "early_access":
+      return "Accès bêta";
+    case "granted":
+      return isLifetime ? "Lifetime offert" : "Accès offert";
+    case "promotion":
+      return "Accès promotionnel";
+    case "trial":
+      return "Essai";
+    case "paid":
+      return "Abonnement";
+    case "partner":
+      return "Partenaire";
+    default:
+      return "Offre gratuite";
+  }
+}
+
 /** Libellé FR de l'origine d'un entitlement (`null` = Gratuit par défaut). */
 export function entitlementSourceLabel(source: EntitlementSource | null): string {
   switch (source) {
