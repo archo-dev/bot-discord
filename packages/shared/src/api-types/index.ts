@@ -22,6 +22,7 @@ export * from "./config-backup.js";
 export * from "./privacy.js";
 export * from "./release-notes.js";
 export * from "./subscription.js";
+export * from "./capability.js";
 export * from "./billing.js";
 export * from "./support.js";
 export * from "./studio.js";

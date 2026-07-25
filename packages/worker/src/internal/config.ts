@@ -19,7 +19,7 @@ import {
 import { logRowToDto, welcomeRowToDto } from "../api/welcome.js";
 import { automodRowToDto } from "../api/automod.js";
 import { resolveGuildPlan } from "../api/assignments.js";
-import { getWorkerFlags } from "../config/flags.js";
+import { getEnforcementMode, getWorkerFlags } from "../config/flags.js";
 
 export const internalConfigRouter = new Hono<{ Bindings: Env }>();
 
@@ -54,6 +54,9 @@ internalConfigRouter.get("/internal/guilds/:guildId/config", async (c) => {
   return c.json({
     governanceVersion: 1,
     plan,
+    // Mode d'enforcement des plans exposé à la Gateway (même policy @bot/shared).
+    // Absent/off en prod → la Gateway n'évalue rien.
+    enforcementMode: getEnforcementMode(c.env),
     modules,
     id: guild.id,
     logChannelId: guild.log_channel_id,

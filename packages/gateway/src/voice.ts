@@ -4,6 +4,7 @@ import type { ConfigCache } from "./config-cache.js";
 import type { WorkerApi } from "./worker-api.js";
 import { sendTo } from "./events.js";
 import { isGatewayModuleEnabled } from "./module-config.js";
+import { observeGatewayCapability } from "./enforcement.js";
 import { observe } from "./observability.js";
 
 const COLORS = { green: 0x57f287, red: 0xed4245, blurple: 0x5865f2, grey: 0x99aab5 } as const;
@@ -97,6 +98,7 @@ export function registerVoice(client: Client, cache: ConfigCache, api: WorkerApi
       observe("info", "voice_log_skipped", { guildId: guild.id, reason: "module_disabled" });
       return;
     }
+    observeGatewayCapability(cfg, "voice_logs.use");
     const logs = cfg.logs;
 
     const member = newState.member ?? oldState.member;

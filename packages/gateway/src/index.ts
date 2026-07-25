@@ -3,6 +3,7 @@ import { serve } from "@hono/node-server";
 import { loadEnv } from "./env.js";
 import { createWorkerApi, type PresenceCounts } from "./worker-api.js";
 import { createConfigCache } from "./config-cache.js";
+import { initCapabilityReporter } from "./enforcement.js";
 import { createHttpApp } from "./http.js";
 import { registerEvents } from "./events.js";
 import { registerVoice } from "./voice.js";
@@ -28,6 +29,7 @@ const HEARTBEAT_INTERVAL_MS = 120_000;
 
 const env = loadEnv();
 const api = createWorkerApi(env);
+initCapabilityReporter(api);
 // Reliable delivery (M05): opens the outbox only if GATEWAY_RELIABLE_TYPES lists
 // a type (else a no-op → direct delivery unchanged). Two-step wiring: the outbox
 // delivers via api.postReliableBatch; api routes reliable flows into the outbox.

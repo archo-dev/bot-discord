@@ -156,6 +156,10 @@
         "PRODUCT_ANALYTICS_ENABLED": "false",
         "APP_VERSION": "staging",
         "INTERNAL_AUTH_MODE": "dual",
+        // Enforcement des plans en SHADOW sur le staging uniquement : on calcule
+        // et on compte les décisions (would_block) SANS jamais rien bloquer. La
+        // prod (vars top-level) n'a PAS cette variable → mode off (inchangé).
+        "CAPABILITY_ENFORCEMENT_MODE": "shadow",
         // Flags staging activés (sans dépendance externe) pour les tests.
         "PLATFORM_ENTITLEMENTS": "true",
         "PLATFORM_SUPPORT": "true",

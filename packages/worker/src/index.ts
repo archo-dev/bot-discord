@@ -37,6 +37,7 @@ import { studioOAuthRouter } from "./auth/studio-oauth.js";
 import { studioApiRouter } from "./api/studio.js";
 import { internalRouter } from "./internal/routes.js";
 import { enforcePanelMutationPolicy, requireGuildAccess, requireSession, type AppContext } from "./auth/guard.js";
+import { enforceCapabilityPolicy } from "./enforcement/api-middleware.js";
 import { runScheduled } from "./cron.js";
 import { requestTelemetry, type TelemetryVariables } from "./telemetry/request.js";
 import { browserMutationOrigin, securityResponseHeaders } from "./security/browser.js";
@@ -94,6 +95,10 @@ api.use("/guilds/:guildId/*", adminAudit);
 // (see auth/guard.ts). GET/HEAD routes stay open to moderators.
 api.use("/guilds/:guildId", enforcePanelMutationPolicy);
 api.use("/guilds/:guildId/*", enforcePanelMutationPolicy);
+// Enforcement des plans (choke B). off/shadow n'interceptent jamais ; enforce
+// refuse une mutation hors plan/quota. Après le RBAC (jamais avant).
+api.use("/guilds/:guildId", enforceCapabilityPolicy);
+api.use("/guilds/:guildId/*", enforceCapabilityPolicy);
 api.use("/guilds/:guildId", durablePanelQuota);
 api.use("/guilds/:guildId/*", durablePanelQuota);
 api.route("/", commandsRouter);

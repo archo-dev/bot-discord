@@ -1,13 +1,14 @@
 import { Hono } from "hono";
 import {
   EFFECTIVE_FREE,
-  getCapabilitiesResponse,
+  PLAN_CAPABILITIES,
+  PLAN_CAPABILITY_POLICY,
   resolveEffectiveEntitlement,
-  type CapabilitiesResponse,
+  type CapabilityPolicyResponse,
   type SubscriptionResponse,
 } from "@bot/shared";
 import type { AppContext } from "../auth/guard.js";
-import { getWorkerFlags } from "../config/flags.js";
+import { getEnforcementMode, getWorkerFlags } from "../config/flags.js";
 import { listUserEntitlements, rowToEntitlementInput } from "../db/queries.js";
 
 export const subscriptionRouter = new Hono<AppContext>();
@@ -59,9 +60,13 @@ subscriptionRouter.get("/subscription", async (c) => {
   return c.json(body);
 });
 
-// Read-only plan capability catalog (chantier « lifecycle »). Centralised, no
-// enforcement: only `guildSlots` carries a real value; everything else is
-// pendingProductDecision. Never gates a feature and carries no payment data.
+// Read-only plan capability catalog + policy + mode courant (affichage panel).
+// Centralisé ; jamais de donnée de paiement. Le mode reflète l'env (off en prod).
 subscriptionRouter.get("/capabilities", (c) => {
-  return c.json(getCapabilitiesResponse() satisfies CapabilitiesResponse);
+  const body: CapabilityPolicyResponse = {
+    enforcementMode: getEnforcementMode(c.env),
+    plans: PLAN_CAPABILITIES,
+    policy: PLAN_CAPABILITY_POLICY,
+  };
+  return c.json(body);
 });

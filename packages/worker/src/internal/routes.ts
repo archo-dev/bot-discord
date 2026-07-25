@@ -11,6 +11,7 @@ import { internalTempVoiceRouter } from "./temp-voice.js";
 import { internalEventsRouter } from "./events.js";
 import { internalAnalyticsRouter } from "./analytics.js";
 import { internalMaintenanceRouter } from "./maintenance.js";
+import { internalCapabilityMetricsRouter } from "./capability-metrics.js";
 import { internalAuthentication } from "../security/internal-auth.js";
 
 /**
@@ -35,3 +36,4 @@ internalRouter.route("/", internalTempVoiceRouter);
 internalRouter.route("/", internalEventsRouter);
 internalRouter.route("/", internalAnalyticsRouter);
 internalRouter.route("/", internalMaintenanceRouter);
+internalRouter.route("/", internalCapabilityMetricsRouter);

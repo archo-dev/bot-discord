@@ -36,3 +36,4 @@ export * from "./queries/studio.js";
 export * from "./queries/grants.js";
 export * from "./queries/audit-events.js";
 export * from "./queries/rollout.js";
+export * from "./queries/capability-metrics.js";

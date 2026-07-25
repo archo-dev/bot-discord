@@ -10,6 +10,7 @@ import type { ConfigCache } from "./config-cache.js";
 import type { WorkerApi } from "./worker-api.js";
 import { errMsg } from "./util.js";
 import { isGatewayModuleEnabled } from "./module-config.js";
+import { observeGatewayCapability } from "./enforcement.js";
 
 /** Matches the configured emoji: custom emoji by id, unicode by name. */
 function emojiMatches(reaction: MessageReaction | PartialMessageReaction, configured: string): boolean {
@@ -35,6 +36,7 @@ export function registerStarboard(client: Client, cache: ConfigCache, api: Worke
 
       const cfg = await cache.get(message.guild.id).catch(() => null);
       if (!cfg?.starboard.enabled || !cfg.starboard.channelId || !isGatewayModuleEnabled(cfg, "starboard")) return;
+      observeGatewayCapability(cfg, "starboard.use");
       if (message.channelId === cfg.starboard.channelId) return; // ignore stars on the board itself
       if (!emojiMatches(r, cfg.starboard.emoji)) return;
       if (message.author?.bot) return; // don't starboard the bot's own / other bots' messages

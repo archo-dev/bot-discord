@@ -6,7 +6,8 @@ import {
   type APIInteraction,
   ComponentType,
 } from "discord-api-types/v10";
-import { moduleForCommand, type ModuleId } from "@bot/shared";
+import { capabilityForSlashCommand, capabilityDenialMessageFr, moduleForCommand, type ModuleId } from "@bot/shared";
+import { checkCapability } from "../enforcement/service.js";
 import type { Env } from "../env.js";
 import { verifyDiscordSignature } from "./verify.js";
 import { builtins } from "./builtins/index.js";
@@ -89,6 +90,18 @@ interactionsRouter.post("/interactions", async (c) => {
       const disabled = await moduleDisabled(c.env, command.guild_id, command.data.name === "voice" ? null : moduleForCommand(command.data.name));
       if (disabled) return disabled;
       const moduleId = command.data.name === "voice" ? "temp_voice" : moduleForCommand(command.data.name);
+      // Enforcement des plans (choke A) : off/shadow n'interceptent jamais ;
+      // seul `enforce` bloque, avec un message clair. Métrique shadow sinon.
+      const capability = capabilityForSlashCommand(command.data.name, moduleForCommand);
+      if (capability) {
+        const decision = await checkCapability(c.env, {
+          surface: "interaction",
+          guildId: command.guild_id,
+          capability,
+          waitUntil: (p) => c.executionCtx.waitUntil(p),
+        });
+        if (!decision.allowed) return ephemeral(capabilityDenialMessageFr(decision));
+      }
       return trackFeatureResult(c, command.guild_id, moduleId, handler({
         env: c.env,
         interaction: command,

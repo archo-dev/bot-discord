@@ -41,6 +41,15 @@ export async function listAutomationWorkflows(db: D1Database, guildId: string): 
   return rows.results.map(automationWorkflowDto);
 }
 
+/** Nombre d'automatisations ACTIVES (enabled) d'une guilde — quota D-A (2/10/50). */
+export async function countActiveAutomationWorkflows(db: D1Database, guildId: string): Promise<number> {
+  const row = await db
+    .prepare(`SELECT COUNT(*) AS n FROM automation_workflows WHERE guild_id = ?1 AND enabled = 1`)
+    .bind(guildId)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
 export async function listEnabledAutomationWorkflows(db: D1Database, guildId: string, triggerType: AutomationTriggerId): Promise<AutomationWorkflowDto[]> {
   const rows = await db.prepare(
     `SELECT w.* FROM automation_workflows w

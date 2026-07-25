@@ -24,6 +24,10 @@ export interface Env {
   PLATFORM_STUDIO?: string;
   /** Commercial launch flag (M16). Off by default → prices hidden, no launch signal. */
   PLATFORM_LAUNCH?: string;
+  /** Enforcement des plans (chantier « plan-capability-enforcement »). Absent ou
+   *  invalide → "off" (aucun blocage, aucune métrique would_block). "shadow" :
+   *  calcule + compte sans bloquer. "enforce" : applique réellement. Prod = absent. */
+  CAPABILITY_ENFORCEMENT_MODE?: string;
   /** Launch pricing config (M16). Amounts are INTEGER smallest units (e.g. cents)
    *  as strings; currency is ISO 4217. Config, not secret. Absent → "Tarifs à venir". */
   LAUNCH_CURRENCY?: string;

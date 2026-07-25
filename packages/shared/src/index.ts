@@ -16,4 +16,5 @@ export * from "./automation.js";
 export * from "./flags.js";
 export * from "./entitlement.js";
 export * from "./plan-capabilities.js";
+export * from "./capability-policy.js";
 export * from "./assignments.js";

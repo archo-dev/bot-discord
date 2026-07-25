@@ -12,6 +12,8 @@ import {
   type ReliableEventType,
   type VoiceLogAction,
   type AutomationTriggerId,
+  type CapabilityEnforcementMode,
+  type CapabilityMetricBatchItem,
 } from "@bot/shared";
 import type { GatewayEnv } from "./env.js";
 import type { Outbox } from "./outbox/index.js";
@@ -39,6 +41,9 @@ export interface GuildGatewayConfig {
    *  present once the worker exposes it (Gratuit by default). Plan-aware gating
    *  of individual features (the feature→plan matrix) lands in a later milestone. */
   plan?: { id: "free" | "premium" | "business"; rank: number; slots: number };
+  /** Mode d'enforcement des plans exposé par le Worker (même policy @bot/shared).
+   *  Absent/"off" → la Gateway n'évalue et ne compte rien. */
+  enforcementMode?: CapabilityEnforcementMode;
   modules?: GatewayModuleConfig;
   id: string;
   logChannelId: string | null;
@@ -185,6 +190,8 @@ export interface WorkerApi {
   registerTempVoiceChannel(guildId: string, payload: { channelId: string; ownerId: string }): Promise<void>;
   unregisterTempVoiceChannel(guildId: string, channelId: string): Promise<void>;
   postTempVoiceLobbyDeleted(guildId: string): Promise<void>;
+  /** Métriques shadow d'enforcement (dims bornées, no PII). Best-effort. */
+  postCapabilityMetrics(items: CapabilityMetricBatchItem[]): Promise<void>;
   /** Reliable delivery (M05): signed batch of enveloped events; never throws. */
   postReliableBatch(events: ReliableEnvelope[]): Promise<ReliableBatchSendResult>;
   /** Wires the outbox so reliable-typed flows enqueue durably instead of direct-calling. */
@@ -401,6 +408,15 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
     },
     attachOutbox(next) {
       outbox = next;
+    },
+    async postCapabilityMetrics(items) {
+      if (items.length === 0) return;
+      // Best-effort : une panne de métrique ne doit jamais perturber le runtime.
+      try {
+        await call("POST", "/internal/capability-metrics", { items });
+      } catch (err) {
+        console.error("capability-metrics flush failed:", errMsg(err));
+      }
     },
     async postReliableBatch(events): Promise<ReliableBatchSendResult> {
       // Own signed fetch (not `call`): a non-2xx is a normal control-flow signal

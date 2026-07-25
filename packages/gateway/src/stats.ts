@@ -3,6 +3,7 @@ import type { ChannelActivityEntry, WorkerApi } from "./worker-api.js";
 import { errMsg } from "./util.js";
 import type { ConfigCache } from "./config-cache.js";
 import { isGatewayModuleEnabled } from "./module-config.js";
+import { observeGatewayCapability } from "./enforcement.js";
 
 /*
  * Stats collection (M18). Everything is in-memory and flushed periodically —
@@ -54,6 +55,7 @@ export function registerStats(client: Client, cache: ConfigCache, api: WorkerApi
     if (!msg.guild || msg.author.bot) return;
     const cfg = await cache.get(msg.guild.id).catch(() => null);
     if (!cfg || !isGatewayModuleEnabled(cfg, "stats")) return;
+    observeGatewayCapability(cfg, "stats.use");
     bump(msg.guild.id, msg.channelId, { messages: 1 });
   });
 

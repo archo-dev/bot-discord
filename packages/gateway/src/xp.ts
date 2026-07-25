@@ -3,6 +3,7 @@ import type { ConfigCache } from "./config-cache.js";
 import type { WorkerApi } from "./worker-api.js";
 import { errMsg } from "./util.js";
 import { isGatewayModuleEnabled } from "./module-config.js";
+import { observeGatewayCapability } from "./enforcement.js";
 
 /**
  * XP gains: the gateway only detects eligible messages and enforces the
@@ -23,6 +24,7 @@ export function registerXp(client: Client, cache: ConfigCache, api: WorkerApi): 
     if (!message.inGuild() || message.author.bot) return;
     const cfg = await cache.get(message.guild.id).catch(() => null);
     if (!cfg?.xp.enabled || !isGatewayModuleEnabled(cfg, "levels")) return;
+    observeGatewayCapability(cfg, "levels.use");
 
     const key = `${message.guild.id}:${message.author.id}`;
     const now = Date.now();

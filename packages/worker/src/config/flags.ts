@@ -2,11 +2,21 @@
  * from Worker env vars. Every flag defaults OFF (unset var → false), so the
  * production behavior is unchanged until a var is explicitly declared/set. */
 
-import { resolveFlags, type FlagState } from "@bot/shared";
+import {
+  parseEnforcementMode,
+  resolveFlags,
+  type CapabilityEnforcementMode,
+  type FlagState,
+} from "@bot/shared";
 import type { Env } from "../env.js";
 
 function isTrue(value: string | undefined): boolean {
   return value === "true";
+}
+
+/** Mode d'enforcement des plans pour cet env. Absent/invalide → "off" (fail-safe). */
+export function getEnforcementMode(env: Env): CapabilityEnforcementMode {
+  return parseEnforcementMode(env.CAPABILITY_ENFORCEMENT_MODE);
 }
 
 /** Resolved flag state for this request/env. Unknown/absent vars → catalog default (false). */

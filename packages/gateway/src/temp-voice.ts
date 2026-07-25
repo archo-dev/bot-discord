@@ -13,6 +13,7 @@ import type { ConfigCache } from "./config-cache.js";
 import type { GuildGatewayConfig, WorkerApi } from "./worker-api.js";
 import { errMsg } from "./util.js";
 import { isGatewayModuleEnabled } from "./module-config.js";
+import { observeGatewayCapability } from "./enforcement.js";
 
 const CREATE_COOLDOWN_MS = 10_000; // one creation per user per 10 s
 const DELETE_DELAY_MS = 5_000; // grace period before deleting an emptied channel
@@ -132,6 +133,7 @@ export function registerTempVoice(client: Client, cache: ConfigCache, api: Worke
       if (member && !member.user.bot) {
         const cfg = await cache.get(guild.id).catch(() => null);
         if (cfg?.tempVoice.enabled && isGatewayModuleEnabled(cfg, "temp_voice") && newState.channelId === cfg.tempVoice.lobbyChannelId) {
+          observeGatewayCapability(cfg, "temp_voice.use");
           await createTempChannel(guild, member, cfg.tempVoice);
         }
       }

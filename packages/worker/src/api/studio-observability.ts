@@ -1,7 +1,14 @@
 import type { Hono } from "hono";
 import { z } from "zod";
 import {
+  parseEnforcementMode,
   PLATFORM_FLAGS,
+  type CapabilityId,
+  type CapabilityReason,
+  type CapabilityShadowResponse,
+  type CapabilityShadowRow,
+  type CapabilitySurface,
+  type PlanId,
   type PlatformFlagKey,
   type RolloutFlagState,
   type RolloutResponse,
@@ -13,6 +20,7 @@ import {
 import { requireDeveloper, studioActionRateLimit, type StudioContext } from "../auth/studio-guard.js";
 import { callerIp, writeStudioAudit } from "../security/studio-audit.js";
 import {
+  aggregateCapabilityShadow,
   aggregateMetricsForStudio,
   getRollout,
   listRollout,
@@ -105,6 +113,67 @@ export function registerObservabilityRoutes(router: Hono<StudioContext>): void {
       }),
     );
     const body: RolloutFlagState = { flag, global: state.global, guilds: state.guilds };
+    return c.json(body);
+  });
+
+  // Vue opérateur agrégée du mode SHADOW d'enforcement des plans (no PII).
+  // Consultation seule : appels totaux, allowed/would_block, impact, répartitions.
+  router.get("/studio-api/capability-shadow", requireDeveloper("deployments.read"), async (c) => {
+    const parsed = hoursSchema.safeParse(c.req.query("hours") ?? 24);
+    if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
+    const days = Math.max(1, Math.ceil(parsed.data / 24));
+    const raw = await aggregateCapabilityShadow(c.env.DB, days);
+
+    const rows: CapabilityShadowRow[] = raw.map((r) => ({
+      surface: r.surface as CapabilitySurface,
+      capability: r.capability as CapabilityId,
+      effectivePlan: r.effective_plan as PlanId,
+      requiredPlan: r.required_plan as PlanId,
+      reason: r.reason as CapabilityReason,
+      decision: r.decision === "would_block" ? "would_block" : "allowed",
+      count: r.count,
+    }));
+
+    const totalCalls = rows.reduce((n, r) => n + r.count, 0);
+    const wouldBlock = rows.filter((r) => r.decision === "would_block").reduce((n, r) => n + r.count, 0);
+
+    const capMap = new Map<CapabilityId, { total: number; wouldBlock: number; reasons: Map<CapabilityReason, number> }>();
+    const planMap = new Map<PlanId, { total: number; wouldBlock: number }>();
+    const reasonMap = new Map<CapabilityReason, number>();
+    for (const r of rows) {
+      const cap = capMap.get(r.capability) ?? { total: 0, wouldBlock: 0, reasons: new Map() };
+      cap.total += r.count;
+      if (r.decision === "would_block") cap.wouldBlock += r.count;
+      cap.reasons.set(r.reason, (cap.reasons.get(r.reason) ?? 0) + r.count);
+      capMap.set(r.capability, cap);
+
+      const plan = planMap.get(r.effectivePlan) ?? { total: 0, wouldBlock: 0 };
+      plan.total += r.count;
+      if (r.decision === "would_block") plan.wouldBlock += r.count;
+      planMap.set(r.effectivePlan, plan);
+
+      reasonMap.set(r.reason, (reasonMap.get(r.reason) ?? 0) + r.count);
+    }
+
+    const body: CapabilityShadowResponse = {
+      windowHours: parsed.data,
+      enforcementMode: parseEnforcementMode(c.env.CAPABILITY_ENFORCEMENT_MODE),
+      totalCalls,
+      allowed: totalCalls - wouldBlock,
+      wouldBlock,
+      impactRate: totalCalls > 0 ? wouldBlock / totalCalls : 0,
+      byCapability: [...capMap.entries()]
+        .map(([capability, v]) => ({
+          capability,
+          total: v.total,
+          wouldBlock: v.wouldBlock,
+          topReason: [...v.reasons.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
+        }))
+        .sort((a, b) => b.wouldBlock - a.wouldBlock || b.total - a.total),
+      byPlan: [...planMap.entries()].map(([effectivePlan, v]) => ({ effectivePlan, total: v.total, wouldBlock: v.wouldBlock })),
+      byReason: [...reasonMap.entries()].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count),
+      rows,
+    };
     return c.json(body);
   });
 
