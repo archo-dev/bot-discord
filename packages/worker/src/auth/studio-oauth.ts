@@ -18,7 +18,7 @@ import {
   setStudioSessionCookie,
   setStudioStepUpStateCookie,
   validateStudioOAuthState,
-  validateStudioStepUpState,
+  validateStudioStepUpBoundState,
 } from "./studio-session.js";
 
 /**
@@ -147,36 +147,73 @@ studioOAuthRouter.post("/studio/auth/logout", studioMutationOrigin, async (c) =>
 // with a fresh stepUpAt, gating sensitive actions like lifetime grants (M14). ---
 
 studioOAuthRouter.get("/studio/auth/step-up", async (c) => {
+  // Same-site context: the SameSite=Strict studio_session cookie IS available here.
   const sid = readStudioSessionCookie(c);
   if (!sid) return c.text("No studio session.", 401);
-  const state = createStudioOAuthState();
-  await setStudioStepUpStateCookie(c, state);
+  // Validate the current session, then bind its id into the SIGNED step-up state so
+  // the callback recovers it without needing the Strict cookie (withheld cross-site).
+  const { session } = await loadStudioSession(c.env, sid);
+  if (!session) return c.text("No studio session.", 401);
+  const nonce = createStudioOAuthState();
+  await setStudioStepUpStateCookie(c, nonce, sid);
   const params = new URLSearchParams({
     client_id: c.env.DISCORD_CLIENT_ID,
     redirect_uri: `${studioOrigin(c.env)}/studio/auth/step-up/callback`,
     response_type: "code",
     scope: OAUTH_SCOPES,
     prompt: "consent",
-    state,
+    state: nonce,
   });
   return c.redirect(`https://discord.com/oauth2/authorize?${params}`);
 });
 
+/** Staging-only, bounded step-up observability — booleans/enums only, no secrets. */
+function logStepUp(
+  c: Context<StudioContext>,
+  fields: {
+    stateValidation: "valid" | "invalid";
+    sessionReferencePresent: boolean;
+    sessionLookup: "found" | "missing" | "expired" | "revoked" | "n/a";
+    userMatch: "true" | "false" | "n/a";
+    result: "success" | "failure";
+  },
+): void {
+  if (c.env.APP_VERSION !== "staging") return;
+  console.log(
+    `studio step-up: scope=step-up state_validation=${fields.stateValidation} ` +
+      `session_reference_present=${fields.sessionReferencePresent} session_lookup=${fields.sessionLookup} ` +
+      `user_match=${fields.userMatch} result=${fields.result}`,
+  );
+}
+
 studioOAuthRouter.get("/studio/auth/step-up/callback", async (c) => {
-  const sid = readStudioSessionCookie(c);
   const code = c.req.query("code");
-  const state = c.req.query("state");
+  const urlState = c.req.query("state");
   const stateCookie = readStudioStepUpStateCookie(c);
   clearStudioStepUpStateCookie(c);
-  const validation = await validateStudioStepUpState(c.env, state, stateCookie);
+
+  // 1) Verify the signed, session-bound step-up state (HMAC + scope + nonce + TTL).
+  const validation = await validateStudioStepUpBoundState(c.env, urlState, stateCookie);
   if (!validation.ok) {
+    logStepUp(c, { stateValidation: "invalid", sessionReferencePresent: Boolean(stateCookie), sessionLookup: "n/a", userMatch: "n/a", result: "failure" });
     console.warn(`studio oauth state validation failed: scope=step-up reason=${validation.code}`);
     return c.text("Invalid step-up state. Please retry.", 400);
   }
-  if (!sid || !code) {
+  if (!code) {
+    logStepUp(c, { stateValidation: "valid", sessionReferencePresent: true, sessionLookup: "n/a", userMatch: "n/a", result: "failure" });
     return c.text("Invalid step-up state. Please retry.", 400);
   }
 
+  // 2) Recover the session from the SIGNED reference (never from the absent cookie),
+  //    re-checking existence, absolute/idle expiry, userGeneration and globalVersion.
+  const sid = validation.sid;
+  const { session, reason } = await loadStudioSession(c.env, sid);
+  if (!session) {
+    logStepUp(c, { stateValidation: "valid", sessionReferencePresent: true, sessionLookup: reason ?? "missing", userMatch: "n/a", result: "failure" });
+    return c.text("Your studio session is no longer valid. Please sign in again.", 401);
+  }
+
+  // 3) Exchange the code and confirm the re-consented Discord user IS the session's user.
   const tokenRes = await fetch(`${DISCORD_API}/oauth2/token`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -190,19 +227,30 @@ studioOAuthRouter.get("/studio/auth/step-up/callback", async (c) => {
   });
   if (!tokenRes.ok) {
     await logTokenExchangeFailure("step-up", tokenRes);
+    logStepUp(c, { stateValidation: "valid", sessionReferencePresent: true, sessionLookup: "found", userMatch: "n/a", result: "failure" });
     return c.text("Discord token exchange failed. Please retry.", 502);
   }
   const token = (await tokenRes.json()) as TokenResponse;
 
   const userRes = await fetch(`${DISCORD_API}/users/@me`, { headers: { authorization: `Bearer ${token.access_token}` } });
-  if (!userRes.ok) return c.text("Failed to fetch your Discord profile.", 502);
+  if (!userRes.ok) {
+    logStepUp(c, { stateValidation: "valid", sessionReferencePresent: true, sessionLookup: "found", userMatch: "n/a", result: "failure" });
+    return c.text("Failed to fetch your Discord profile.", 502);
+  }
   const user = (await userRes.json()) as DiscordUser;
 
-  // The re-consent must be the SAME operator as the current session (no cross-user step-up).
-  const { session } = await loadStudioSession(c.env, sid);
-  if (!session || session.userId !== user.id) return c.text("Step-up does not match the current session.", 403);
+  if (session.userId !== user.id) {
+    logStepUp(c, { stateValidation: "valid", sessionReferencePresent: true, sessionLookup: "found", userMatch: "false", result: "failure" });
+    return c.text("Step-up does not match the current session.", 403);
+  }
   const operator = await resolveOperator(c.env, user.id);
-  if (!operator) return c.text("This account is not a Studio operator.", 403);
+  if (!operator) {
+    logStepUp(c, { stateValidation: "valid", sessionReferencePresent: true, sessionLookup: "found", userMatch: "true", result: "failure" });
+    return c.text("This account is not a Studio operator.", 403);
+  }
+
+  // 4) All checks passed → stamp the step-up on the recovered session.
   await markStudioStepUp(c.env, sid);
+  logStepUp(c, { stateValidation: "valid", sessionReferencePresent: true, sessionLookup: "found", userMatch: "true", result: "success" });
   return c.redirect(`${studioOrigin(c.env)}/`);
 });

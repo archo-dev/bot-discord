@@ -5,13 +5,14 @@ import type { Env } from "../src/env.js";
 import {
   createStudioOAuthState,
   createStudioSession,
+  deleteStudioSession,
   loadStudioSession,
   revokeStudioSessions,
   validateStudioOAuthState,
-  validateStudioStepUpState,
+  validateStudioStepUpBoundState,
 } from "../src/auth/studio-session.js";
 import { validateOAuthState } from "../src/auth/session.js";
-import { createOAuthStateCookieValue } from "../src/auth/oauth-state.js";
+import { createOAuthStateCookieValue, createStudioStepUpBinding } from "../src/auth/oauth-state.js";
 
 const HOST = "studio.archodev.fr";
 const OWNER = "700000000000000091";
@@ -139,7 +140,8 @@ describe("Studio OAuth and session", () => {
     const state = createStudioOAuthState();
     const studioCookie = await createOAuthStateCookieValue(e.SESSION_SECRET, "studio", state, now);
     const panelCookie = await createOAuthStateCookieValue(e.SESSION_SECRET, "panel", state, now);
-    const stepUpCookie = await createOAuthStateCookieValue(e.SESSION_SECRET, "studio-step-up", state, now);
+    const boundSid = "a".repeat(64);
+    const stepUpBinding = await createStudioStepUpBinding(e.SESSION_SECRET, boundSid, state, now);
     const kvGet = vi.fn();
     const kvPut = vi.fn();
     const kvDelete = vi.fn();
@@ -151,8 +153,9 @@ describe("Studio OAuth and session", () => {
     await expect(validateStudioOAuthState(withoutStateKv, state, studioCookie, now)).resolves.toEqual({ ok: true });
     await expect(validateStudioOAuthState(withoutStateKv, state, panelCookie, now)).resolves.toEqual({ ok: false, code: "state_mismatch" });
     await expect(validateOAuthState(withoutStateKv, state, studioCookie, now)).resolves.toEqual({ ok: false, code: "state_mismatch" });
-    await expect(validateStudioStepUpState(withoutStateKv, state, stepUpCookie, now)).resolves.toEqual({ ok: true });
-    await expect(validateStudioStepUpState(withoutStateKv, state, studioCookie, now)).resolves.toEqual({ ok: false, code: "state_mismatch" });
+    await expect(validateStudioStepUpBoundState(withoutStateKv, state, stepUpBinding, now)).resolves.toEqual({ ok: true, sid: boundSid });
+    // A login (3-part) state can never validate as a (4-part) step-up binding.
+    await expect(validateStudioStepUpBoundState(withoutStateKv, state, studioCookie, now)).resolves.toEqual({ ok: false, code: "state_mismatch" });
     expect(kvGet).not.toHaveBeenCalled();
     expect(kvPut).not.toHaveBeenCalled();
     expect(kvDelete).not.toHaveBeenCalled();
@@ -177,22 +180,32 @@ describe("Studio OAuth and session", () => {
     warn.mockRestore();
   });
 
-  it("uses an isolated signed cookie for Studio step-up and clears it on callback errors", async () => {
-    const e = studioEnv();
-    const sessionId = await createStudioSession(e, {
-      userId: OWNER,
+  // --- Step-up (M14, option B): session bound into the signed state ----------
+  const OTHER = "700000000000000077";
+  const mkStudioSession = (e: Env, userId = OWNER) =>
+    createStudioSession(e, {
+      userId,
       username: "studio-owner",
       globalName: null,
       avatar: null,
       tokenExpiresAt: Date.now() + 3_600_000,
       createdAt: Date.now(),
     });
-    const sessionCookie = `studio_session=${sessionId}`;
-    const login = await request("/studio/auth/step-up", e, { headers: { cookie: sessionCookie } });
-    expect(login.status).toBe(302);
-    const authorize = new URL(login.headers.get("location")!);
-    const state = authorize.searchParams.get("state")!;
-    const setCookie = login.headers.get("set-cookie")!;
+  /** GET /studio/auth/step-up with a valid session; returns the URL nonce + the
+   *  bound step-up cookie (as it would be re-sent by the browser). */
+  const startStepUp = async (e: Env, sessionId: string) => {
+    const res = await request("/studio/auth/step-up", e, { headers: { cookie: `studio_session=${sessionId}` } });
+    expect(res.status).toBe(302);
+    const setCookie = res.headers.get("set-cookie")!;
+    const nonce = new URL(res.headers.get("location")!).searchParams.get("state")!;
+    const boundCookie = setCookie.split(";", 1)[0]!; // studio_stepup_state=<nonce.issuedAt.sid.sig>
+    return { nonce, boundCookie, setCookie };
+  };
+
+  it("issues a Lax, session-bound step-up cookie and keeps studio_session Strict", async () => {
+    const e = studioEnv();
+    const sessionId = await mkStudioSession(e);
+    const { setCookie } = await startStepUp(e, sessionId);
     expect(setCookie).toContain("studio_stepup_state=");
     expect(setCookie).toContain("Max-Age=300");
     expect(setCookie).toContain("Path=/studio/auth/step-up/callback");
@@ -200,15 +213,163 @@ describe("Studio OAuth and session", () => {
     expect(setCookie).toContain("Secure");
     expect(setCookie).toContain("SameSite=Lax");
     expect(setCookie).not.toMatch(/;\s*Domain=/i);
-    const stateCookie = setCookie.split(";", 1)[0]!;
+    // The step-up request must never re-issue or weaken the Strict session cookie.
+    expect(setCookie).not.toContain("studio_session=");
+  });
 
-    const callback = await request(`/studio/auth/step-up/callback?state=${state}`, e, {
-      headers: { cookie: `${sessionCookie}; ${stateCookie}` },
+  it("completes step-up WITHOUT the studio_session cookie at the callback (session recovered from the signed state)", async () => {
+    const e = studioEnv();
+    const sessionId = await mkStudioSession(e);
+    const { nonce, boundCookie } = await startStepUp(e, sessionId);
+    mockDiscordUser(OWNER);
+    // Callback carries ONLY the Lax bound cookie — no studio_session (Strict, withheld cross-site).
+    const cb = await request(`/studio/auth/step-up/callback?code=valid&state=${nonce}`, e, {
+      headers: { cookie: boundCookie },
     });
-    expect(callback.status).toBe(400);
-    expect(callback.headers.get("set-cookie")).toContain(
-      "studio_stepup_state=; Max-Age=0; Path=/studio/auth/step-up/callback",
-    );
+    expect(cb.status).toBe(302);
+    expect(cb.headers.get("location")).toBe(`https://${HOST}/`);
+    expect(cb.headers.get("set-cookie")).toContain("studio_stepup_state=; Max-Age=0; Path=/studio/auth/step-up/callback");
+    const stored = JSON.parse((await e.KV.get(`studio:sess:${sessionId}`))!) as { stepUpAt?: number };
+    expect(typeof stored.stepUpAt).toBe("number");
+    expect(stored.stepUpAt!).toBeGreaterThan(0);
+  });
+
+  it("fails closed when the bound session no longer exists", async () => {
+    const e = studioEnv();
+    const sessionId = await mkStudioSession(e);
+    const { nonce, boundCookie } = await startStepUp(e, sessionId);
+    await deleteStudioSession(e, sessionId); // session gone, but signed state still references it
+    // No Discord mock: the handler fails closed at the session lookup, before any token exchange.
+    const cb = await request(`/studio/auth/step-up/callback?code=valid&state=${nonce}`, e, {
+      headers: { cookie: boundCookie },
+    });
+    expect(cb.status).toBe(401);
+    const stored = await e.KV.get(`studio:sess:${sessionId}`);
+    expect(stored).toBeNull();
+  });
+
+  it("fails closed when the bound session is expired", async () => {
+    const e = studioEnv();
+    const sessionId = await mkStudioSession(e);
+    const { nonce, boundCookie } = await startStepUp(e, sessionId);
+    const data = JSON.parse((await e.KV.get(`studio:sess:${sessionId}`))!) as Record<string, unknown>;
+    data.absoluteExpiresAt = Date.now() - 1;
+    await e.KV.put(`studio:sess:${sessionId}`, JSON.stringify(data), { expirationTtl: 3600 });
+    // No Discord mock: the handler fails closed at the session lookup, before any token exchange.
+    const cb = await request(`/studio/auth/step-up/callback?code=valid&state=${nonce}`, e, {
+      headers: { cookie: boundCookie },
+    });
+    expect(cb.status).toBe(401);
+  });
+
+  it("fails closed on a globalVersion mismatch (kill-switch)", async () => {
+    const e = studioEnv();
+    const sessionId = await mkStudioSession(e);
+    const { nonce, boundCookie } = await startStepUp(e, sessionId);
+    const data = JSON.parse((await e.KV.get(`studio:sess:${sessionId}`))!) as Record<string, unknown>;
+    data.globalVersion = "999";
+    await e.KV.put(`studio:sess:${sessionId}`, JSON.stringify(data), { expirationTtl: 3600 });
+    // No Discord mock: the handler fails closed at the session lookup, before any token exchange.
+    const cb = await request(`/studio/auth/step-up/callback?code=valid&state=${nonce}`, e, {
+      headers: { cookie: boundCookie },
+    });
+    expect(cb.status).toBe(401);
+  });
+
+  it("fails closed on a userGeneration mismatch (per-operator revocation)", async () => {
+    const e = studioEnv();
+    const sessionId = await mkStudioSession(e);
+    const { nonce, boundCookie } = await startStepUp(e, sessionId);
+    await revokeStudioSessions(e, OWNER); // bumps the operator generation
+    // No Discord mock: the handler fails closed at the session lookup, before any token exchange.
+    const cb = await request(`/studio/auth/step-up/callback?code=valid&state=${nonce}`, e, {
+      headers: { cookie: boundCookie },
+    });
+    expect(cb.status).toBe(401);
+  });
+
+  it("rejects a step-up whose re-consented Discord user differs from the session user", async () => {
+    const e = studioEnv();
+    const sessionId = await mkStudioSession(e, OWNER);
+    const { nonce, boundCookie } = await startStepUp(e, sessionId);
+    mockDiscordUser(OTHER); // Discord returns a DIFFERENT user than the session's OWNER
+    const cb = await request(`/studio/auth/step-up/callback?code=valid&state=${nonce}`, e, {
+      headers: { cookie: boundCookie },
+    });
+    expect(cb.status).toBe(403);
+    const stored = JSON.parse((await e.KV.get(`studio:sess:${sessionId}`))!) as { stepUpAt?: number };
+    expect(stored.stepUpAt).toBeUndefined(); // never stamped
+  });
+
+  it("rejects a forged step-up state (tampered signature)", async () => {
+    const e = studioEnv();
+    const sessionId = await mkStudioSession(e);
+    const { nonce, boundCookie } = await startStepUp(e, sessionId);
+    const last = boundCookie.slice(-1) === "0" ? "1" : "0";
+    const forged = `${boundCookie.slice(0, -1)}${last}`; // flip the final signature hex char
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const cb = await request(`/studio/auth/step-up/callback?code=valid&state=${nonce}`, e, {
+      headers: { cookie: forged },
+    });
+    expect(cb.status).toBe(400);
+    expect(warn).toHaveBeenCalledWith("studio oauth state validation failed: scope=step-up reason=state_mismatch");
+    warn.mockRestore();
+  });
+
+  it("rejects a login state presented as a step-up state", async () => {
+    const e = studioEnv();
+    const now = Date.now();
+    const state = createStudioOAuthState();
+    const loginCookieValue = await createOAuthStateCookieValue(e.SESSION_SECRET, "studio", state, now);
+    const cb = await request(`/studio/auth/step-up/callback?code=valid&state=${state}`, e, {
+      headers: { cookie: `studio_stepup_state=${loginCookieValue}` },
+    });
+    expect(cb.status).toBe(400); // 3-part login value can never satisfy the 4-part bound format
+  });
+
+  it("rejects an expired step-up state and accepts a fresh one (unit)", async () => {
+    const e = studioEnv();
+    const now = 1_750_000_000_000;
+    const nonce = createStudioOAuthState();
+    const sid = "b".repeat(64);
+    const bound = await createStudioStepUpBinding(e.SESSION_SECRET, sid, nonce, now);
+    await expect(validateStudioStepUpBoundState(e, nonce, bound, now + 1)).resolves.toEqual({ ok: true, sid });
+    await expect(validateStudioStepUpBoundState(e, nonce, bound, now + 300_001)).resolves.toEqual({ ok: false, code: "state_expired" });
+  });
+
+  it("rejects a step-up callback without an OAuth code", async () => {
+    const e = studioEnv();
+    const sessionId = await mkStudioSession(e);
+    const { nonce, boundCookie } = await startStepUp(e, sessionId);
+    const cb = await request(`/studio/auth/step-up/callback?state=${nonce}`, e, { headers: { cookie: boundCookie } });
+    expect(cb.status).toBe(400);
+  });
+
+  it("rejects a replayed step-up callback once the cookie has been cleared", async () => {
+    const e = studioEnv();
+    const sessionId = await mkStudioSession(e);
+    const { nonce, boundCookie } = await startStepUp(e, sessionId);
+    mockDiscordUser(OWNER);
+    const first = await request(`/studio/auth/step-up/callback?code=valid&state=${nonce}`, e, {
+      headers: { cookie: boundCookie },
+    });
+    expect(first.status).toBe(302);
+    // Replay: the browser no longer holds the cleared Lax cookie → missing_cookie.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const replay = await request(`/studio/auth/step-up/callback?code=valid&state=${nonce}`, e, {});
+    expect(replay.status).toBe(400);
+    expect(warn).toHaveBeenCalledWith("studio oauth state validation failed: scope=step-up reason=missing_cookie");
+    warn.mockRestore();
+  });
+
+  it("with two step-up tabs, only the surviving cookie's nonce validates (last cookie wins)", async () => {
+    const e = studioEnv();
+    const sessionId = await mkStudioSession(e);
+    const tabA = await startStepUp(e, sessionId);
+    const tabB = await startStepUp(e, sessionId);
+    // Browser keeps a single studio_stepup_state (same name+Path) → tabB's cookie.
+    await expect(validateStudioStepUpBoundState(e, tabB.nonce, tabB.boundCookie.split("=").slice(1).join("="))).resolves.toMatchObject({ ok: true, sid: sessionId });
+    await expect(validateStudioStepUpBoundState(e, tabA.nonce, tabB.boundCookie.split("=").slice(1).join("="))).resolves.toEqual({ ok: false, code: "state_mismatch" });
   });
 
   it("never creates a session for a non-operator", async () => {

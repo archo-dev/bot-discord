@@ -83,3 +83,70 @@ export async function validateOAuthStateValue(
 
   return { ok: true };
 }
+
+// --- Studio step-up, session-bound state (M14, option B) --------------------
+// The Studio session cookie is SameSite=Strict, so it is withheld on the Discord
+// step-up return (cross-site top-level navigation). Instead of relying on that
+// cookie at the callback, we bind the current session id (sid) into a SIGNED,
+// Lax step-up cookie: `nonce.issuedAt.sid.signature`. The random `nonce` also
+// travels in the URL `state` (CSRF: URL nonce must equal the cookie nonce). The
+// sid NEVER appears in the URL. The HMAC covers nonce+issuedAt+sid under a
+// DISTINCT message prefix, so a login/panel state can never validate here.
+
+const STUDIO_SESSION_ID_RE = /^[0-9a-f]{64}$/;
+
+export type StudioStepUpStateValidation = { ok: true; sid: string } | { ok: false; code: OAuthStateFailureCode };
+
+async function signStepUpBinding(secret: string, nonce: string, issuedAt: number, sid: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  return bytesToHex(
+    await crypto.subtle.sign("HMAC", key, encoder.encode(`studio-step-up-bound:${nonce}:${issuedAt}:${sid}`)),
+  );
+}
+
+export async function createStudioStepUpBinding(
+  secret: string,
+  sid: string,
+  nonce: string,
+  issuedAt = Date.now(),
+): Promise<string> {
+  const signature = await signStepUpBinding(secret, nonce, issuedAt, sid);
+  return `${nonce}.${issuedAt}.${sid}.${signature}`;
+}
+
+export async function validateStudioStepUpBinding(
+  secret: string,
+  urlState: string | undefined,
+  cookieValue: string | undefined,
+  now = Date.now(),
+): Promise<StudioStepUpStateValidation> {
+  if (!urlState) return { ok: false, code: "missing_state" };
+  if (!OAUTH_STATE_RE.test(urlState)) return { ok: false, code: "invalid_state_format" };
+  if (!cookieValue) return { ok: false, code: "missing_cookie" };
+
+  const parts = cookieValue.split(".");
+  if (parts.length !== 4) return { ok: false, code: "state_mismatch" };
+  const [nonce, issuedAtRaw, sid, suppliedSignature] = parts as [string, string, string, string];
+  if (
+    !OAUTH_STATE_RE.test(nonce) ||
+    !/^\d{13}$/.test(issuedAtRaw) ||
+    !STUDIO_SESSION_ID_RE.test(sid) ||
+    !/^[0-9a-f]{64}$/.test(suppliedSignature)
+  ) {
+    return { ok: false, code: "state_mismatch" };
+  }
+  // CSRF: the URL nonce must equal the signed cookie nonce.
+  if (!constantTimeEqual(urlState, nonce)) return { ok: false, code: "state_mismatch" };
+  const issuedAt = Number(issuedAtRaw);
+  const expectedSignature = await signStepUpBinding(secret, nonce, issuedAt, sid);
+  if (!constantTimeEqual(suppliedSignature, expectedSignature)) return { ok: false, code: "state_mismatch" };
+  if (issuedAt > now || now - issuedAt > OAUTH_STATE_MAX_AGE_MS) return { ok: false, code: "state_expired" };
+
+  return { ok: true, sid };
+}

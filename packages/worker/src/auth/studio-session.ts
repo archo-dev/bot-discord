@@ -5,9 +5,12 @@ import { isHttpsEnvironment } from "../security/browser.js";
 import {
   createOAuthStateCookieValue,
   createOAuthStateValue,
+  createStudioStepUpBinding,
   OAUTH_STATE_MAX_AGE_SECONDS,
   validateOAuthStateValue,
+  validateStudioStepUpBinding,
   type OAuthStateValidation,
+  type StudioStepUpStateValidation,
 } from "./oauth-state.js";
 
 /**
@@ -164,7 +167,7 @@ async function setStudioStateCookie(
   c: Context,
   name: string,
   path: string,
-  purpose: "studio" | "studio-step-up",
+  purpose: "studio",
   state: string,
   issuedAt: number,
 ): Promise<void> {
@@ -203,15 +206,26 @@ export function validateStudioOAuthState(
   return validateOAuthStateValue(env.SESSION_SECRET, "studio", state, cookieState, now);
 }
 
-export function setStudioStepUpStateCookie(c: Context, state: string, issuedAt = Date.now()): Promise<void> {
-  return setStudioStateCookie(
-    c,
-    STUDIO_STEPUP_STATE_COOKIE,
-    "/studio/auth/step-up/callback",
-    "studio-step-up",
-    state,
-    issuedAt,
-  );
+/**
+ * Step-up state cookie (M14, option B): a SIGNED, Lax cookie binding the current
+ * session id (sid) to the OAuth flow. Lax so it survives the cross-site Discord
+ * return (unlike the SameSite=Strict studio_session cookie). The random `nonce`
+ * also travels in the URL `state` (CSRF match); the sid never appears in the URL.
+ */
+export async function setStudioStepUpStateCookie(
+  c: Context,
+  nonce: string,
+  sid: string,
+  issuedAt = Date.now(),
+): Promise<void> {
+  const value = await createStudioStepUpBinding((c.env as Env).SESSION_SECRET, sid, nonce, issuedAt);
+  setCookie(c, STUDIO_STEPUP_STATE_COOKIE, value, {
+    httpOnly: true,
+    secure: isHttpsEnvironment(c.env as Env),
+    sameSite: "Lax",
+    path: "/studio/auth/step-up/callback",
+    maxAge: OAUTH_STATE_MAX_AGE_SECONDS,
+  });
 }
 
 export function readStudioStepUpStateCookie(c: Context): string | undefined {
@@ -222,11 +236,16 @@ export function clearStudioStepUpStateCookie(c: Context): void {
   deleteCookie(c, STUDIO_STEPUP_STATE_COOKIE, { path: "/studio/auth/step-up/callback" });
 }
 
-export function validateStudioStepUpState(
+/**
+ * Validate the step-up binding and recover the bound session id. The callback
+ * uses the returned sid to load the session from KV — it never trusts the (absent)
+ * studio_session cookie nor any user id from the URL.
+ */
+export function validateStudioStepUpBoundState(
   env: Env,
-  state: string | undefined,
-  cookieState: string | undefined,
+  urlState: string | undefined,
+  cookieValue: string | undefined,
   now = Date.now(),
-): Promise<OAuthStateValidation> {
-  return validateOAuthStateValue(env.SESSION_SECRET, "studio-step-up", state, cookieState, now);
+): Promise<StudioStepUpStateValidation> {
+  return validateStudioStepUpBinding(env.SESSION_SECRET, urlState, cookieValue, now);
 }
