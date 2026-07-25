@@ -7,7 +7,7 @@ import { Button, Card, ErrorCard, PageHeader } from "../../ui/kit.js";
 import { Skeleton } from "../../ui/skeleton.js";
 import { PlanBadge } from "../../components/PlanBadge.js";
 import { SlotMeter } from "../../components/SlotMeter.js";
-import { countSuspended, entitlementSourceLabel, featureAccessMessage, formatDateTime } from "../../lib/subscription.js";
+import { countSuspended, featureAccessMessage, formatDateTime, originKindLabel } from "../../lib/subscription.js";
 import { assignmentStateLabel } from "../../lib/slots.js";
 
 /*
@@ -41,7 +41,11 @@ export function SubscriptionPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <PlanBadge plan={sub.data.planId} />
-              <span className="text-sm text-zinc-300">{entitlementSourceLabel(sub.data.source)}</span>
+              <span className="text-sm text-zinc-300">
+                {sub.data.isLifetime && sub.data.originKind === "granted"
+                  ? "Lifetime offert"
+                  : originKindLabel(sub.data.originKind)}
+              </span>
             </div>
             <Button href="/pricing" variant="secondary" size="sm">Changer d'offre</Button>
           </div>
@@ -50,6 +54,12 @@ export function SubscriptionPage() {
               <dt className="text-zinc-500">Emplacements</dt>
               <dd className="text-zinc-200">{sub.data.slots} serveur{sub.data.slots > 1 ? "s" : ""}</dd>
             </div>
+            {sub.data.startAt ? (
+              <div>
+                <dt className="text-zinc-500">Depuis le</dt>
+                <dd className="text-zinc-200">{formatDateTime(sub.data.startAt)}</dd>
+              </div>
+            ) : null}
             {sub.data.isLifetime ? (
               <div>
                 <dt className="text-zinc-500">Validité</dt>

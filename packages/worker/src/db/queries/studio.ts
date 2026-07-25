@@ -4,6 +4,7 @@
  * entitlement mutation lives here — grants/lifetime/revocation are M13. */
 
 import { isStudioPermission, type StudioPermission, type StudioTicketPriority } from "@bot/shared";
+import { effectiveEntitlementSql } from "./entitlements.js";
 
 export interface StudioOperatorRow {
   user_id: string;
@@ -70,9 +71,10 @@ export async function countGuildsForStudio(db: D1Database): Promise<number> {
   return row?.n ?? 0;
 }
 
+/** Effective (window-aware) entitlement count — excludes scheduled & expired-not-yet-swept. */
 export async function countActiveEntitlements(db: D1Database): Promise<number> {
   const row = await db
-    .prepare(`SELECT COUNT(*) AS n FROM entitlements WHERE status = 'active'`)
+    .prepare(`SELECT COUNT(*) AS n FROM entitlements WHERE ${effectiveEntitlementSql()}`)
     .first<{ n: number }>();
   return row?.n ?? 0;
 }
@@ -147,7 +149,7 @@ export async function listUsersForStudio(
            FROM known_users GROUP BY user_id
        )
        SELECT a.user_id,
-              (SELECT COUNT(*) FROM entitlements e WHERE e.user_id = a.user_id AND e.status = 'active') AS active_entitlements,
+              (SELECT COUNT(*) FROM entitlements e WHERE e.user_id = a.user_id AND ${effectiveEntitlementSql("e")}) AS active_entitlements,
               (SELECT COUNT(*) FROM support_tickets s WHERE s.user_id = a.user_id) AS support_tickets,
               a.last_activity_at
          FROM aggregated a
@@ -171,6 +173,8 @@ export interface StudioEntitlementRow {
   is_lifetime: number;
   start_at: string;
   end_at: string | null;
+  origin_ref: string | null;
+  created_at: string;
 }
 
 export async function listEntitlementsForStudio(
@@ -181,7 +185,7 @@ export async function listEntitlementsForStudio(
   const offset = (page - 1) * pageSize;
   const listStmt = db
     .prepare(
-      `SELECT id, user_id, plan_id, source, status, is_lifetime, start_at, end_at
+      `SELECT id, user_id, plan_id, source, status, is_lifetime, start_at, end_at, origin_ref, created_at
          FROM entitlements ORDER BY created_at DESC, id DESC LIMIT ?1 OFFSET ?2`,
     )
     .bind(pageSize, offset);

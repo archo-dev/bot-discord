@@ -1,7 +1,10 @@
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
+import { entitlementLifecycleState, resolveOriginKind } from "@bot/shared";
 import type {
+  EntitlementInput,
+  EntitlementSource,
   PlanId,
   StudioGuildsListResponse,
   StudioGuildSummary,
@@ -137,13 +140,29 @@ studioApiRouter.get("/studio-api/users", requireDeveloper("guilds.inspect"), asy
   return c.json(body);
 });
 
-function toSubscriptionSummary(row: StudioEntitlementRow): StudioSubscriptionSummary {
+/** Build the pure lifecycle input from a Studio entitlement row. */
+function toLifecycleInput(row: StudioEntitlementRow): EntitlementInput {
+  return {
+    planId: row.plan_id as PlanId,
+    source: row.source as EntitlementSource,
+    status: row.status as EntitlementInput["status"],
+    startAt: row.start_at,
+    endAt: row.end_at,
+    isLifetime: row.is_lifetime === 1,
+    originRef: row.origin_ref,
+    createdAt: row.created_at,
+  };
+}
+
+function toSubscriptionSummary(row: StudioEntitlementRow, now: Date): StudioSubscriptionSummary {
   return {
     id: row.id,
     userId: row.user_id,
     planId: row.plan_id as PlanId,
     source: row.source,
+    originKind: resolveOriginKind(row.source as EntitlementSource, row.origin_ref),
     status: row.status,
+    effectiveState: entitlementLifecycleState(toLifecycleInput(row), now),
     isLifetime: row.is_lifetime === 1,
     startAt: row.start_at,
     endAt: row.end_at,
@@ -154,8 +173,9 @@ studioApiRouter.get("/studio-api/subscriptions", requireDeveloper("subscriptions
   const parsed = pageSchema.safeParse({ page: c.req.query("page"), pageSize: c.req.query("pageSize") });
   if (!parsed.success) return c.json({ error: "invalid_query" }, 400);
   const { rows, total } = await listEntitlementsForStudio(c.env.DB, parsed.data.page, parsed.data.pageSize);
+  const now = new Date();
   const body: StudioSubscriptionsListResponse = {
-    items: rows.map(toSubscriptionSummary),
+    items: rows.map((row) => toSubscriptionSummary(row, now)),
     total,
     page: parsed.data.page,
     pageSize: parsed.data.pageSize,

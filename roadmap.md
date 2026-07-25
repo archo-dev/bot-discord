@@ -39,6 +39,18 @@ Refonte visuelle sans changement fonctionnel (panel uniquement, aucune migration
 
 ---
 
+## 🚧 En cours — non déployé (branche `feat/entitlement-lifecycle-no-payment`)
+
+- **M17 — Cycle de vie des entitlements sans paiement** (committé localement, **jamais poussé/migré/déployé**, aucune migration D1 nouvelle).
+  - **Cycle de vie central** : `entitlementLifecycleState()` dans `@bot/shared` — seule source de vérité pour toute route (résolution de plan, listes Studio, compteurs, assignments, API client).
+  - **État `scheduled` dérivé** (début futur) et **`expired`** (fin dépassée) — jamais stockés, dérivés à la lecture pour rester cohérents avant même le sweep.
+  - **Expiration automatique bornée + idempotente** : sweep câblé au cron (`claimExpiredEntitlements`, UPDATE…RETURNING = claim atomique), plus déclenchable en staging via `POST /internal/maintenance/entitlements-sweep`.
+  - **Libération des assignments** à l'expiration (slot libéré, ligne conservée, `state='suspended'`) ; **jamais** d'expiration d'un lifetime.
+  - **`early_access`** (OPTION A) : accès bêta sans nouvelle enum D1 — réutilise `source='granted'` + marqueur `origin_ref='early_access'`, origine claire dérivée côté serveur.
+  - **Endpoint lecture `GET /api/capabilities`** : catalogue centralisé, seul `guildSlots` a une valeur, reste `pendingProductDecision`.
+  - **Enforcement des capacités et billing TOUJOURS OFF** ; aucun secret/config/gateway touché.
+  - Validation : `pnpm -r check` ✅, tests worker concernés (entitlement-lifecycle 16, entitlements 11, studio 16, studio-grants 20) ✅.
+
 ## 🎯 Reste à faire — top priorités (idées inspirées d'autres bots)
 
 ### 1. Brique « tâches planifiées » ⭐ (débloque 4 features)

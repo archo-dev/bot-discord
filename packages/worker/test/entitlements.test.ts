@@ -107,7 +107,7 @@ describe("M6 entitlements — GET /api/subscription", () => {
     expect(body.entitlementsEnabled).toBe(false);
     // No internal origin fields leak into the response shape.
     expect(Object.keys(body).sort()).toEqual(
-      ["displayName", "endAt", "entitlementsEnabled", "featureAccessMode", "isLifetime", "planId", "planRank", "slots", "source", "status"].sort(),
+      ["displayName", "effectiveState", "endAt", "entitlementsEnabled", "featureAccessMode", "isLifetime", "originKind", "planId", "planRank", "slots", "source", "startAt", "status"].sort(),
     );
   });
 });

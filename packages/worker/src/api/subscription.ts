@@ -1,7 +1,9 @@
 import { Hono } from "hono";
 import {
   EFFECTIVE_FREE,
+  getCapabilitiesResponse,
   resolveEffectiveEntitlement,
+  type CapabilitiesResponse,
   type SubscriptionResponse,
 } from "@bot/shared";
 import type { AppContext } from "../auth/guard.js";
@@ -39,8 +41,12 @@ export async function buildSubscriptionResponse(
     displayName: effective.displayName,
     slots: effective.slots,
     source: effective.source,
+    originKind: effective.originKind,
     status: effective.status,
+    // The resolved best is by definition effective ⇒ 'active'; free default ⇒ null.
+    effectiveState: effective.source === null ? null : "active",
     isLifetime: effective.isLifetime,
+    startAt: effective.startAt,
     endAt: effective.endAt,
     entitlementsEnabled,
     featureAccessMode: FEATURE_ACCESS_MODE,
@@ -51,4 +57,11 @@ subscriptionRouter.get("/subscription", async (c) => {
   const enabled = getWorkerFlags(c.env)["platform.entitlements"];
   const body = await buildSubscriptionResponse(c.env.DB, c.get("session").userId, enabled);
   return c.json(body);
+});
+
+// Read-only plan capability catalog (chantier « lifecycle »). Centralised, no
+// enforcement: only `guildSlots` carries a real value; everything else is
+// pendingProductDecision. Never gates a feature and carries no payment data.
+subscriptionRouter.get("/capabilities", (c) => {
+  return c.json(getCapabilitiesResponse() satisfies CapabilitiesResponse);
 });

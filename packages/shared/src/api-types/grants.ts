@@ -4,6 +4,15 @@
  * Revocability derives from entitlements.source (never stored) — see doc 06/08. */
 
 import type { Paginated } from "./common.js";
+import type { EntitlementLifecycleState, EntitlementOriginKind } from "../entitlement.js";
+
+/**
+ * Origine d'un grant temporaire (OPTION A early access). `standard` = accès offert
+ * classique (`origin_ref = <grantId>`) ; `early_access` = accès bêta
+ * (`origin_ref = 'early_access'`). Jamais une nouvelle valeur d'enum D1.
+ */
+export const GRANT_ORIGINS = ["standard", "early_access"] as const;
+export type GrantOrigin = (typeof GRANT_ORIGINS)[number];
 
 /** Grant durations (doc 06/08). `lifetime` is the only open-ended kind. */
 export const GRANT_DURATION_KINDS = ["7d", "30d", "3m", "6m", "1y", "custom", "lifetime"] as const;
@@ -67,10 +76,16 @@ export interface GrantSummary {
   planId: GrantablePlan;
   durationKind: GrantDurationKind;
   isLifetime: boolean;
+  /** Raw stored status of the backing entitlement. */
   status: string;
+  /** Derived lifecycle state (scheduled/active/expired/…), the truth for display. */
+  effectiveState: EntitlementLifecycleState;
+  /** Clarified origin — `early_access` when the grant is a beta access. */
+  originKind: EntitlementOriginKind;
   reason: string;
   grantedBy: string;
   createdAt: string;
+  startAt: string;
   revokedAt: string | null;
   endAt: string | null;
 }
@@ -83,6 +98,8 @@ export interface CreateGrantRequest {
   durationKind: Exclude<GrantDurationKind, "lifetime">;
   /** Required only when durationKind === 'custom'. */
   customEndAt?: string;
+  /** Beta vs standard offered access (OPTION A). Defaults to `standard`. */
+  origin?: GrantOrigin;
   reason: string;
   internalNote?: string;
 }

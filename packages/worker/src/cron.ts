@@ -3,6 +3,7 @@ import { purgeOldStats, purgePanelSanctionRequests, purgeProcessedEvents, purgeP
 import { purgeOwnerTargetAttemptData } from "./moderation/owner-attempt.js";
 import { enqueueDueCronAutomations, processAutomationRuntime } from "./automation/engine.js";
 import { purgeAutomationData } from "./db/queries.js";
+import { sweepExpiredEntitlements } from "./entitlements/sweep.js";
 
 /**
  * Daily scheduled job (cron "23 4 * * *"). Enforces the D1 retention bounds so
@@ -13,8 +14,10 @@ import { purgeAutomationData } from "./db/queries.js";
 export async function runScheduled(env: Env, options: { purge?: boolean } = {}): Promise<void> {
   const cronQueued = await enqueueDueCronAutomations(env);
   await processAutomationRuntime(env);
+  // Expire temporary entitlements whose window has ended (bounded + idempotent).
+  const sweep = await sweepExpiredEntitlements(env);
   if (!options.purge) {
-    console.log("cron automations:", JSON.stringify({ cronQueued }));
+    console.log("cron automations:", JSON.stringify({ cronQueued, entitlementsExpired: sweep.expired }));
     return;
   }
   const [stats, security, processedEvents, productAnalytics, sanctionRequests, ownerTargetAttempts, ticketEvents] = await Promise.all([
@@ -27,5 +30,5 @@ export async function runScheduled(env: Env, options: { purge?: boolean } = {}):
     purgeTicketEvents(env.DB),
   ]);
   const automations = await purgeAutomationData(env.DB);
-  console.log("cron purge:", JSON.stringify({ cronQueued, stats, security, processedEvents, productAnalytics, sanctionRequests, ownerTargetAttempts, ticketEvents, automations }));
+  console.log("cron purge:", JSON.stringify({ cronQueued, entitlementsExpired: sweep.expired, stats, security, processedEvents, productAnalytics, sanctionRequests, ownerTargetAttempts, ticketEvents, automations }));
 }

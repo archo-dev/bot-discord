@@ -29,11 +29,19 @@ export interface InsertGrantInput {
   grantedBy: string;
   reason: string;
   internalNote?: string | null;
+  /**
+   * Structured origin marker for entitlements.origin_ref. Default (undefined) →
+   * the grant id (invariant 7, standard offered access). Pass EARLY_ACCESS_ORIGIN_REF
+   * for a beta access (OPTION A) — the developer_grants row still links back via
+   * entitlement_id, so the reverse FK is preserved.
+   */
+  originRef?: string | null;
 }
 
 /**
  * Create a granted entitlement + its developer_grants row, then point the
- * entitlement's origin_ref at the grant (invariant 7). Returns both ids.
+ * entitlement's origin_ref at the grant (invariant 7) — or at the structured
+ * early-access marker when `originRef` is supplied. Returns both ids.
  */
 export async function insertGrantWithEntitlement(
   db: D1Database,
@@ -56,7 +64,8 @@ export async function insertGrantWithEntitlement(
     .bind(entitlementId, input.grantedBy, input.reason, input.internalNote ?? null, input.durationKind)
     .run();
   const grantId = Number(res.meta.last_row_id);
-  await db.prepare(`UPDATE entitlements SET origin_ref = ?2 WHERE id = ?1`).bind(entitlementId, String(grantId)).run();
+  const originRef = input.originRef ?? String(grantId);
+  await db.prepare(`UPDATE entitlements SET origin_ref = ?2 WHERE id = ?1`).bind(entitlementId, originRef).run();
   return { entitlementId, grantId };
 }
 
@@ -65,7 +74,9 @@ export interface GrantJoinRow extends DeveloperGrantRow {
   plan_id: string;
   status: string;
   is_lifetime: number;
+  start_at: string;
   end_at: string | null;
+  origin_ref: string | null;
 }
 
 export async function listGrants(
@@ -78,7 +89,7 @@ export async function listGrants(
     .prepare(
       `SELECT g.id, g.entitlement_id, g.granted_by, g.reason, g.internal_note, g.duration_kind,
               g.created_at, g.revoked_by, g.revoked_at, g.revoke_reason,
-              e.user_id, e.plan_id, e.status, e.is_lifetime, e.end_at
+              e.user_id, e.plan_id, e.status, e.is_lifetime, e.start_at, e.end_at, e.origin_ref
          FROM developer_grants g JOIN entitlements e ON e.id = g.entitlement_id
         ORDER BY g.created_at DESC, g.id DESC LIMIT ?1 OFFSET ?2`,
     )

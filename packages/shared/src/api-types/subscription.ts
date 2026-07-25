@@ -2,7 +2,13 @@
  * plan of the session user (default Gratuit). Read-only, user-scoped, no billing
  * and no internal origin details. `source=null` means the implicit free default. */
 
-import type { EntitlementSource, EntitlementStatus, PlanId } from "../entitlement.js";
+import type {
+  EntitlementLifecycleState,
+  EntitlementOriginKind,
+  EntitlementSource,
+  EntitlementStatus,
+  PlanId,
+} from "../entitlement.js";
 import type { AssignmentState } from "../assignments.js";
 
 /** Commercial feature-access policy currently enforced by the backend. */
@@ -16,8 +22,15 @@ export interface SubscriptionResponse {
   slots: number;
   /** Origin of the effective entitlement; `null` when it is the free default. */
   source: EntitlementSource | null;
+  /** Clarified origin (early_access included); `null` = free default. */
+  originKind: EntitlementOriginKind | null;
+  /** Stored status; `null` = free default. */
   status: EntitlementStatus | null;
+  /** Derived lifecycle state (scheduled/active/…); `null` = free default. */
+  effectiveState: EntitlementLifecycleState | null;
   isLifetime: boolean;
+  /** ISO 8601 start of the window, or null (free default). */
+  startAt: string | null;
   /** ISO 8601 end of the window, or null (free default / lifetime). */
   endAt: string | null;
   /** Whether the platform.entitlements flag is on (panel awareness). */

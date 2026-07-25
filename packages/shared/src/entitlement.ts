@@ -30,6 +30,37 @@ export const PLAN_FREE: PlanDef = PLANS.free;
 /** Origine d'un entitlement — détermine la révocabilité. */
 export type EntitlementSource = "paid" | "granted" | "trial" | "promotion" | "partner";
 
+/**
+ * Marqueur structuré (dans `entitlements.origin_ref`) d'un accès offert « bêta ».
+ * Décision produit (early access = OPTION A) : PAS de nouvelle valeur d'enum D1 —
+ * on réutilise `source='granted'` et on discrimine l'origine bêta par ce jeton
+ * stable dans `origin_ref`. Un grant standard garde `origin_ref = <grantId>`.
+ * Ne jamais dépendre d'une note libre pour déterminer la source (doc 06, OPTION A).
+ */
+export const EARLY_ACCESS_ORIGIN_REF = "early_access" as const;
+
+/**
+ * Origine « claire » présentée aux surfaces (Studio/panel). Dérivée côté serveur,
+ * jamais stockée : `granted` + `origin_ref='early_access'` → `early_access`.
+ * Le caractère lifetime est orthogonal (`is_lifetime`), pas une origine distincte.
+ */
+export type EntitlementOriginKind =
+  | "paid"
+  | "granted"
+  | "early_access"
+  | "trial"
+  | "promotion"
+  | "partner";
+
+/** Résout l'origine claire d'un entitlement (pure, déterministe). */
+export function resolveOriginKind(
+  source: EntitlementSource,
+  originRef: string | null,
+): EntitlementOriginKind {
+  if (source === "granted" && originRef === EARLY_ACCESS_ORIGIN_REF) return "early_access";
+  return source;
+}
+
 /** États d'un entitlement (machine d'états, doc 06). */
 export type EntitlementStatus =
   | "active"
@@ -37,6 +68,23 @@ export type EntitlementStatus =
   | "revoked"
   | "cancelled"
   | "suspended"
+  | "past_due";
+
+/**
+ * État de cycle de vie *effectif* d'un entitlement, dérivé du statut stocké ET de
+ * la fenêtre temporelle. `scheduled` (début futur) et `expired` (fin dépassée) ne
+ * sont JAMAIS stockés : ils sont dérivés ici pour rester cohérents avant même que
+ * le sweep n'ait mis à jour la ligne. Fonction centrale unique — toute route
+ * (résolution du plan, listes Studio, compteurs, assignments, API client,
+ * métriques) doit passer par elle, jamais réimplémenter sa propre logique.
+ */
+export type EntitlementLifecycleState =
+  | "scheduled"
+  | "active"
+  | "expired"
+  | "revoked"
+  | "suspended"
+  | "cancelled"
   | "past_due";
 
 /** Départage déterministe à rang de plan égal : paid > granted > partner > promotion > trial. */
@@ -58,6 +106,8 @@ export interface EntitlementInput {
   /** ISO 8601, ou `null` si lifetime. */
   endAt: string | null;
   isLifetime: boolean;
+  /** Référence d'origine (`origin_ref`) — discrimine notamment l'accès bêta. */
+  originRef: string | null;
   /** ISO 8601 — dernier départage (le plus récent gagne). */
   createdAt: string;
 }
@@ -69,8 +119,12 @@ export interface EffectiveEntitlement {
   slots: number;
   displayName: string;
   source: EntitlementSource | null;
+  /** Origine claire dérivée (early_access inclus) ; `null` = Gratuit implicite. */
+  originKind: EntitlementOriginKind | null;
   status: EntitlementStatus | null;
   isLifetime: boolean;
+  /** ISO 8601 — début de la fenêtre effective (null = Gratuit implicite). */
+  startAt: string | null;
   endAt: string | null;
 }
 
@@ -81,8 +135,10 @@ export const EFFECTIVE_FREE: EffectiveEntitlement = {
   slots: PLAN_FREE.slots,
   displayName: PLAN_FREE.displayName,
   source: null,
+  originKind: null,
   status: null,
   isLifetime: false,
+  startAt: null,
   endAt: null,
 };
 
@@ -90,15 +146,36 @@ function toTime(iso: string): number {
   return Date.parse(iso);
 }
 
-/** Un entitlement est-il un candidat actif à `nowMs` ? (status active, dans la fenêtre). */
-function isActiveCandidate(e: EntitlementInput, nowMs: number): boolean {
-  if (e.status !== "active") return false;
+/**
+ * État de cycle de vie effectif (central, pur). Les statuts terminaux/explicites
+ * stockés priment ; pour un `active`, on dérive `scheduled` (début futur) /
+ * `expired` (fin dépassée). Un `active` non-lifetime sans `end_at` est INVALIDE
+ * selon le schéma (CHECK D1) — traité défensivement comme `expired` (non effectif).
+ */
+export function entitlementLifecycleState(
+  e: EntitlementInput,
+  now: Date | string | number,
+): EntitlementLifecycleState {
+  if (e.status === "revoked") return "revoked";
+  if (e.status === "suspended") return "suspended";
+  if (e.status === "cancelled") return "cancelled";
+  if (e.status === "past_due") return "past_due";
+  if (e.status === "expired") return "expired";
+  // status === "active" : dériver de la fenêtre.
+  const nowMs = toNowMs(now);
   const start = toTime(e.startAt);
-  if (Number.isNaN(start) || start > nowMs) return false;
-  if (e.isLifetime) return true;
-  if (e.endAt === null) return false; // non-lifetime doit avoir une fin
+  if (Number.isNaN(start)) return "expired"; // date illisible → non effectif (défensif)
+  if (start > nowMs) return "scheduled";
+  if (e.isLifetime) return "active";
+  if (e.endAt === null) return "expired"; // non-lifetime sans fin = invalide (CHECK)
   const end = toTime(e.endAt);
-  return !Number.isNaN(end) && end > nowMs;
+  if (Number.isNaN(end) || end <= nowMs) return "expired";
+  return "active";
+}
+
+/** Un entitlement est-il *effectif* (= état de cycle de vie `active`) à `now` ? */
+export function isEffectiveEntitlement(e: EntitlementInput, now: Date | string | number): boolean {
+  return entitlementLifecycleState(e, now) === "active";
 }
 
 /** Compare deux candidats. >0 si `a` prime sur `b`. Déterministe. */
@@ -133,11 +210,10 @@ export function pickBestEntitlementIndex(
   entitlements: readonly EntitlementInput[],
   now: Date | string | number,
 ): number {
-  const nowMs = toNowMs(now);
   let bestIdx = -1;
   for (let i = 0; i < entitlements.length; i++) {
     const e = entitlements[i]!;
-    if (!isActiveCandidate(e, nowMs)) continue;
+    if (!isEffectiveEntitlement(e, now)) continue;
     if (bestIdx === -1 || compareEntitlements(e, entitlements[bestIdx]!) > 0) bestIdx = i;
   }
   return bestIdx;
@@ -161,8 +237,10 @@ export function resolveEffectiveEntitlement(
     slots: plan.slots,
     displayName: plan.displayName,
     source: best.source,
+    originKind: resolveOriginKind(best.source, best.originRef),
     status: best.status,
     isLifetime: best.isLifetime,
+    startAt: best.startAt,
     endAt: best.endAt,
   };
 }

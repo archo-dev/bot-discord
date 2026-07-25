@@ -4,7 +4,7 @@
  * No PII/secret is ever carried here (guild/subscription views are minimized). */
 
 import type { Paginated } from "./common.js";
-import type { PlanId } from "../entitlement.js";
+import type { EntitlementLifecycleState, EntitlementOriginKind, PlanId } from "../entitlement.js";
 
 /**
  * The 13 granular developer permissions (doc 09 §3 matrix). Cumulative but
@@ -80,8 +80,14 @@ export interface StudioSubscriptionSummary {
   id: number;
   userId: string;
   planId: PlanId;
+  /** Raw DB source (paid/granted/…). */
   source: string;
+  /** Clarified origin (early_access included), derived server-side. */
+  originKind: EntitlementOriginKind;
+  /** Raw stored status. */
   status: string;
+  /** Derived lifecycle state (scheduled/active/expired/…), the truth for display. */
+  effectiveState: EntitlementLifecycleState;
   isLifetime: boolean;
   startAt: string;
   endAt: string | null;

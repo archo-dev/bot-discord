@@ -3,7 +3,12 @@
  * testables en node. La vérité (plan effectif, emplacements) vient du backend
  * (GET /api/subscription[/assignments], /api/account) ; ces helpers formatent.
  */
-import type { EntitlementSource, FeatureAccessMode } from "@bot/shared";
+import type {
+  EntitlementLifecycleState,
+  EntitlementOriginKind,
+  EntitlementSource,
+  FeatureAccessMode,
+} from "@bot/shared";
 
 /** Message explaining the backend feature-access policy, when applicable. */
 export function featureAccessMessage(mode: FeatureAccessMode): string | null {
@@ -27,6 +32,51 @@ export function entitlementSourceLabel(source: EntitlementSource | null): string
       return "Partenariat";
     default:
       return "Offre gratuite";
+  }
+}
+
+/**
+ * Libellé FR de l'origine « claire » (early_access distingué). `null` = Gratuit.
+ * Jamais de mention de facture/prix pour un accès offert (accès bêta compris).
+ */
+export function originKindLabel(kind: EntitlementOriginKind | null): string {
+  switch (kind) {
+    case "paid":
+      return "Abonnement";
+    case "granted":
+      return "Accès offert";
+    case "early_access":
+      return "Accès bêta";
+    case "trial":
+      return "Essai";
+    case "promotion":
+      return "Promotion";
+    case "partner":
+      return "Partenaire";
+    default:
+      return "Offre gratuite";
+  }
+}
+
+/** Libellé FR de l'état de cycle de vie effectif (`null` = Gratuit par défaut). */
+export function lifecycleStateLabel(state: EntitlementLifecycleState | null): string {
+  switch (state) {
+    case "scheduled":
+      return "Programmé";
+    case "active":
+      return "Actif";
+    case "expired":
+      return "Expiré";
+    case "revoked":
+      return "Révoqué";
+    case "suspended":
+      return "Suspendu";
+    case "cancelled":
+      return "Annulé";
+    case "past_due":
+      return "Paiement en retard";
+    default:
+      return "Gratuit";
   }
 }
 

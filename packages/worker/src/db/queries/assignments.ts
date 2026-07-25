@@ -92,6 +92,26 @@ export async function insertAssignment(
     .run();
 }
 
+/**
+ * Statement that releases every live assignment of an entitlement (slot freed,
+ * row kept — never destructive). Exposed as a statement so the sweep can batch it
+ * atomically with the subscription_event when the entitlement expires. Mirrors
+ * releaseGuildAssignment's semantics (released_at set, state→'suspended').
+ */
+export function releaseEntitlementAssignmentsStatement(
+  db: D1Database,
+  entitlementId: number,
+  nowIso?: string,
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `UPDATE entitlement_guild_assignments
+          SET released_at = COALESCE(?2, datetime('now')), state = 'suspended'
+        WHERE entitlement_id = ?1 AND state = 'active' AND released_at IS NULL`,
+    )
+    .bind(entitlementId, nowIso ?? null);
+}
+
 /** Release a guild's live assignment: free the slot, keep the row (history/cooldown).
  *  Over-capacity suspension is derived on the fly (resolveSlotAssignments), never
  *  persisted, so reads stay write-free; only release mutates state here. */

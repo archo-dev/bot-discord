@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { badgeToneClass } from "@bot/ui";
 import type {
+  EntitlementLifecycleState,
+  EntitlementOriginKind,
   GrantablePlan,
   GrantsListResponse,
   RolloutResponse,
@@ -263,13 +265,15 @@ function SubscriptionsPanel() {
   if (data.items.length === 0) return <Empty label="Aucun abonnement enregistré." />;
   return (
     <>
-      <Table headers={["User", "Plan", "Source", "Statut"]}>
+      <Table headers={["User", "Plan", "Source", "État", "Début", "Fin"]}>
         {data.items.map((s) => (
           <tr key={s.id} className="border-t border-zinc-800">
             <Td>{s.userId}</Td>
             <Td>{s.planId}</Td>
-            <Td>{s.source}</Td>
-            <Td>{s.status}</Td>
+            <Td>{originKindLabel(s.originKind, s.isLifetime)}</Td>
+            <Td>{lifecycleStateLabel(s.effectiveState)}</Td>
+            <Td>{fmtDate(s.startAt)}</Td>
+            <Td>{s.isLifetime ? "À vie" : fmtDate(s.endAt)}</Td>
           </tr>
         ))}
       </Table>
@@ -372,6 +376,7 @@ function GrantsPanel({ canGrant, canLifetime, canRevoke }: { canGrant: boolean; 
   const [userId, setUserId] = useState("");
   const [planId, setPlanId] = useState<GrantablePlan>("premium");
   const [durationKind, setDurationKind] = useState<"7d" | "30d" | "3m" | "6m" | "1y">("30d");
+  const [earlyAccess, setEarlyAccess] = useState(false);
   const [reason, setReason] = useState("");
   const [lifetimeConfirm, setLifetimeConfirm] = useState("");
   const [busy, setBusy] = useState(false);
@@ -430,10 +435,14 @@ function GrantsPanel({ canGrant, canLifetime, canRevoke }: { canGrant: boolean; 
             <Field label="Raison">
               <input value={reason} onChange={(e) => setReason(e.target.value)} className="w-64 rounded bg-zinc-800 px-2 py-1 text-sm" placeholder="obligatoire" />
             </Field>
+            <label className="flex items-center gap-2 text-xs text-zinc-400">
+              <input type="checkbox" checked={earlyAccess} onChange={(e) => setEarlyAccess(e.target.checked)} />
+              Accès bêta (early access)
+            </label>
             {canGrant && (
               <button
                 disabled={busy || !userId || reason.trim().length < 3}
-                onClick={() => void run(() => studioApi.grant({ userId, planId, durationKind, reason }))}
+                onClick={() => void run(() => studioApi.grant({ userId, planId, durationKind, reason, origin: earlyAccess ? "early_access" : "standard" }))}
                 className="rounded bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
               >
                 Octroyer
@@ -478,16 +487,17 @@ function GrantsPanel({ canGrant, canLifetime, canRevoke }: { canGrant: boolean; 
         <Empty label="Aucun accès offert." />
       ) : (
         <>
-          <Table headers={["User", "Plan", "Durée", "Statut", "Raison", ""]}>
+          <Table headers={["User", "Plan", "Source", "Durée", "État", "Raison", ""]}>
             {data.items.map((g) => (
               <tr key={g.grantId} className="border-t border-zinc-800">
                 <Td>{g.userId}</Td>
                 <Td>{g.planId}</Td>
+                <Td>{originKindLabel(g.originKind, g.isLifetime)}</Td>
                 <Td>{g.isLifetime ? "lifetime" : g.durationKind}</Td>
-                <Td>{g.status}</Td>
+                <Td>{lifecycleStateLabel(g.effectiveState)}</Td>
                 <Td>{g.reason}</Td>
                 <Td>
-                  {canRevoke && g.status === "active" && (
+                  {canRevoke && (g.effectiveState === "active" || g.effectiveState === "scheduled") && (
                     <button
                       disabled={busy}
                       onClick={() => window.confirm("Révoquer cet accès offert ?") && void run(() => studioApi.revoke(g.entitlementId))}
@@ -651,6 +661,41 @@ function AuditPanel() {
       <Pager page={data.page} pageSize={data.pageSize} total={data.total} onPage={setPage} />
     </>
   );
+}
+
+/** FR label for the clarified origin. Lifetime granted reads « Lifetime offert ». */
+function originKindLabel(kind: EntitlementOriginKind, isLifetime = false): string {
+  if (isLifetime && kind === "granted") return "Lifetime offert";
+  switch (kind) {
+    case "paid": return "Abonnement";
+    case "granted": return "Accès offert";
+    case "early_access": return "Accès bêta";
+    case "trial": return "Essai";
+    case "promotion": return "Promotion";
+    case "partner": return "Partenaire";
+    default: return kind;
+  }
+}
+
+/** FR label for the derived lifecycle state. */
+function lifecycleStateLabel(state: EntitlementLifecycleState): string {
+  switch (state) {
+    case "scheduled": return "Programmé";
+    case "active": return "Actif";
+    case "expired": return "Expiré";
+    case "revoked": return "Révoqué";
+    case "suspended": return "Suspendu";
+    case "cancelled": return "Annulé";
+    case "past_due": return "Paiement en retard";
+    default: return state;
+  }
+}
+
+/** Short date (YYYY-MM-DD) from an ISO string; « — » when null. */
+function fmtDate(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toISOString().slice(0, 10);
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

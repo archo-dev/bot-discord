@@ -61,8 +61,61 @@ export function rowToEntitlementInput(row: EntitlementRow): EntitlementInput {
     startAt: row.start_at,
     endAt: row.end_at,
     isLifetime: row.is_lifetime === 1,
+    originRef: row.origin_ref,
     createdAt: row.created_at,
   };
+}
+
+/**
+ * SQL predicate that mirrors @bot/shared isEffectiveEntitlement — the SINGLE
+ * source of truth for "counts as effective" in D1 reads (counts, KPIs). Both
+ * sides are wrapped in datetime() so ISO-8601 (with T/.SSS/Z, from grants) and
+ * the space-format datetime('now') default compare correctly (verified on D1).
+ * `alias` scopes it to a joined table (e.g. "e"); empty for a bare table.
+ */
+export function effectiveEntitlementSql(alias = ""): string {
+  const p = alias ? `${alias}.` : "";
+  return (
+    `${p}status = 'active' ` +
+    `AND datetime(${p}start_at) <= datetime('now') ` +
+    `AND (${p}is_lifetime = 1 OR (${p}end_at IS NOT NULL AND datetime(${p}end_at) > datetime('now')))`
+  );
+}
+
+export interface ExpiredEntitlementClaim {
+  id: number;
+  user_id: string;
+  plan_id: string;
+  end_at: string | null;
+}
+
+/**
+ * Atomically CLAIM a bounded batch of temporary entitlements whose window has
+ * ended (status='active', not lifetime, end_at passed) → flip to 'expired' and
+ * RETURN the rows actually flipped. The UPDATE is the claim: a concurrent sweep
+ * (or a re-run) never re-selects an already-expired row, so each expiry is
+ * transitioned — and journaled/audited — exactly once (idempotent). Lifetime and
+ * scheduled (future start) rows are excluded by construction.
+ */
+export async function claimExpiredEntitlements(
+  db: D1Database,
+  limit: number,
+): Promise<ExpiredEntitlementClaim[]> {
+  const res = await db
+    .prepare(
+      `UPDATE entitlements SET status = 'expired', updated_at = datetime('now')
+         WHERE id IN (
+           SELECT id FROM entitlements
+            WHERE status = 'active' AND is_lifetime = 0 AND end_at IS NOT NULL
+              AND datetime(end_at) <= datetime('now')
+            ORDER BY id
+            LIMIT ?1
+         )
+       RETURNING id, user_id, plan_id, end_at`,
+    )
+    .bind(limit)
+    .all<ExpiredEntitlementClaim>();
+  return res.results ?? [];
 }
 
 /** Plan catalog rows (seeded referential; the app truth is @bot/shared PLANS). */

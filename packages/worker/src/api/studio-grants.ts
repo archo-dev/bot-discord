@@ -1,10 +1,16 @@
 import type { Hono } from "hono";
 import { z } from "zod";
 import {
+  EARLY_ACCESS_ORIGIN_REF,
+  entitlementLifecycleState,
+  GRANT_ORIGINS,
   GRANTABLE_PLANS,
   resolveGrantWindow,
+  resolveOriginKind,
+  type EntitlementStatus,
   type GrantablePlan,
   type GrantDurationKind,
+  type GrantOrigin,
   type GrantSummary,
   type GrantsListResponse,
 } from "@bot/shared";
@@ -43,6 +49,7 @@ const grantSchema = z.object({
   planId: plan,
   durationKind: z.enum(["7d", "30d", "3m", "6m", "1y", "custom"]),
   customEndAt: z.string().datetime().optional(),
+  origin: z.enum(GRANT_ORIGINS as unknown as [GrantOrigin, ...GrantOrigin[]]).optional(),
   reason,
   internalNote,
 });
@@ -58,7 +65,20 @@ const lifetimeSchema = z.object({
 const revokeSchema = z.object({ reason: z.string().trim().max(500).optional() });
 const idSchema = z.coerce.number().int().positive();
 
-function toSummary(row: GrantJoinRow): GrantSummary {
+function toSummary(row: GrantJoinRow, now: Date): GrantSummary {
+  const effectiveState = entitlementLifecycleState(
+    {
+      planId: row.plan_id as GrantablePlan,
+      source: "granted",
+      status: row.status as EntitlementStatus,
+      startAt: row.start_at,
+      endAt: row.end_at,
+      isLifetime: row.is_lifetime === 1,
+      originRef: row.origin_ref,
+      createdAt: row.created_at,
+    },
+    now,
+  );
   return {
     grantId: row.id,
     entitlementId: row.entitlement_id,
@@ -67,9 +87,12 @@ function toSummary(row: GrantJoinRow): GrantSummary {
     durationKind: row.duration_kind as GrantDurationKind,
     isLifetime: row.is_lifetime === 1,
     status: row.status,
+    effectiveState,
+    originKind: resolveOriginKind("granted", row.origin_ref),
     reason: row.reason,
     grantedBy: row.granted_by,
     createdAt: row.created_at,
+    startAt: row.start_at,
     revokedAt: row.revoked_at,
     endAt: row.end_at,
   };
@@ -96,7 +119,8 @@ export function registerGrantRoutes(router: Hono<StudioContext>): void {
     const page = Number(c.req.query("page") ?? 1) || 1;
     const pageSize = Math.min(50, Math.max(1, Number(c.req.query("pageSize") ?? 20) || 20));
     const { rows, total } = await listGrants(c.env.DB, page, pageSize);
-    const body: GrantsListResponse = { items: rows.map(toSummary), total, page, pageSize };
+    const now = new Date();
+    const body: GrantsListResponse = { items: rows.map((r) => toSummary(r, now)), total, page, pageSize };
     return c.json(body);
   });
 
@@ -116,6 +140,9 @@ export function registerGrantRoutes(router: Hono<StudioContext>): void {
     } catch {
       return c.json({ error: "invalid_duration" }, 400);
     }
+    // OPTION A: a beta access reuses source='granted' and is marked structurally
+    // via origin_ref (never a new D1 enum, never a free note).
+    const isEarlyAccess = parsed.data.origin === "early_access";
     const { entitlementId, grantId } = await insertGrantWithEntitlement(c.env.DB, {
       userId: parsed.data.userId,
       planId: parsed.data.planId,
@@ -126,13 +153,14 @@ export function registerGrantRoutes(router: Hono<StudioContext>): void {
       grantedBy: operator.userId,
       reason: parsed.data.reason,
       internalNote: parsed.data.internalNote ?? null,
+      originRef: isEarlyAccess ? EARLY_ACCESS_ORIGIN_REF : undefined,
     });
     await insertSubscriptionEvent(c.env.DB, {
       entitlementId,
-      type: "grant",
+      type: isEarlyAccess ? "grant_early_access" : "grant",
       toStatus: "active",
       actor: `operator:${operator.userId}`,
-      payload: { grantId, planId: parsed.data.planId, durationKind: parsed.data.durationKind },
+      payload: { grantId, planId: parsed.data.planId, durationKind: parsed.data.durationKind, origin: parsed.data.origin ?? "standard" },
     });
     c.executionCtx.waitUntil(
       writeStudioAudit(c.env, {
@@ -145,6 +173,7 @@ export function registerGrantRoutes(router: Hono<StudioContext>): void {
           userId: parsed.data.userId,
           planId: parsed.data.planId,
           durationKind: parsed.data.durationKind,
+          origin: parsed.data.origin ?? "standard",
           isLifetime: window.isLifetime,
           reason: parsed.data.reason,
           ...(isOwnerSelfGrant ? { isOwner: true } : {}),
