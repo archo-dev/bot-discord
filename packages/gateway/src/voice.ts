@@ -1,7 +1,7 @@
 import { EmbedBuilder, Events, type Client, type VoiceState } from "discord.js";
 import type { VoiceLogAction } from "@bot/shared";
-import type { ConfigCache } from "./config-cache.js";
-import type { WorkerApi } from "./worker-api.js";
+import { ConfigFetchTimeoutError, type ConfigCache } from "./config-cache.js";
+import type { GuildGatewayConfig, WorkerApi } from "./worker-api.js";
 import { sendTo } from "./events.js";
 import { isGatewayModuleEnabled } from "./module-config.js";
 import { observeGatewayCapability } from "./enforcement.js";
@@ -89,7 +89,19 @@ export function registerVoice(client: Client, cache: ConfigCache, api: WorkerApi
 
     observe("info", "voice_event_received", { guildId: guild.id });
 
-    const cfg = await cache.get(guild.id).catch(() => null);
+    // Le handler ne doit JAMAIS rester suspendu : le cache borne désormais sa
+    // requête, et un dépassement rejette avec ConfigFetchTimeoutError (au lieu de
+    // pendre à vie). On distingue le timeout (config_timeout) d'une config absente
+    // (config_missing) ; dans les deux cas on skip proprement et on rend la main —
+    // l'événement suivant pourra réussir dès que le Worker répond.
+    let cfg: GuildGatewayConfig | null;
+    try {
+      cfg = await cache.get(guild.id);
+    } catch (err) {
+      const reason = err instanceof ConfigFetchTimeoutError ? "config_timeout" : "config_missing";
+      observe("warn", "voice_log_skipped", { guildId: guild.id, reason });
+      return;
+    }
     if (!cfg) {
       observe("warn", "voice_log_skipped", { guildId: guild.id, reason: "config_missing" });
       return;

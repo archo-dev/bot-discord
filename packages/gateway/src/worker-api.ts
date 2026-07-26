@@ -31,6 +31,30 @@ export type ReliableBatchSendResult =
   | { kind: "reject" };
 
 /**
+ * Borne dure (timer JS) autour d'une promesse — indépendante d'AbortSignal/undici.
+ * Défense transport (07-26) : sur un process long, un socket keep-alive mort peut
+ * faire pendre un `fetch` sans que l'AbortSignal.timeout n'abort réellement (cause
+ * du blackout des logs vocaux du 25/07). Ce backstop garantit qu'AUCUN appel
+ * interne ne pend indéfiniment : la course rejette au plus tard à `ms`, l'appelant
+ * voit une erreur bornée (jamais de perte silencieuse ni de boucle infinie). Le
+ * fetch abandonné reçoit un `catch` no-op (pas d'unhandledRejection). Réglé > au
+ * timeout AbortSignal (10 s) : en marche normale l'abort gagne et l'appelant garde
+ * l'erreur réseau réelle ; ce timer n'agit qu'en dernier recours si l'abort échoue.
+ */
+export function withHardTimeout<T>(promise: Promise<T>, ms: number, label = "internal request"): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} exceeded ${ms}ms hard timeout`)), ms);
+  });
+  promise.catch(() => {}); // le fetch abandonné ne doit pas devenir un unhandledRejection
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+/** Backstop dur commun à tous les appels internes (heartbeat, config, métriques,
+ *  voice-logs, stats). > 10 s (AbortSignal) pour ne primer que si l'abort échoue. */
+const CALL_HARD_TIMEOUT_MS = 12_000;
+
+/**
  * Typed client for the Worker's /internal/* API — the gateway's ONLY way to
  * read or write bot state (the Worker stays the single D1 writer).
  */
@@ -241,17 +265,20 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
         path,
         body: serializedBody,
       });
-      const res = await fetch(`${env.WORKER_ORIGIN}${path}`, {
-        method,
-        headers: {
-          authorization: `Bearer ${env.INTERNAL_API_TOKEN}`,
-          "x-request-id": requestId,
-          ...signature,
-          ...(body !== undefined ? { "content-type": "application/json" } : {}),
-        },
-        body: body !== undefined ? serializedBody : undefined,
-        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000),
-      });
+      const res = await withHardTimeout(
+        fetch(`${env.WORKER_ORIGIN}${path}`, {
+          method,
+          headers: {
+            authorization: `Bearer ${env.INTERNAL_API_TOKEN}`,
+            "x-request-id": requestId,
+            ...signature,
+            ...(body !== undefined ? { "content-type": "application/json" } : {}),
+          },
+          body: body !== undefined ? serializedBody : undefined,
+          signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000),
+        }),
+        CALL_HARD_TIMEOUT_MS,
+      );
       if (!res.ok && res.status !== 404) {
         errorsSinceLastHeartbeat++;
         throw new Error(`worker request failed with status ${res.status}`);

@@ -30,6 +30,7 @@ export type GatewayObservabilityReason =
   | "channel_not_text"
   | "module_disabled"
   | "config_missing"
+  | "config_timeout"
   | "persist_error"
   | "send_error"
   | "resume_loop";

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Client, VoiceState } from "discord.js";
 import { registerVoice } from "../src/voice.js";
-import type { ConfigCache } from "../src/config-cache.js";
+import { ConfigFetchTimeoutError, type ConfigCache } from "../src/config-cache.js";
 import type { GuildGatewayConfig, WorkerApi } from "../src/worker-api.js";
 
 type VoiceHandler = (oldState: VoiceState, newState: VoiceState) => Promise<void>;
@@ -66,12 +66,17 @@ interface Harness {
   emit: VoiceHandler;
   send: ReturnType<typeof vi.fn>;
   postVoiceLogs: ReturnType<typeof vi.fn>;
-  state: (channelId: string | null, flags?: Partial<Pick<VoiceState, "selfMute" | "serverMute" | "selfDeaf" | "serverDeaf">>) => VoiceState;
+  state: (
+    channelId: string | null,
+    flags?: Partial<Pick<VoiceState, "selfMute" | "serverMute" | "selfDeaf" | "serverDeaf">>,
+    opts?: { member?: unknown },
+  ) => VoiceState;
 }
 
 function harness(options: {
   config?: GuildGatewayConfig | null;
   configRejects?: boolean;
+  configTimeout?: boolean;
   channelExists?: boolean;
   sendFails?: boolean;
 } = {}): Harness {
@@ -97,10 +102,19 @@ function harness(options: {
     },
   } as unknown as Client;
 
+  // configTimeout : première lecture rejette (ConfigFetchTimeoutError), les
+  // suivantes réussissent — prouve que le handler récupère à l'événement d'après.
+  let configAttempts = 0;
   const cache = {
     get: options.configRejects
       ? vi.fn(async () => { throw new Error("worker request failed with status 500"); })
-      : vi.fn(async () => options.config === undefined ? fullConfig() : options.config),
+      : options.configTimeout
+        ? vi.fn(async () => {
+            configAttempts++;
+            if (configAttempts === 1) throw new ConfigFetchTimeoutError(30);
+            return fullConfig();
+          })
+        : vi.fn(async () => options.config === undefined ? fullConfig() : options.config),
     invalidate: vi.fn(),
   } as unknown as ConfigCache;
 
@@ -110,12 +124,13 @@ function harness(options: {
   registerVoice(client, cache, api);
   if (!handler) throw new Error("voiceStateUpdate handler was not registered");
 
-  const state: Harness["state"] = (channelId, flags = {}) =>
+  const state: Harness["state"] = (channelId, flags = {}, opts = {}) =>
     ({
       guild,
       id: member.id,
       channelId,
-      member,
+      // `{ member: null }` simule un membre partiel après une reconnexion Discord.
+      member: "member" in opts ? opts.member : member,
       selfMute: flags.selfMute ?? false,
       serverMute: flags.serverMute ?? false,
       selfDeaf: flags.selfDeaf ?? false,
@@ -229,5 +244,62 @@ describe("voice logs (M17) — flux VoiceStateUpdate complet", () => {
     const h = harness({ config: legacy });
     await h.emit(h.state(null), h.state("100000000000000200"));
     expect(h.send).toHaveBeenCalledTimes(1);
+  });
+
+  // D — Un fetch de config figé ne doit plus suspendre le handler à vie (incident
+  // 07-25). Il rejette (ConfigFetchTimeoutError) → skip borné, aucun effet de bord,
+  // et l'événement SUIVANT réussit dès que la config redevient disponible.
+  it("does not hang when the config fetch times out, and recovers on the next event", async () => {
+    const h = harness({ configTimeout: true });
+
+    // 1er event : la config expire → handler termine, sans embed ni persistance.
+    await expect(h.emit(h.state(null), h.state("100000000000000200"))).resolves.toBeUndefined();
+    expect(h.send).not.toHaveBeenCalled();
+    expect(h.postVoiceLogs).not.toHaveBeenCalled();
+
+    // 2e event : la config répond → traitement normal (récupération sans restart).
+    await h.emit(h.state(null), h.state("100000000000000200"));
+    expect(h.send).toHaveBeenCalledTimes(1);
+    expect(h.postVoiceLogs).toHaveBeenCalledTimes(1);
+  });
+
+  // E — Après une reconnexion Discord, `member` peut être partiel (null). La
+  // classification join/leave/move doit rester correcte et l'id retomber sur
+  // state.id, sans exception.
+  describe("membre partiel après reconnexion (RESUME)", () => {
+    it("classifies a join with a partial member and falls back to state.id", async () => {
+      const h = harness();
+      await expect(
+        h.emit(h.state(null, {}, { member: null }), h.state("100000000000000200", {}, { member: null })),
+      ).resolves.toBeUndefined();
+      expect(sentDescriptions(h.send)).toEqual(["🔊 <@100000000000000042> a rejoint <#100000000000000200>"]);
+      expect(h.postVoiceLogs).toHaveBeenCalledWith("100000000000000001", [
+        expect.objectContaining({ action: "join", userId: "100000000000000042", userTag: null }),
+      ]);
+    });
+
+    it("classifies a move with a partial member", async () => {
+      const h = harness();
+      await h.emit(
+        h.state("100000000000000200", {}, { member: null }),
+        h.state("100000000000000300", {}, { member: null }),
+      );
+      expect(sentDescriptions(h.send)).toEqual(["➡️ <@100000000000000042> : <#100000000000000200> → <#100000000000000300>"]);
+      expect(h.postVoiceLogs).toHaveBeenCalledWith("100000000000000001", [
+        expect.objectContaining({ action: "move", channelId: "100000000000000300", fromChannelId: "100000000000000200" }),
+      ]);
+    });
+
+    it("classifies a leave with a partial member", async () => {
+      const h = harness();
+      await h.emit(
+        h.state("100000000000000200", {}, { member: null }),
+        h.state(null, {}, { member: null }),
+      );
+      expect(sentDescriptions(h.send)).toEqual(["🔴 <@100000000000000042> a quitté <#100000000000000200>"]);
+      expect(h.postVoiceLogs).toHaveBeenCalledWith("100000000000000001", [
+        expect.objectContaining({ action: "leave", channelId: "100000000000000200" }),
+      ]);
+    });
   });
 });

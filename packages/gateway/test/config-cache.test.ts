@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createConfigCache } from "../src/config-cache.js";
+import { ConfigFetchTimeoutError, createConfigCache } from "../src/config-cache.js";
 import type { GuildGatewayConfig, WorkerApi } from "../src/worker-api.js";
 
 /*
@@ -62,6 +62,47 @@ describe("config cache — coalescence", () => {
     const recovered = await cache.get("z");
 
     expect(recovered?.id).toBe("z");
+    expect(calls()).toBe(2);
+  });
+
+  it("recovers from a stuck fetch: times out, clears inFlight, next get() succeeds", async () => {
+    // Reproduit l'incident 07-25 : le premier fetch NE se règle JAMAIS.
+    let attempt = 0;
+    const { api, calls } = stubApi((guildId) => {
+      attempt++;
+      if (attempt === 1) return new Promise<GuildGatewayConfig>(() => {}); // pend à vie
+      return Promise.resolve(fakeConfig(guildId));
+    });
+    const cache = createConfigCache(api, { requestTimeoutMs: 30 });
+
+    // 1) la requête figée rejette dans la borne (au lieu de pendre pour toujours)…
+    await expect(cache.get("stuck")).rejects.toBeInstanceOf(ConfigFetchTimeoutError);
+
+    // 2) …et n'a PAS empoisonné le cache : le get() suivant relance une vraie
+    //    requête (nouvel appel) et réussit — aucune promesse morte réutilisée.
+    const recovered = await cache.get("stuck");
+    expect(recovered?.id).toBe("stuck");
+    expect(calls()).toBe(2);
+  });
+
+  it("a burst hitting a stuck fetch shares ONE request, all reject, then recover together", async () => {
+    let attempt = 0;
+    const { api, calls } = stubApi((guildId) => {
+      attempt++;
+      if (attempt === 1) return new Promise<GuildGatewayConfig>(() => {});
+      return Promise.resolve(fakeConfig(guildId));
+    });
+    const cache = createConfigCache(api, { requestTimeoutMs: 30 });
+
+    // Rafale de 5 events sur cache froid → une seule requête (figée) coalescée.
+    const burst = Array.from({ length: 5 }, () => cache.get("g").catch((e) => e));
+    const outcomes = await Promise.all(burst);
+    expect(outcomes.every((o) => o instanceof ConfigFetchTimeoutError)).toBe(true);
+    expect(calls()).toBe(1); // coalescence préservée pendant l'échec
+
+    // Après libération d'inFlight, la reprise déclenche bien une nouvelle requête.
+    const recovered = await cache.get("g");
+    expect(recovered?.id).toBe("g");
     expect(calls()).toBe(2);
   });
 });
