@@ -190,8 +190,10 @@ export interface WorkerApi {
   registerTempVoiceChannel(guildId: string, payload: { channelId: string; ownerId: string }): Promise<void>;
   unregisterTempVoiceChannel(guildId: string, channelId: string): Promise<void>;
   postTempVoiceLobbyDeleted(guildId: string): Promise<void>;
-  /** Métriques shadow d'enforcement (dims bornées, no PII). Best-effort. */
-  postCapabilityMetrics(items: CapabilityMetricBatchItem[]): Promise<void>;
+  /** Métriques shadow d'enforcement (dims bornées, no PII). Best-effort.
+   *  Retourne `true` si le batch a été livré (2xx), `false` sinon (le flush
+   *  ré-injecte alors le batch pour un retry borné). */
+  postCapabilityMetrics(items: CapabilityMetricBatchItem[]): Promise<boolean>;
   /** Reliable delivery (M05): signed batch of enveloped events; never throws. */
   postReliableBatch(events: ReliableEnvelope[]): Promise<ReliableBatchSendResult>;
   /** Wires the outbox so reliable-typed flows enqueue durably instead of direct-calling. */
@@ -410,12 +412,21 @@ export function createWorkerApi(env: GatewayEnv): WorkerApi {
       outbox = next;
     },
     async postCapabilityMetrics(items) {
-      if (items.length === 0) return;
-      // Best-effort : une panne de métrique ne doit jamais perturber le runtime.
+      if (items.length === 0) return true;
+      // Best-effort : une panne de métrique ne doit jamais perturber le runtime,
+      // mais NE doit pas être perdue en silence. `call` tolère 404 (le renvoie
+      // sans throw) ; pour CE endpoint on inspecte explicitement le statut afin
+      // qu'un 404/non-2xx soit loggé et signalé (→ retry borné côté flush).
       try {
-        await call("POST", "/internal/capability-metrics", { items });
+        const res = await call("POST", "/internal/capability-metrics", { items });
+        if (!res.ok) {
+          console.error(`capability-metrics flush failed: status ${res.status}`);
+          return false;
+        }
+        return true;
       } catch (err) {
         console.error("capability-metrics flush failed:", errMsg(err));
+        return false;
       }
     },
     async postReliableBatch(events): Promise<ReliableBatchSendResult> {

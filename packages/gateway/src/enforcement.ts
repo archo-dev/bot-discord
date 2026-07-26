@@ -42,7 +42,20 @@ export function initCapabilityReporter(api: WorkerApi, flushMs = 10_000): void {
     if (buffer.size === 0) return;
     const items = [...buffer.values()];
     buffer.clear();
-    await api.postCapabilityMetrics(items);
+    const delivered = await api.postCapabilityMetrics(items);
+    if (!delivered) {
+      // Livraison échouée (404/non-2xx/réseau) : NE PAS perdre le batch. On le
+      // ré-injecte dans le buffer (fusion par clé) pour un retry borné au prochain
+      // tick périodique. Borné : espace de clés = enums (petit fini), compteur
+      // plafonné (schéma Worker : max 100 000). Aucune boucle, aucune croissance
+      // incontrôlée ; une reprise fusionne proprement avec les nouvelles obs.
+      for (const item of items) {
+        const key: MetricKey = `${item.capability}|${item.effectivePlan}|${item.requiredPlan}|${item.reason}|${item.decision}`;
+        const existing = buffer.get(key);
+        if (existing) existing.count = Math.min(existing.count + item.count, 100_000);
+        else buffer.set(key, { ...item });
+      }
+    }
   };
 
   reporter = {

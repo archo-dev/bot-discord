@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { env, createExecutionContext } from "cloudflare:test";
 import app from "../src/index.js";
 import { upsertGuild } from "../src/db/queries.js";
+import { isAllowedInternalRoute } from "../src/security/internal-auth.js";
 
 const G = "990000000000000001";
 
@@ -111,5 +112,96 @@ describe("internal API (future gateway)", () => {
       "test-internal-token",
     );
     expect(bad.status).toBe(400);
+  });
+});
+
+// Choke C — la Gateway POST ses métriques shadow ici. La route DOIT être dans
+// l'allowlist signée (sinon 404 avant le handler), sans élargir aucune autre
+// route ni contourner la validation Zod.
+const VALID_METRIC = {
+  surface: "gateway",
+  capability: "stats.use",
+  effectivePlan: "free",
+  requiredPlan: "free",
+  reason: "allowed_by_plan",
+  decision: "allowed",
+  count: 1,
+};
+
+describe("internal capability-metrics allowlist (isAllowedInternalRoute)", () => {
+  it("allows POST /internal/capability-metrics and nothing adjacent", () => {
+    expect(isAllowedInternalRoute("POST", "/internal/capability-metrics")).toBe(true);
+    // Mauvaise méthode : refusée.
+    expect(isAllowedInternalRoute("GET", "/internal/capability-metrics")).toBe(false);
+    expect(isAllowedInternalRoute("DELETE", "/internal/capability-metrics")).toBe(false);
+    // Chemins voisins : restent hors allowlist (→ 404).
+    expect(isAllowedInternalRoute("POST", "/internal/capability-metrics/extra")).toBe(false);
+    expect(isAllowedInternalRoute("POST", "/internal/capability-metricss")).toBe(false);
+    expect(isAllowedInternalRoute("POST", "/internal/capability-metric")).toBe(false);
+  });
+
+  it("leaves other internal routes unchanged", () => {
+    expect(isAllowedInternalRoute("POST", `/internal/guilds/${G}/channel-activity`)).toBe(true);
+    expect(isAllowedInternalRoute("GET", `/internal/guilds/${G}/config`)).toBe(true);
+    expect(isAllowedInternalRoute("POST", "/internal/gateway/heartbeat")).toBe(true);
+    expect(isAllowedInternalRoute("POST", "/internal/nope")).toBe(false);
+  });
+});
+
+describe("internal capability-metrics endpoint", () => {
+  it("reaches the handler with the token and accepts a valid payload (no longer 404)", async () => {
+    const res = await req(
+      "/internal/capability-metrics",
+      { method: "POST", body: JSON.stringify({ items: [VALID_METRIC] }) },
+      "test-internal-token",
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, written: 1 });
+  });
+
+  it("rejects a request without a valid credential", async () => {
+    // Aucune auth → 401 (route dans l'allowlist mais credential manquant).
+    const noAuth = await req("/internal/capability-metrics", {
+      method: "POST",
+      body: JSON.stringify({ items: [VALID_METRIC] }),
+    });
+    expect(noAuth.status).toBe(401);
+    // Signature présente mais invalide → refusée (401), jamais acceptée.
+    const badSig = await app.request(
+      "/internal/capability-metrics",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-internal-version": "1", "x-internal-signature": "deadbeef" },
+        body: JSON.stringify({ items: [VALID_METRIC] }),
+      },
+      env,
+      createExecutionContext(),
+    );
+    expect(badSig.status).toBe(401);
+  });
+
+  it("stays 404 on the wrong method or an adjacent path", async () => {
+    expect((await req("/internal/capability-metrics", {}, "test-internal-token")).status).toBe(404); // GET
+    const neighbour = await req(
+      "/internal/capability-metrics/extra",
+      { method: "POST", body: JSON.stringify({ items: [VALID_METRIC] }) },
+      "test-internal-token",
+    );
+    expect(neighbour.status).toBe(404);
+  });
+
+  it("rejects a payload with out-of-enum dimensions (Zod not bypassed)", async () => {
+    const badSurface = await req(
+      "/internal/capability-metrics",
+      { method: "POST", body: JSON.stringify({ items: [{ ...VALID_METRIC, surface: "telepathy" }] }) },
+      "test-internal-token",
+    );
+    expect(badSurface.status).toBe(400);
+    const badReason = await req(
+      "/internal/capability-metrics",
+      { method: "POST", body: JSON.stringify({ items: [{ ...VALID_METRIC, reason: "because" }] }) },
+      "test-internal-token",
+    );
+    expect(badReason.status).toBe(400);
   });
 });
