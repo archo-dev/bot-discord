@@ -11,6 +11,8 @@ export default defineConfig({
     proxy: {
       "/studio-api": "http://localhost:8787",
       "/studio/auth": "http://localhost:8787",
+      // Public component-health route consumed by the Overview health strip.
+      "/status": "http://localhost:8787",
     },
   },
 });

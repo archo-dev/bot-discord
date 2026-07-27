@@ -2,6 +2,7 @@ import type {
   CreateGrantRequest,
   CreateLifetimeGrantRequest,
   GrantsListResponse,
+  PublicStatus,
   RolloutFlagState,
   RolloutResponse,
   StudioAuditPage,
@@ -78,6 +79,8 @@ export const studioApi = {
   session: () => get<StudioSessionInfo>("/studio-api/session"),
   logout: () => post<{ ok: true }>("/studio/auth/logout"),
   overview: () => get<StudioOverview>("/studio-api/overview"),
+  /** Public component health (existing /status route). Consumed best-effort. */
+  status: () => get<PublicStatus>("/status"),
   users: (page = 1) => get<StudioUsersListResponse>(pagePath("/studio-api/users", page)),
   guilds: (page = 1) => get<StudioGuildsListResponse>(pagePath("/studio-api/guilds", page)),
   subscriptions: (page = 1) => get<StudioSubscriptionsListResponse>(pagePath("/studio-api/subscriptions", page)),

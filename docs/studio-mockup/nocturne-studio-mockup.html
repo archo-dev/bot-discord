@@ -1,0 +1,688 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Maquette Nocturne — Developer Studio</title>
+<style>
+/* ============================================================
+   Tokens Nocturne (extraits de @bot/ui/theme.css) + accent OPS
+   distinct (doc 04 : couleur d'accent distincte du client).
+   Client = iris #6b4ef2 ; Studio = azur #4f8cff.
+   ============================================================ */
+:root{
+  --bg-app:#0c0a11; --bg-base:#0e0c16;
+  --surface-1:#16141f; --surface-2:#1d1a28; --surface-3:#262133;
+  --surface-raised:#1a1726; --surface-sidebar:#100e18;
+  --border:#272433; --border-strong:#34303f;
+
+  /* Accent OPS azur (distinct du client) */
+  --accent:#4f8cff; --accent-hover:#6ea0ff; --accent-subtle:rgba(79,140,255,.14);
+  --accent-ring:rgba(79,140,255,.42);
+
+  --success:#52d18c; --success-bg:#0f2a1d; --success-tx:#6ee0a0;
+  --danger:#ed4245;  --danger-bg:#2a0f11;  --danger-tx:#f49897; --danger-strong:#c22b2e;
+  --warning:#f0b114; --warning-bg:#2a1e08; --warning-tx:#f2c044;
+  --info:#3e7afc;    --info-bg:rgba(62,122,252,.14); --info-tx:#7aa6fd;
+
+  --text-1:#f4f2f8; --text-2:#a49dad; --text-3:#736d7e;
+
+  --radius-btn:10px; --radius-card:14px; --radius-modal:20px;
+  --shadow-vault:inset 0 1px 0 rgba(198,190,255,.07);
+  --shadow-card:inset 0 1px 0 rgba(198,190,255,.07),0 1px 2px rgba(0,0,0,.28),0 8px 20px rgba(0,0,0,.10);
+  --shadow-md:0 12px 32px rgba(0,0,0,.36);
+  --shadow-lg:0 24px 64px rgba(0,0,0,.5);
+  --font-sans:"Inter",-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;
+  --font-display:"Space Grotesk","Inter","Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"Cascadia Code",Consolas,monospace;
+  --ease:cubic-bezier(.2,0,0,1);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg-app); color:var(--text-1);
+  font-family:var(--font-sans); font-size:14px; line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit;cursor:pointer}
+svg{width:16px;height:16px;flex:none}
+.mono{font-family:var(--mono)}
+
+/* ---------- Bannière PRODUCTION (très visible) ---------- */
+.prodbar{
+  position:sticky; top:0; z-index:40;
+  background:linear-gradient(90deg,#3a1517,#c22b2e 50%,#3a1517);
+  color:#ffe9e9; text-align:center; font-weight:700;
+  font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+  padding:7px 12px; display:flex; align-items:center; justify-content:center; gap:10px;
+  border-bottom:1px solid rgba(0,0,0,.4);
+}
+.prodbar .dot{width:9px;height:9px;border-radius:50%;background:#ffdada;box-shadow:0 0 10px #ff7a7a;animation:pulse 2s infinite}
+@keyframes pulse{50%{opacity:.35}}
+
+/* ---------- Shell ---------- */
+.shell{display:grid;grid-template-columns:248px 1fr;min-height:calc(100vh - 30px)}
+.sidebar{
+  background:var(--surface-sidebar); border-right:1px solid var(--border);
+  padding:16px 12px; display:flex; flex-direction:column; gap:4px;
+  position:sticky; top:30px; height:calc(100vh - 30px); overflow-y:auto;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 8px 14px}
+.brand .logo{width:30px;height:30px;border-radius:9px;
+  background:linear-gradient(135deg,#4f8cff,#3e7afc 55%,#6fc7ff);
+  display:grid;place-items:center;color:#0b1020;font-weight:800;font-family:var(--font-display);box-shadow:var(--shadow-card)}
+.brand .name{font-family:var(--font-display);font-weight:700;font-size:15px;line-height:1.1}
+.brand .sub{font-size:10.5px;color:var(--text-3);letter-spacing:.08em;text-transform:uppercase}
+.navgroup{margin-top:10px}
+.navgroup .glabel{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--text-3);padding:6px 10px 4px;font-weight:700}
+.navitem{
+  display:flex;align-items:center;gap:11px;width:100%;text-align:left;
+  padding:8px 10px;border-radius:var(--radius-btn);border:1px solid transparent;
+  color:var(--text-2);background:transparent;font-size:13.5px;transition:.14s var(--ease);
+}
+.navitem:hover{background:var(--surface-2);color:var(--text-1)}
+.navitem.active{background:var(--accent-subtle);color:var(--text-1);border-color:rgba(79,140,255,.28)}
+.navitem.active svg{color:var(--accent)}
+.navitem svg{width:17px;height:17px;color:var(--text-3);flex:none}
+.navitem .count{margin-left:auto;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--danger);color:#fff}
+.navitem .count.q{background:var(--surface-3);color:var(--text-2)}
+.sidebar .foot{margin-top:auto;padding-top:12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:9px}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--surface-3);display:grid;place-items:center;font-size:12px;color:var(--text-2)}
+.sidebar .foot .who{font-size:12px}
+.sidebar .foot .who b{display:block;font-size:12.5px;color:var(--text-1)}
+.sidebar .foot .who span{color:var(--text-3)}
+
+/* ---------- Main ---------- */
+.main{padding:22px 26px 60px;max-width:1180px}
+.pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+.pagehead h1{font-family:var(--font-display);font-size:22px;margin:0 0 3px}
+.pagehead p{margin:0;color:var(--text-2);font-size:13px}
+.crumbs{font-size:12px;color:var(--text-3);margin-bottom:6px}
+.crumbs b{color:var(--text-2)}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border-radius:var(--radius-btn);
+  border:1px solid var(--border-strong);background:var(--surface-2);color:var(--text-1);font-size:13px;font-weight:600;transition:.14s}
+.btn:hover{background:var(--surface-3)}
+.btn.primary{background:var(--accent);border-color:transparent;color:#08101f;box-shadow:0 1px 2px rgba(0,0,0,.4),0 4px 10px rgba(79,140,255,.18)}
+.btn.primary:hover{background:var(--accent-hover)}
+.btn.danger{background:var(--danger-strong);border-color:transparent;color:#fff}
+.btn.ghost{background:transparent}
+.btn.sm{padding:5px 9px;font-size:12px}
+.btn svg{width:15px;height:15px}
+
+/* cards */
+.card{background:var(--surface-1);border:1px solid var(--border);border-radius:var(--radius-card);box-shadow:var(--shadow-card)}
+.grid{display:grid;gap:14px}
+
+/* health strip */
+.health{display:flex;flex-wrap:wrap;gap:10px 26px;align-items:center;padding:14px 18px;margin-bottom:16px}
+.health .h{display:flex;align-items:center;gap:9px;font-size:13px}
+.health .h .lab{color:var(--text-3);font-size:11px;text-transform:uppercase;letter-spacing:.07em}
+.health .h .val{font-weight:600}
+.sdot{width:8px;height:8px;border-radius:50%}
+.sdot.ok{background:var(--success);box-shadow:0 0 8px var(--success)}
+.sdot.warn{background:var(--warning);box-shadow:0 0 8px var(--warning)}
+
+/* KPIs */
+.kpis{grid-template-columns:repeat(4,1fr)}
+.kpi{padding:16px}
+.kpi .v{font-family:var(--font-display);font-size:28px;font-weight:700;line-height:1}
+.kpi .l{color:var(--text-2);font-size:12.5px;margin-top:6px}
+.kpi .d{font-size:11px;margin-top:6px;color:var(--success)}
+.kpi .d.down{color:var(--danger-tx)}
+
+.two{grid-template-columns:1.3fr 1fr;align-items:start}
+.sectitle{font-size:13px;font-weight:700;padding:14px 16px 10px;display:flex;align-items:center;justify-content:space-between}
+.sectitle .link{font-size:12px;color:var(--accent);font-weight:600}
+
+/* priority ticket rows */
+.tk{display:flex;align-items:center;gap:12px;padding:11px 16px;border-top:1px solid var(--border)}
+.tk:hover{background:var(--surface-2)}
+.tk .tsub{font-weight:600;font-size:13px}
+.tk .tmeta{font-size:12px;color:var(--text-3)}
+.tk .tright{margin-left:auto;text-align:right}
+
+/* quick access */
+.quick{grid-template-columns:repeat(2,1fr);padding:0}
+.qcard{display:flex;align-items:center;gap:12px;padding:14px 15px;border-radius:12px;border:1px solid var(--border);background:var(--surface-2);transition:.14s}
+.qcard:hover{background:var(--surface-3);transform:translateY(-1px)}
+.qcard .qi{width:34px;height:34px;border-radius:9px;background:var(--accent-subtle);display:grid;place-items:center}
+.qcard .qi svg{width:18px;height:18px;color:var(--accent)}
+.qcard b{font-size:13px}.qcard span{display:block;font-size:11.5px;color:var(--text-3)}
+
+/* activity */
+.act{display:flex;gap:11px;padding:10px 16px;border-top:1px solid var(--border);font-size:12.5px;align-items:flex-start}
+.act .ai{width:24px;height:24px;border-radius:7px;background:var(--surface-3);display:grid;place-items:center;flex:none}
+.act .ai svg{width:13px;height:13px;color:var(--text-2)}
+.act .aw b{color:var(--text-1)} .act .at{color:var(--text-3);margin-left:auto;white-space:nowrap;font-size:11.5px}
+
+/* pastilles */
+.pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.02em;text-transform:uppercase}
+.pill.hi{background:var(--danger-bg);color:var(--danger-tx)}
+.pill.no{background:var(--warning-bg);color:var(--warning-tx)}
+.pill.lo{background:var(--surface-3);color:var(--text-2)}
+.pill.ok{background:var(--success-bg);color:var(--success-tx)}
+.pill.info{background:var(--info-bg);color:var(--info-tx)}
+.pill.mut{background:var(--surface-3);color:var(--text-2)}
+.pill .b{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+/* toolbar */
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.search{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:var(--radius-btn);padding:7px 11px;min-width:220px}
+.search input{background:transparent;border:0;outline:0;color:var(--text-1);font-size:13px;width:100%}
+.search svg{width:15px;height:15px;color:var(--text-3)}
+.chip{padding:7px 11px;border-radius:var(--radius-btn);border:1px solid var(--border-strong);background:var(--surface-2);font-size:12.5px;color:var(--text-2);display:inline-flex;gap:6px;align-items:center}
+.chip svg{width:13px;height:13px}
+
+/* table */
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);font-weight:700;padding:10px 14px;border-bottom:1px solid var(--border)}
+tbody td{padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr:hover{background:var(--surface-2)}
+.tprimary{font-weight:600}
+.tsub{font-size:11.5px;color:var(--text-3)}
+.idcell{display:inline-flex;align-items:center;gap:6px}
+.idcell .id{font-family:var(--mono);font-size:11.5px;color:var(--text-2)}
+.copy{width:22px;height:22px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);display:grid;place-items:center;color:var(--text-3)}
+.copy:hover{color:var(--accent);border-color:var(--accent)}
+.copy svg{width:12px;height:12px}
+.rowmenu{position:relative}
+.dotsbtn{width:28px;height:28px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--text-3);display:grid;place-items:center}
+.dotsbtn:hover{background:var(--surface-3);color:var(--text-1)}
+.popover{position:absolute;right:0;top:32px;z-index:20;background:var(--surface-3);border:1px solid var(--border-strong);
+  border-radius:12px;box-shadow:var(--shadow-md);padding:6px;min-width:172px;display:none}
+.popover.open{display:block}
+.popover button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;padding:8px 10px;border-radius:8px;border:0;background:transparent;color:var(--text-1);font-size:13px}
+.popover button:hover{background:var(--surface-1)}
+.popover button.dgr{color:var(--danger-tx)}
+.popover svg{width:14px;height:14px;color:var(--text-3)}
+.popover hr{border:0;border-top:1px solid var(--border);margin:5px 4px}
+
+/* pager */
+.pager{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;font-size:12.5px;color:var(--text-3)}
+
+/* ======= WIZARD (octrois) ======= */
+.stepper{display:flex;gap:6px;padding:16px 18px 4px;flex-wrap:wrap}
+.step{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--text-3)}
+.step .n{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;background:var(--surface-3);color:var(--text-2);border:1px solid var(--border-strong)}
+.step.done .n{background:var(--success-bg);color:var(--success-tx);border-color:transparent}
+.step.cur .n{background:var(--accent);color:#08101f;border-color:transparent}
+.step.cur{color:var(--text-1);font-weight:600}
+.step .arw{color:var(--border-strong)}
+.wizbody{padding:18px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12.5px;color:var(--text-2);margin-bottom:6px;font-weight:600}
+.field .hint{font-size:11.5px;color:var(--text-3);margin-top:5px}
+.input{width:100%;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:var(--radius-btn);padding:9px 11px;color:var(--text-1);font-size:13px;outline:0}
+.input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
+.seg{display:inline-flex;gap:4px;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:12px;padding:4px}
+.seg button{padding:7px 13px;border-radius:9px;border:0;background:transparent;color:var(--text-2);font-size:13px;font-weight:600}
+.seg button.on{background:var(--accent);color:#08101f}
+.danger-zone{margin-top:8px;border:1px solid var(--danger-strong);background:var(--danger-bg);border-radius:12px;padding:14px}
+.danger-zone .dz-h{color:var(--danger-tx);font-size:12.5px;font-weight:700;display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.wizfoot{display:flex;justify-content:space-between;padding:14px 18px;border-top:1px solid var(--border)}
+
+/* skeleton */
+.sk{background:linear-gradient(90deg,var(--surface-2),var(--surface-3),var(--surface-2));background-size:200% 100%;animation:sh 1.3s infinite;border-radius:6px;height:12px}
+@keyframes sh{to{background-position:-200% 0}}
+
+/* empty / error */
+.state{padding:44px 20px;text-align:center}
+.state .ic{width:52px;height:52px;border-radius:14px;background:var(--surface-2);display:grid;place-items:center;margin:0 auto 14px}
+.state .ic svg{width:24px;height:24px;color:var(--text-3)}
+.state.err .ic{background:var(--danger-bg)} .state.err .ic svg{color:var(--danger-tx)}
+.state h3{margin:0 0 5px;font-size:15px}
+.state p{margin:0 0 16px;color:var(--text-2);font-size:13px}
+
+/* ======= MOBILE ======= */
+.topbar{display:none;position:sticky;top:30px;z-index:30;align-items:center;gap:12px;
+  background:var(--surface-sidebar);border-bottom:1px solid var(--border);padding:11px 14px}
+.hamb{width:34px;height:34px;border-radius:9px;border:1px solid var(--border-strong);background:var(--surface-2);display:grid;place-items:center;color:var(--text-1)}
+.hamb svg{width:18px;height:18px}
+.scrim{display:none;position:fixed;inset:30px 0 0;background:rgba(0,0,0,.55);z-index:35}
+.drawer{position:fixed;top:30px;left:0;bottom:0;width:270px;z-index:36;transform:translateX(-100%);transition:transform .2s var(--ease);
+  background:var(--surface-sidebar);border-right:1px solid var(--border-strong);box-shadow:var(--shadow-lg);overflow-y:auto}
+.drawer #drawernav{display:flex;flex-direction:column;min-height:100%;padding:16px 12px}
+.cardlist{display:none;flex-direction:column;gap:10px}
+.mcard{padding:13px 14px}
+.mcard .mrow1{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.mcard .mrow1 .mid{margin-left:auto;font-size:11px;color:var(--text-3)}
+.mcard .mtitle{font-weight:600;font-size:14px;margin-bottom:4px}
+.mcard .mmeta{font-size:12px;color:var(--text-3)}
+.mcard .mfoot{display:flex;align-items:center;gap:8px;margin-top:9px}
+
+/* forced mobile preview */
+.is-mobile .shell{grid-template-columns:1fr}
+.is-mobile .sidebar{display:none}
+.is-mobile .topbar{display:flex}
+.is-mobile .main{padding:16px 14px 60px}
+.is-mobile .kpis{grid-template-columns:repeat(2,1fr)}
+.is-mobile .two{grid-template-columns:1fr}
+.is-mobile .quick{grid-template-columns:1fr}
+.is-mobile .tablewrap{display:none}
+.is-mobile .cardlist{display:flex}
+.is-mobile.drawer-open .scrim{display:block}
+.is-mobile.drawer-open .drawer{transform:translateX(0)}
+.is-mobile .drawer .sidebar{display:flex;position:static;height:100%;width:270px}
+.is-mobile .pagehead h1{font-size:19px}
+.is-mobile .pagehead .btn.ghost{display:none}
+.is-mobile .health{gap:8px 16px}
+.is-mobile .main{overflow-x:hidden}
+
+/* modal */
+.overlay{position:fixed;inset:0;z-index:50;background:rgba(6,5,12,.66);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;padding:20px}
+.overlay.open{display:flex}
+.modal{width:100%;max-width:440px;background:var(--surface-1);border:1px solid var(--border-strong);border-radius:var(--radius-modal);box-shadow:var(--shadow-lg);overflow:hidden}
+.modal .mh{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:flex-start}
+.modal .mh .warn{width:38px;height:38px;border-radius:11px;background:var(--danger-bg);display:grid;place-items:center;flex:none}
+.modal .mh .warn svg{width:20px;height:20px;color:var(--danger-tx)}
+.modal .mh h2{margin:0 0 3px;font-size:16px}
+.modal .mh p{margin:0;font-size:12.5px;color:var(--text-2)}
+.modal .mb{padding:18px 20px}
+.modal .callout{font-size:12.5px;color:var(--warning-tx);background:var(--warning-bg);border:1px solid rgba(240,177,20,.25);border-radius:10px;padding:10px 12px;margin-bottom:14px;display:flex;gap:9px}
+.modal .callout svg{width:15px;height:15px;flex:none;margin-top:1px}
+.modal .mf{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+.recap{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:12.5px;margin-bottom:14px}
+.recap div{display:flex;justify-content:space-between;padding:3px 0}
+.recap span{color:var(--text-3)}
+
+/* toast */
+.toasts{position:fixed;right:18px;bottom:18px;z-index:60;display:flex;flex-direction:column;gap:10px}
+.toast{display:flex;align-items:center;gap:11px;background:var(--surface-3);border:1px solid var(--border-strong);border-left:3px solid var(--success);
+  border-radius:12px;padding:12px 14px;box-shadow:var(--shadow-md);min-width:260px;font-size:13px}
+.toast .ti{width:22px;height:22px;border-radius:7px;background:var(--success-bg);display:grid;place-items:center}
+.toast .ti svg{width:13px;height:13px;color:var(--success-tx)}
+
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<div class="prodbar"><span class="dot"></span> Environnement PRODUCTION — actions réelles <span class="dot"></span></div>
+
+<!-- Mobile scrim + drawer -->
+<div class="scrim" onclick="toggleDrawer(false)"></div>
+<div class="drawer"><div id="drawernav"></div></div>
+
+<div class="shell">
+
+  <!-- ============ SIDEBAR (desktop) ============ -->
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <!-- ============ MAIN ============ -->
+  <div>
+    <div class="topbar">
+      <button class="hamb" onclick="toggleDrawer(true)" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+      <b style="font-family:var(--font-display)">Studio</b>
+      <span class="pill hi" style="margin-left:auto"><span class="b"></span>PROD</span>
+    </div>
+    <main class="main" id="view"></main>
+  </div>
+</div>
+
+<!-- Modal (action sensible) -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="mh">
+      <div class="warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg></div>
+      <div>
+        <h2>Octroyer un accès à vie</h2>
+        <p>Engagement <b>permanent</b> et irréversible sur le compte cible.</p>
+      </div>
+    </div>
+    <div class="mb">
+      <div class="recap">
+        <div><span>Utilisateur</span><b class="mono">418… a10</b></div>
+        <div><span>Plan</span><b>Business</b></div>
+        <div><span>Durée</span><b style="color:var(--danger-tx)">À vie (lifetime)</b></div>
+        <div><span>Raison</span><b>Partenaire fondateur</b></div>
+      </div>
+      <div class="callout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7v6c0 5 4 9 10 9s10-4 10-9V7L12 2Z"/></svg>
+        Ré-authentification requise (step-up). Vous serez redirigé vers Discord avant l'exécution.
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label>Pour confirmer, saisissez <b class="mono" style="color:var(--text-1)">LIFETIME</b></label>
+        <input class="input" placeholder="LIFETIME" />
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn danger" onclick="confirmSensitive()">Ré-authentifier &amp; octroyer</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+/* =========================================================
+   DONNÉES FICTIVES UNIQUEMENT
+   ========================================================= */
+const NAV = [
+  {g:"", items:[
+    {id:"accueil", label:"Vue d'ensemble", icon:"grid"},
+  ]},
+  {g:"Exploitation", items:[
+    {id:"guildes", label:"Guildes", icon:"server"},
+    {id:"users", label:"Utilisateurs", icon:"users"},
+    {id:"support", label:"Support", icon:"life", count:3},
+  ]},
+  {g:"Commercial", items:[
+    {id:"subs", label:"Abonnements", icon:"card"},
+    {id:"octrois", label:"Octrois", icon:"gift"},
+  ]},
+  {g:"Publication", items:[
+    {id:"updates", label:"Mises à jour", icon:"mega"},
+  ]},
+  {g:"Système", items:[
+    {id:"metrics", label:"Métriques", icon:"activity"},
+    {id:"errors", label:"Erreurs", icon:"alert"},
+    {id:"rollout", label:"Rollout", icon:"toggle"},
+    {id:"audit", label:"Audit", icon:"shield"},
+  ]},
+];
+
+const ICONS = {
+  grid:'<path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/>',
+  server:'<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
+  users:'<path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/>',
+  life:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.4"/><path d="m5 5 4.2 4.2M14.8 14.8 19 19M19 5l-4.2 4.2M9.2 14.8 5 19"/>',
+  card:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
+  gift:'<path d="M20 12v9H4v-9M2 7h20v5H2zM12 22V7M12 7S11 3 8.5 3 6 5 6 5 6.8 7 8.5 7H12ZM12 7s1-4 3.5-4S18 5 18 5s-.8 2-2.5 2H12Z"/>',
+  mega:'<path d="M3 11v3a1 1 0 0 0 1 1h3l4 4V6L7 10H4a1 1 0 0 0-1 1ZM16 8a5 5 0 0 1 0 8M19 5a9 9 0 0 1 0 14"/>',
+  activity:'<path d="M22 12h-4l-3 8-6-16-3 8H2"/>',
+  alert:'<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4m0 4h.01"/>',
+  toggle:'<rect x="1" y="6" width="22" height="12" rx="6"/><circle cx="16" cy="12" r="3.4"/>',
+  shield:'<path d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6l-8-4Z"/><path d="m9 12 2 2 4-4"/>',
+  search:'<circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/>',
+  copy:'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+  dots:'<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
+  eye:'<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+  edit:'<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  trash:'<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>',
+  filter:'<path d="M22 3H2l8 9.5V19l4 2v-8.5L22 3Z"/>',
+  sort:'<path d="M3 6h12M3 12h9M3 18h6M17 8l4-4 4 4M21 4v16" transform="translate(-4)"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  refresh:'<path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/>',
+  gate:'<path d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6l-8-4Z"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+};
+function svg(name,w){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]||''}</svg>`}
+
+const TICKETS = [
+  {p:"hi", id:"#128", subject:"Salon vocal qui coupe", user:"612…c3f", guild:"Serveur Alpha", plan:"business", status:"open", assignee:"—", age:"il y a 2 h"},
+  {p:"hi", id:"#126", subject:"Bot hors ligne après update", user:"884…9a1", guild:"Nébuleuse", plan:"business", status:"pending", assignee:"toi", age:"il y a 3 h"},
+  {p:"hi", id:"#123", subject:"Facturation en double", user:"771…0b2", guild:"Studio K", plan:"premium", status:"open", assignee:"—", age:"il y a 5 h"},
+  {p:"no", id:"#122", subject:"Comment activer les niveaux ?", user:"233…4e8", guild:"Café Dev", plan:"premium", status:"open", assignee:"—", age:"hier"},
+  {p:"no", id:"#119", subject:"Rôle réaction ne marche pas", user:"905…7d1", guild:"La Guilde", plan:"free", status:"resolved", assignee:"Léa", age:"hier"},
+  {p:"lo", id:"#118", subject:"Suggestion : thème clair", user:"140…2aa", guild:"PixelArt", plan:"free", status:"open", assignee:"—", age:"il y a 2 j"},
+];
+
+const GRANTS = [
+  {user:"418…a10", plan:"business", origin:"Accès offert", dur:"1 an", state:"active", reason:"Créateur partenaire"},
+  {user:"552…f77", plan:"premium", origin:"Accès bêta", dur:"30 j", state:"active", reason:"Testeur early access"},
+  {user:"907…3c2", plan:"business", origin:"Lifetime offert", dur:"à vie", state:"active", reason:"Partenaire fondateur"},
+  {user:"233…9b0", plan:"premium", origin:"Accès offert", dur:"7 j", state:"scheduled", reason:"Démo commerciale"},
+  {user:"661…d45", plan:"premium", origin:"Accès offert", dur:"3 m", state:"expired", reason:"Concours communautaire"},
+];
+
+const ACTIVITY = [
+  {icon:"gift", who:"<b>toi</b> a octroyé <b>business · 1 an</b> à 418…a10", t:"il y a 12 min"},
+  {icon:"mega", who:"<b>toi</b> a publié la note <b>v2.4 — Rollout capacités</b>", t:"il y a 1 h"},
+  {icon:"toggle", who:"<b>Léa</b> a activé <b>enforcement_shadow</b> sur 3 guildes", t:"il y a 2 h"},
+  {icon:"trash", who:"<b>toi</b> a révoqué un accès offert de 661…d45", t:"il y a 4 h"},
+  {icon:"life", who:"<b>Léa</b> a assigné le ticket <b>#126</b>", t:"il y a 5 h"},
+];
+
+/* ============ NAV RENDER ============ */
+let current = "accueil";
+function renderNav(target){
+  let h = `<div class="brand"><div class="logo">A</div><div><div class="name">Studio</div><div class="sub">Console d'exploitation</div></div></div>`;
+  NAV.forEach(grp=>{
+    h += `<div class="navgroup">`;
+    if(grp.g) h += `<div class="glabel">${grp.g}</div>`;
+    grp.items.forEach(it=>{
+      const active = it.id===current ? " active":"";
+      const cnt = it.count?`<span class="count">${it.count}</span>`:"";
+      h += `<button class="navitem${active}" onclick="go('${it.id}')">${svg(it.icon)}<span>${it.label}</span>${cnt}</button>`;
+    });
+    h += `</div>`;
+  });
+  h += `<div class="foot"><div class="avatar">A</div><div class="who"><b>Armand</b><span>Propriétaire</span></div></div>`;
+  target.innerHTML = h;
+}
+function go(id){ current=id; toggleDrawer(false); render(); }
+
+/* ============ PAGES ============ */
+function page_accueil(){
+  return `
+  <div class="crumbs"><b>Studio</b> · Vue d'ensemble</div>
+  <div class="pagehead">
+    <div><h1>Bonjour Armand</h1><p>Voici l'état de la production en direct.</p></div>
+    <button class="btn ghost sm">${svg('refresh')} Actualisé il y a 20 s</button>
+  </div>
+
+  <div class="card health">
+    <div class="h"><span class="sdot ok"></span><div><div class="lab">Gateway</div><div class="val">En ligne · heartbeat 12 s</div></div></div>
+    <div class="h"><span class="sdot ok"></span><div><div class="lab">Worker</div><div class="val">v.49dc4654</div></div></div>
+    <div class="h"><span class="sdot ok"></span><div><div class="lab">Migration D1</div><div class="val mono">0041</div></div></div>
+    <div class="h"><span class="sdot warn"></span><div><div class="lab">Dernier déploiement</div><div class="val">il y a 2 h</div></div></div>
+  </div>
+
+  <div class="grid kpis" style="margin-bottom:16px">
+    ${kpi("128","Guildes actives","+4 cette semaine")}
+    ${kpi("34","Entitlements actifs","+2 aujourd'hui")}
+    ${kpi("3","Tickets haute priorité","2 non assignés",true)}
+    ${kpi("12","Octrois en cours","stable")}
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <div class="sectitle">Tickets prioritaires <a class="link" onclick="go('support')">Tout voir →</a></div>
+      ${TICKETS.filter(t=>t.p==='hi').map(t=>`
+        <div class="tk">
+          <span class="pill hi"><span class="b"></span>Haute</span>
+          <div><div class="tsub">${t.id} · ${t.subject}</div><div class="tmeta">${t.guild} · ${planLabel(t.plan)}</div></div>
+          <div class="tright"><div class="tmeta">${t.age}</div><div class="tmeta">${t.assignee==='—'?'Non assigné':'→ '+t.assignee}</div></div>
+        </div>`).join("")}
+    </div>
+
+    <div class="grid" style="gap:14px">
+      <div class="card">
+        <div class="sectitle">Accès rapides</div>
+        <div class="grid quick" style="padding:0 14px 14px">
+          ${quick('life','Support','3 tickets ouverts','support')}
+          ${quick('gift','Octroyer','accès offert','octrois')}
+          ${quick('toggle','Rollout','flags & cohortes','rollout')}
+          ${quick('shield','Audit','journal immuable','audit')}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="sectitle">Activité récente <a class="link" onclick="go('audit')">Journal complet →</a></div>
+    ${ACTIVITY.map(a=>`<div class="act"><div class="ai">${svg(a.icon)}</div><div class="aw">${a.who}</div><div class="at">${a.t}</div></div>`).join("")}
+  </div>`;
+}
+function kpi(v,l,d,down){return `<div class="card kpi"><div class="v">${v}</div><div class="l">${l}</div><div class="d${down?' down':''}">${d}</div></div>`}
+function quick(ic,t,s,id){return `<a class="qcard" onclick="go('${id}')"><div class="qi">${svg(ic)}</div><div><b>${t}</b><span>${s}</span></div></a>`}
+function planLabel(p){return p==='business'?'Business':p==='premium'?'Premium':'Gratuit'}
+function planPill(p){const c=p==='business'?'info':p==='premium'?'ok':'mut';return `<span class="pill ${c}">${planLabel(p)}</span>`}
+function statusPill(s){const m={open:['hi','Ouvert'],pending:['no','En attente'],resolved:['ok','Résolu'],closed:['mut','Clos']};const[c,l]=m[s];return `<span class="pill ${c}">${l}</span>`}
+function prio(p){const m={hi:['hi','Haute'],no:['no','Normale'],lo:['lo','Basse']};const[c,l]=m[p];return `<span class="pill ${c}"><span class="b"></span>${l}</span>`}
+function idcell(id){return `<span class="idcell"><span class="id">${id}</span><button class="copy" title="Copier l'ID" onclick="copyId(event,'${id}')">${svg('copy')}</button></span>`}
+
+function page_support(){
+  return `
+  <div class="crumbs"><b>Studio</b> · Exploitation · Support</div>
+  <div class="pagehead"><div><h1>Support</h1><p>File unifiée tous serveurs, triée par priorité de plan.</p></div></div>
+  <div class="toolbar">
+    <div class="search">${svg('search')}<input placeholder="Rechercher un ticket, un serveur, un utilisateur…"></div>
+    <button class="chip">${svg('filter')} Statut : Ouvert</button>
+    <button class="chip">${svg('filter')} Priorité : Toutes</button>
+    <button class="chip">${svg('sort')} Tri : Priorité</button>
+  </div>
+  <div class="card">
+    <div class="tablewrap"><table>
+      <thead><tr><th>Priorité</th><th>Ticket</th><th>Utilisateur</th><th>Serveur</th><th>Plan</th><th>Statut</th><th>Assigné</th><th>Créé</th><th></th></tr></thead>
+      <tbody>
+        ${TICKETS.map((t,i)=>`<tr>
+          <td>${prio(t.p)}</td>
+          <td><div class="tprimary">${t.id} · ${t.subject}</div></td>
+          <td>${idcell(t.user)}</td>
+          <td>${t.guild}</td>
+          <td>${planPill(t.plan)}</td>
+          <td>${statusPill(t.status)}</td>
+          <td>${t.assignee}</td>
+          <td class="tsub">${t.age}</td>
+          <td>${rowmenu(i,[['eye','Ouvrir le ticket'],['edit','Assigner'],['check','Marquer résolu']])}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table></div>
+    <div class="pager"><span>6 tickets sur 118</span><span>‹ Page 1 / 20 ›</span></div>
+  </div>
+
+  <!-- Mobile cards -->
+  <div class="cardlist">
+    ${TICKETS.map(t=>`<div class="card mcard">
+      <div class="mrow1">${prio(t.p)} ${statusPill(t.status)}<span class="mid">${t.age}</span></div>
+      <div class="mtitle">${t.id} · ${t.subject}</div>
+      <div class="mmeta">${t.guild} · ${planLabel(t.plan)}</div>
+      <div class="mfoot">${idcell(t.user)} <button class="btn sm ghost" style="margin-left:auto">${svg('dots')}</button></div>
+    </div>`).join("")}
+  </div>`;
+}
+
+function page_octrois(){
+  const steps=["Cible","Plan","Durée","Raison","Confirmer"];
+  const cur=2;
+  return `
+  <div class="crumbs"><b>Studio</b> · Commercial · Octrois</div>
+  <div class="pagehead"><div><h1>Octrois</h1><p>Accorder manuellement un accès. Chaque octroi est audité.</p></div>
+    <button class="btn primary">${svg('gift')} Nouvel octroi</button></div>
+
+  <div class="card" style="margin-bottom:18px">
+    <div class="stepper">
+      ${steps.map((s,i)=>`<div class="step ${i<cur?'done':i===cur?'cur':''}"><span class="n">${i<cur?'✓':i+1}</span>${s}</div>${i<steps.length-1?'<span class="arw">›</span>':''}`).join("")}
+    </div>
+    <div class="wizbody">
+      <div class="field">
+        <label>Durée de l'accès</label>
+        <div class="seg">
+          <button>7 j</button><button class="on">30 j</button><button>3 mois</button><button>6 mois</button><button>1 an</button>
+        </div>
+        <div class="hint">L'accès démarre immédiatement et expire automatiquement à échéance. L'utilisateur est prévenu 3 jours avant.</div>
+      </div>
+      <div class="danger-zone">
+        <div class="dz-h">${svg('alert')} Accès à vie (lifetime)</div>
+        <div class="hint" style="margin-top:0">Engagement permanent. Traité à l'étape « Confirmer » avec ré-authentification (step-up) et saisie explicite <b class="mono" style="color:var(--text-1)">LIFETIME</b>.</div>
+      </div>
+    </div>
+    <div class="wizfoot">
+      <button class="btn ghost">← Retour</button>
+      <button class="btn primary">Continuer →</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sectitle">Accès offerts en cours</div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Utilisateur</th><th>Plan</th><th>Source</th><th>Durée</th><th>État</th><th>Raison</th><th></th></tr></thead>
+      <tbody>
+        ${GRANTS.map((g,i)=>`<tr>
+          <td>${idcell(g.user)}</td>
+          <td>${planPill(g.plan)}</td>
+          <td><span class="pill ${g.origin.includes('bêta')?'info':g.origin.includes('Lifetime')?'hi':'mut'}">${g.origin}</span></td>
+          <td>${g.dur}</td>
+          <td>${grantState(g.state)}</td>
+          <td class="tsub">${g.reason}</td>
+          <td>${rowmenu('g'+i,[['eye','Détails'],['edit','Prolonger'],['trash','Révoquer',true]])}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table></div>
+    <div class="pager"><span>5 accès offerts</span><span>‹ Page 1 / 1 ›</span></div>
+  </div>
+
+  <div class="cardlist">
+    ${GRANTS.map(g=>`<div class="card mcard">
+      <div class="mrow1">${grantState(g.state)}<span class="mid">${g.dur}</span></div>
+      <div class="mtitle">${planLabel(g.plan)} · ${g.origin}</div>
+      <div class="mmeta">${g.reason}</div>
+      <div class="mfoot">${idcell(g.user)}<button class="btn sm danger" style="margin-left:auto" onclick="openModal()">Révoquer</button></div>
+    </div>`).join("")}
+  </div>`;
+}
+function grantState(s){const m={active:['ok','Actif'],scheduled:['info','Programmé'],expired:['mut','Expiré'],revoked:['hi','Révoqué']};const[c,l]=m[s];return `<span class="pill ${c}">${l}</span>`}
+
+function page_generic(title,sub){
+  return `
+  <div class="crumbs"><b>Studio</b> · ${title}</div>
+  <div class="pagehead"><div><h1>${title}</h1><p>${sub}</p></div></div>
+  <div class="card"><div class="state"><div class="ic">${svg('clock')}</div>
+  <h3>Écran maquetté séparément</h3><p>Cette section suit le même patron (tableau dense + toolbar + repli mobile).</p></div></div>`;
+}
+
+/* skeleton demo (shown briefly) */
+function skeletonRows(){let r='';for(let i=0;i<5;i++)r+=`<tr><td><div class="sk" style="width:60px"></div></td><td><div class="sk" style="width:70%"></div></td><td><div class="sk" style="width:80px"></div></td><td><div class="sk" style="width:90px"></div></td><td><div class="sk" style="width:60px"></div></td></tr>`;return r}
+
+function render(){
+  renderNav(document.getElementById('sidebar'));
+  renderNav(document.getElementById('drawernav'));
+  const v=document.getElementById('view');
+  if(current==='accueil') v.innerHTML=page_accueil();
+  else if(current==='support') v.innerHTML=page_support();
+  else if(current==='octrois') v.innerHTML=page_octrois();
+  else{
+    const found=NAV.flatMap(g=>g.items).find(i=>i.id===current);
+    v.innerHTML=page_generic(found?found.label:current,"Section de la console d'exploitation.");
+  }
+}
+
+/* ============ interactions ============ */
+function rowmenu(i,items){
+  return `<div class="rowmenu"><button class="dotsbtn" onclick="toggleMenu(event,'m${i}')">${svg('dots')}</button>
+    <div class="popover" id="m${i}">
+    ${items.map(it=>`<button class="${it[2]?'dgr':''}" onclick="${it[2]?'openModal();':'toast(\''+it[1]+'\');'}closeMenus()">${svg(it[0])} ${it[1]}</button>`).join("")}
+    </div></div>`;
+}
+function toggleMenu(e,id){e.stopPropagation();const el=document.getElementById(id);const was=el.classList.contains('open');closeMenus();if(!was)el.classList.add('open')}
+function closeMenus(){document.querySelectorAll('.popover.open').forEach(p=>p.classList.remove('open'))}
+document.addEventListener('click',closeMenus);
+
+function openModal(){document.getElementById('overlay').classList.add('open')}
+function closeModal(){document.getElementById('overlay').classList.remove('open')}
+function confirmSensitive(){closeModal();toast('Redirection vers Discord…')}
+
+function toast(msg){
+  const t=document.createElement('div');t.className='toast';
+  t.innerHTML=`<div class="ti">${svg('check')}</div><div>${msg||'Action effectuée'}</div>`;
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(()=>t.remove(),3200);
+}
+function copyId(e,id){e.stopPropagation();toast('ID copié : '+id)}
+
+function toggleDrawer(open){document.body.classList.toggle('drawer-open',open)}
+
+/* ============ hash-driven initial state (pour captures) ============
+   #page=support&mobile=1&modal=1&drawer=1 */
+function initFromHash(){
+  const p=new URLSearchParams(location.hash.slice(1));
+  if(p.get('page')) current=p.get('page');
+  if(p.get('mobile')==='1') document.body.classList.add('is-mobile');
+  render();
+  if(p.get('modal')==='1') openModal();
+  if(p.get('drawer')==='1') toggleDrawer(true);
+}
+/* responsive auto */
+if(window.matchMedia('(max-width:820px)').matches) document.body.classList.add('is-mobile');
+window.addEventListener('hashchange',()=>location.reload());
+initFromHash();
+</script>
+</body>
+</html>

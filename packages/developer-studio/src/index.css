@@ -1,14 +1,39 @@
 @import "tailwindcss";
+/* Tokens du design system « Nocturne » — source canonique partagée (@bot/ui),
+ * exactement comme le panel client. Fournit surfaces, radii, ombres, typo. */
+@import "@bot/ui/theme.css";
+/* Tailwind v4 doit scanner @bot/ui pour ne pas purger les classes de ses
+ * primitives (ex. Badge : bg-indigo-950 / text-indigo-200). */
+@source "../../ui/src";
 
-/* Dense dark operations theme — deliberately distinct from the client accent so
- * the PRODUCTION surface is never mistaken for the client app (doc 04/10). */
+/*
+ * Studio = surfaces & typographie Nocturne, MAIS deux écarts délibérés :
+ *  1. Accent OPÉRATEUR « azur » (#4f8cff), volontairement distinct de l'iris
+ *     client (#6b4ef2) — doc 04 : « couleur d'accent distincte du client ».
+ *     On remappe toute l'échelle indigo → azur : le markup existant (bg-indigo-600,
+ *     border-indigo-500, badge primary…) devient azur sans changer une ligne de TSX.
+ *  2. Bannière PRODUCTION maintenue en rouge d'alerte vif : Nocturne assombrit
+ *     red-900 (#3a1517), on le repointe vers un rouge très visible pour préserver
+ *     l'avertissement permanent.
+ */
+@theme {
+  --color-indigo-600: #4f8cff; /* primary : boutons, onglet actif */
+  --color-indigo-500: #6ea0ff; /* hover / soulignage onglet actif */
+  --color-indigo-400: #8ab4ff;
+  --color-indigo-300: #b7d0ff;
+  --color-indigo-200: #d6e4ff; /* texte de pastille primaire */
+  --color-indigo-950: #10233f; /* fond de pastille primaire (azur sombre) */
+
+  --color-red-900: #b3202a; /* bannière PRODUCTION — rouge d'alerte préservé */
+}
+
 :root {
   color-scheme: dark;
 }
 
 body {
   margin: 0;
-  background: #0a0a0f;
-  color: #e4e4e7;
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
 }
