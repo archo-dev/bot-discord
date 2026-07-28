@@ -200,16 +200,20 @@ export function RankedBarChart({
     <ol data-chart="ranking" className="space-y-2.5" style={height ? { minHeight: height } : undefined}>
       {data.map((item, index) => (
         <li key={item.id} className="group">
-          <div className="mb-1 flex items-end justify-between gap-3 text-xs">
-            <span className="min-w-0 truncate font-medium text-zinc-300" title={item.label}>
+          <div className="mb-1 flex flex-wrap items-end justify-between gap-x-3 gap-y-1 text-xs">
+            <span className="min-w-0 flex-1 truncate font-medium text-zinc-300" title={item.label}>
               <span className="mr-1.5 text-zinc-600">{index + 1}.</span>
               {item.label}
             </span>
-            <span className="shrink-0 font-semibold tabular-nums text-zinc-100">
-              {formatValue(item.value)} <span className="font-normal text-zinc-500">{unit}</span>
+            <span className="ml-auto max-w-full text-right font-semibold tabular-nums text-zinc-100">
+              {formatValue(item.value)}
+              {unit && <> <span className="font-normal text-zinc-500">{unit}</span></>}
             </span>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-zinc-800/90" title={`${item.label} : ${formatValue(item.value)} ${unit}`}>
+          <div
+            className="h-2 overflow-hidden rounded-full bg-zinc-800/90"
+            title={`${item.label} : ${formatValue(item.value)}${unit ? ` ${unit}` : ""}`}
+          >
             <div
               className="h-full min-w-1 rounded-full bg-[linear-gradient(90deg,#6d4be8,#9b7cf7)] transition-[width] duration-500 motion-reduce:transition-none"
               style={{ width: `${(item.value / max) * 100}%` }}

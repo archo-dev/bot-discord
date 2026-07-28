@@ -6,6 +6,7 @@ import {
   rankChannels,
   rankScheduledEvents,
   rankedSummary,
+  resolveMemberPopulation,
   summarizeActivity,
   type ChartPeriod,
 } from "../src/lib/chart-data.js";
@@ -80,22 +81,82 @@ describe("chart data", () => {
     expect(ranked.map((item) => item.label)).toEqual(["#général", "#vocal", "#aide"]);
   });
 
-  it("computes a donut total and percentages from the four segments", () => {
-    const presence = buildPresenceChartData({ online: 40, idle: 10, dnd: 0, offline: 50 });
-    expect(presence.total).toBe(100);
-    expect(presence.slices.map((slice) => [slice.id, slice.percentage])).toEqual([
-      ["online", 40],
-      ["idle", 10],
-      ["dnd", 0],
-      ["offline", 50],
+  it("uses the authoritative 95-member total and derives the offline segment", () => {
+    const population = resolveMemberPopulation(95, [
+      { bucket: "2026-07-28T08:00", total: 95, humans: 93, bots: 2 },
     ]);
-    expect(presence.summary).toContain("Ne pas déranger 0 (0 %)");
+    const presence = buildPresenceChartData({ online: 4, idle: 1, dnd: 2, offline: 47 }, population);
+    expect(presence.total).toBe(95);
+    expect(presence.slices.map((slice) => [slice.id, slice.value])).toEqual([
+      ["online", 4],
+      ["idle", 1],
+      ["dnd", 2],
+      ["offline", 88],
+    ]);
+    expect(presence.slices.reduce((sum, slice) => sum + slice.value, 0)).toBe(95);
+    expect(presence.slices.map((slice) => [slice.id, slice.percentage])).toEqual([
+      ["online", (4 / 95) * 100],
+      ["idle", (1 / 95) * 100],
+      ["dnd", (2 / 95) * 100],
+      ["offline", (88 / 95) * 100],
+    ]);
+    expect(presence.summary).toContain("Total 95 membres, dont 93 humains et 2 bots");
+    expect(presence.summary).toContain("Hors ligne 88 (92,6 %)");
   });
 
-  it("handles null and zero presence segments without an incoherent total", () => {
-    const empty = buildPresenceChartData({ online: 0, idle: null, dnd: undefined, offline: 0 });
+  it("keeps missing presences, all-offline, all-online and zero totals coherent", () => {
+    const population = resolveMemberPopulation(95, []);
+    const missing = buildPresenceChartData({}, population);
+    expect(missing.slices.map((slice) => slice.value)).toEqual([0, 0, 0, 95]);
+
+    const noneOnline = buildPresenceChartData({ online: 0, idle: 0, dnd: 0 }, population);
+    expect(noneOnline.slices.map((slice) => slice.value)).toEqual([0, 0, 0, 95]);
+
+    const allOnline = buildPresenceChartData({ online: 95, idle: 0, dnd: 0 }, population);
+    expect(allOnline.slices.map((slice) => slice.value)).toEqual([95, 0, 0, 0]);
+
+    const empty = buildPresenceChartData({ online: 20, idle: null, dnd: undefined, offline: 80 }, {
+      total: 0,
+      humans: 0,
+      bots: 0,
+    });
     expect(empty.total).toBe(0);
+    expect(empty.slices.map((slice) => slice.value)).toEqual([0, 0, 0, 0]);
     expect(empty.slices.every((slice) => slice.percentage === 0)).toBe(true);
-    expect(empty.summary).toBe("Aucune présence n’est disponible.");
+    expect(empty.summary).toContain("Total 0 membre");
+  });
+
+  it("normalizes temporarily excessive or invalid presences without negatives or double-counting", () => {
+    const normalized = buildPresenceChartData(
+      { online: 100, idle: 50, dnd: 25, offline: Number.POSITIVE_INFINITY },
+      { total: 95, humans: null, bots: null },
+    );
+    expect(normalized.slices.map((slice) => slice.value)).toEqual([54, 27, 14, 0]);
+    expect(normalized.slices.every((slice) => slice.value >= 0)).toBe(true);
+    expect(normalized.slices.reduce((sum, slice) => sum + slice.value, 0)).toBe(95);
+
+    const invalid = buildPresenceChartData(
+      { online: -1, idle: Number.NaN, dnd: 2.9, offline: 500 },
+      { total: 5, humans: null, bots: null },
+    );
+    expect(invalid.slices.map((slice) => slice.value)).toEqual([0, 0, 2, 3]);
+  });
+
+  it("only announces an exact human/bot breakdown matching the selected total", () => {
+    const matching = resolveMemberPopulation(null, [
+      { bucket: "2026-07-28T08:00", total: 95, humans: 93, bots: 2 },
+    ]);
+    expect(matching).toEqual({ total: 95, humans: 93, bots: 2 });
+
+    const stale = resolveMemberPopulation(96, [
+      { bucket: "2026-07-28T08:00", total: 95, humans: 93, bots: 2 },
+    ]);
+    expect(stale).toEqual({ total: 96, humans: null, bots: null });
+    expect(buildPresenceChartData({}, stale).summary).not.toContain("dont");
+
+    expect(buildPresenceChartData({}, null)).toMatchObject({
+      total: 0,
+      summary: "Le total des membres n’est pas disponible.",
+    });
   });
 });

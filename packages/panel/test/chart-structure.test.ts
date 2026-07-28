@@ -13,6 +13,7 @@ describe("charte graphique partagée (Lot 4)", () => {
   const chartCard = readSource("../src/components/charts/ChartCard.tsx");
   const charts = readSource("../src/ui/charts.tsx");
   const stats = readSource("../src/pages/Stats.tsx");
+  const voiceDuration = readSource("../src/lib/voice-duration.ts");
 
   it("keeps Recharts out of the eager dashboard graph", () => {
     expect(dashboard).not.toMatch(/recharts|ui\/charts/);
@@ -59,5 +60,16 @@ describe("charte graphique partagée (Lot 4)", () => {
     expect(charts).toContain("formatValue(item.value)");
     expect(charts).toContain("slice.percentage");
     expect(charts).toContain("tabular-nums");
+  });
+
+  it("exposes the persisted voice-duration selector accessibly on narrow cards", () => {
+    expect(stats).toContain('ariaLabel="Unité des durées vocales"');
+    expect(stats).toContain('className="max-w-full flex-wrap"');
+    for (const unit of ["auto", "minutes", "hours", "days"]) {
+      expect(stats).toContain(`value: "${unit}" as VoiceDurationUnit`);
+    }
+    expect(stats).toContain("writeVoiceDurationUnit(localStorage, unit)");
+    expect(voiceDuration).toContain('?? "auto"');
+    expect(charts).toContain("flex flex-wrap items-end");
   });
 });

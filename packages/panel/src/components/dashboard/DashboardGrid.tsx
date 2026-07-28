@@ -322,6 +322,7 @@ function DashboardChartsFallback() {
 
 export function DashboardGrid({
   guildId,
+  memberTotal,
   gatewayConnected,
   availability,
   activityPeriod,
@@ -335,6 +336,7 @@ export function DashboardGrid({
   moderation,
 }: {
   guildId: string;
+  memberTotal: number | null;
   gatewayConnected: boolean;
   availability: NavigationAvailability;
   activityPeriod: ChartPeriod;
@@ -361,6 +363,7 @@ export function DashboardGrid({
       <Suspense fallback={<DashboardChartsFallback />}>
         <DashboardCharts
           guildId={guildId}
+          memberTotal={memberTotal}
           gatewayConnected={gatewayConnected}
           period={activityPeriod}
           onPeriodChange={onActivityPeriodChange}

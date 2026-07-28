@@ -6,6 +6,7 @@ import {
   buildPresenceChartData,
   rankScheduledEvents,
   rankedSummary,
+  resolveMemberPopulation,
   summarizeActivity,
   type ChartPeriod,
 } from "../../lib/chart-data.js";
@@ -21,6 +22,7 @@ const periodOptions = [
 
 export function DashboardCharts({
   guildId,
+  memberTotal,
   gatewayConnected,
   period,
   onPeriodChange,
@@ -29,6 +31,7 @@ export function DashboardCharts({
   presence,
 }: {
   guildId: string;
+  memberTotal: number | null;
   gatewayConnected: boolean;
   period: ChartPeriod;
   onPeriodChange: (period: ChartPeriod) => void;
@@ -42,7 +45,8 @@ export function DashboardCharts({
   const departures = activityData.reduce((sum, point) => sum + point.departures, 0);
   const rankedEvents = rankScheduledEvents(events.data ?? []);
   const eventSummary = rankedSummary(rankedEvents, "intéressé(s)", events.data?.length ?? 0);
-  const presenceData = buildPresenceChartData(presence.data ?? {});
+  const population = resolveMemberPopulation(memberTotal, members.data?.snapshots ?? []);
+  const presenceData = buildPresenceChartData(presence.data ?? {}, population);
 
   return (
     <section aria-label="Visualisations du dashboard" className="grid items-stretch gap-3 md:grid-cols-2 xl:grid-cols-12">

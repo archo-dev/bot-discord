@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams } from "react-router";
+import { useOutletContext, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import type {
   ChannelOption,
@@ -15,12 +15,20 @@ import {
   rankChannels,
   rankScheduledEvents,
   rankedSummary,
+  resolveMemberPopulation,
   summarizeActivity,
   type ChartPeriod,
 } from "../lib/chart-data.js";
 import { api } from "../lib/api.js";
+import {
+  formatVoiceDuration,
+  readVoiceDurationUnit,
+  writeVoiceDurationUnit,
+  type VoiceDurationUnit,
+} from "../lib/voice-duration.js";
 import { ActivityAreaChart, CHART_COLORS, PresenceDonut, RankedBarChart } from "../ui/charts.js";
 import { SegmentedControl, Tabs } from "../ui/kit.js";
+import type { GuildOutletContext } from "./GuildLayout.js";
 
 const memberPeriodOptions = [
   { value: 7 as ChartPeriod, label: "7 j" },
@@ -30,23 +38,28 @@ const memberPeriodOptions = [
 
 const channelPeriodOptions = [1, 7, 30].map((days) => ({ value: days, label: `${days} j` }));
 
+const voiceDurationUnitOptions = [
+  { value: "auto" as VoiceDurationUnit, label: "Auto" },
+  { value: "minutes" as VoiceDurationUnit, label: "Minutes" },
+  { value: "hours" as VoiceDurationUnit, label: "Heures" },
+  { value: "days" as VoiceDurationUnit, label: "Jours" },
+];
+
 function latestSnapshotSummary(data: MemberStatsDto | undefined): string | null {
   const latest = data?.snapshots.at(-1);
   if (!latest) return null;
   return `Dernier snapshot : ${latest.total.toLocaleString("fr-FR")} membres, dont ${latest.humans.toLocaleString("fr-FR")} humains et ${latest.bots.toLocaleString("fr-FR")} bots.`;
 }
 
-function formatVoiceSeconds(value: number): string {
-  const minutes = Math.floor(value / 60);
-  const seconds = Math.round(value % 60);
-  return minutes > 0 ? `${minutes.toLocaleString("fr-FR")} min ${seconds.toString().padStart(2, "0")} s` : `${seconds} s`;
-}
-
 export function StatsPage() {
   const { guildId } = useParams<{ guildId: string }>();
+  const { guild } = useOutletContext<GuildOutletContext>();
   const [memberDays, setMemberDays] = useState<ChartPeriod>(7);
   const [channelDays, setChannelDays] = useState(7);
   const [channelMetric, setChannelMetric] = useState<"messages" | "voice">("messages");
+  const [voiceDurationUnit, setVoiceDurationUnit] = useState<VoiceDurationUnit>(
+    () => readVoiceDurationUnit(localStorage),
+  );
   const [view, setView] = useState<"audience" | "activity">("audience");
 
   const members = useQuery({
@@ -81,15 +94,22 @@ export function StatsPage() {
   const activitySummary = summarizeActivity(activityData, memberDays);
   const arrivals = activityData.reduce((sum, point) => sum + point.arrivals, 0);
   const departures = activityData.reduce((sum, point) => sum + point.departures, 0);
-  const presenceData = buildPresenceChartData(presence.data ?? {});
+  const population = resolveMemberPopulation(guild?.approximateMemberCount, members.data?.snapshots ?? []);
+  const presenceData = buildPresenceChartData(presence.data ?? {}, population);
 
   const channelName = (id: string): string =>
     channelList.data?.find((channel) => channel.id === id)?.name ?? id;
   const channelSource = channelMetric === "messages" ? channels.data?.topMessages : channels.data?.topVoice;
   const rankedChannelData = rankChannels(channelSource ?? [], channelName);
   const rankedEvents = rankScheduledEvents(events.data ?? []);
-  const channelUnit = channelMetric === "messages" ? "messages" : "secondes vocales";
-  const channelSummary = rankedSummary(rankedChannelData, channelUnit);
+  const channelSummary = channelMetric === "messages"
+    ? rankedSummary(rankedChannelData, "messages")
+    : rankedSummary(
+      rankedChannelData,
+      "",
+      rankedChannelData.length,
+      (value) => formatVoiceDuration(value, voiceDurationUnit),
+    );
   const eventsSummary = rankedSummary(rankedEvents, "intéressé(s)", events.data?.length ?? 0);
 
   return (
@@ -167,22 +187,36 @@ export function StatsPage() {
                 : "Classement des dix salons par durée vocale collectée sur la période."
             }
             action={
-              <div className="flex flex-wrap items-center gap-2">
-                <SegmentedControl
-                  ariaLabel="Métrique du classement des salons"
-                  value={channelMetric}
-                  onChange={setChannelMetric}
-                  options={[
-                    { value: "messages", label: "Messages" },
-                    { value: "voice", label: "Vocal" },
-                  ]}
-                />
-                <SegmentedControl
-                  ariaLabel="Période du classement des salons"
-                  value={channelDays}
-                  onChange={setChannelDays}
-                  options={channelPeriodOptions}
-                />
+              <div className="flex max-w-full flex-col items-start gap-2 sm:items-end">
+                <div className="flex max-w-full flex-wrap items-center gap-2">
+                  <SegmentedControl
+                    ariaLabel="Métrique du classement des salons"
+                    value={channelMetric}
+                    onChange={setChannelMetric}
+                    options={[
+                      { value: "messages", label: "Messages" },
+                      { value: "voice", label: "Vocal" },
+                    ]}
+                  />
+                  <SegmentedControl
+                    ariaLabel="Période du classement des salons"
+                    value={channelDays}
+                    onChange={setChannelDays}
+                    options={channelPeriodOptions}
+                  />
+                </div>
+                {channelMetric === "voice" && (
+                  <SegmentedControl
+                    ariaLabel="Unité des durées vocales"
+                    value={voiceDurationUnit}
+                    onChange={(unit) => {
+                      setVoiceDurationUnit(unit);
+                      writeVoiceDurationUnit(localStorage, unit);
+                    }}
+                    options={voiceDurationUnitOptions}
+                    className="max-w-full flex-wrap"
+                  />
+                )}
               </div>
             }
             loading={channels.isPending || channelList.isPending}
@@ -199,8 +233,10 @@ export function StatsPage() {
           >
             <RankedBarChart
               data={rankedChannelData}
-              unit={channelMetric === "messages" ? "msg" : "vocal"}
-              formatValue={channelMetric === "messages" ? undefined : formatVoiceSeconds}
+              unit={channelMetric === "messages" ? "msg" : ""}
+              formatValue={channelMetric === "messages"
+                ? undefined
+                : (value) => formatVoiceDuration(value, voiceDurationUnit)}
             />
           </ChartCard>
 

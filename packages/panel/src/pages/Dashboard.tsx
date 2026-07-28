@@ -108,6 +108,7 @@ export function Dashboard() {
       <PanelErrorBoundary zone="widget" resetKey={`${guildId}:${activityPeriod}`}>
         <DashboardGrid
           guildId={guildId}
+          memberTotal={guild.approximateMemberCount}
           gatewayConnected={guild.gatewayConnected}
           availability={availability}
           activityPeriod={activityPeriod}
