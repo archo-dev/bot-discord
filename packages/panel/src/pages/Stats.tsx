@@ -8,65 +8,43 @@ import type {
   PresenceStatsDto,
   ScheduledEventDto,
 } from "@bot/shared";
+import { ChartCard, ChartLegend } from "../components/charts/ChartCard.js";
+import {
+  buildActivitySeries,
+  buildPresenceChartData,
+  rankChannels,
+  rankScheduledEvents,
+  rankedSummary,
+  summarizeActivity,
+  type ChartPeriod,
+} from "../lib/chart-data.js";
 import { api } from "../lib/api.js";
-import { Card, EmptyState, ErrorCard, InfoCard, SegmentedControl, Tabs } from "../ui/kit.js";
-import { Icon } from "../ui/icons.js";
-import { Skeleton } from "../ui/skeleton.js";
-import { ChannelBarChart, JoinLeaveChart, MembersChart, PresenceDonut, type NamedStat } from "../ui/charts.js";
+import { ActivityAreaChart, CHART_COLORS, PresenceDonut, RankedBarChart } from "../ui/charts.js";
+import { SegmentedControl, Tabs } from "../ui/kit.js";
 
-/** Options de plage en jours pour un SegmentedControl. */
-const dayOptions = (...days: number[]) => days.map((d) => ({ value: d, label: `${d} j` }));
+const memberPeriodOptions = [
+  { value: 7 as ChartPeriod, label: "7 j" },
+  { value: 30 as ChartPeriod, label: "30 j" },
+  { value: 90 as ChartPeriod, label: "90 j" },
+];
 
-function ChartSkeleton({ height }: { height: number }) {
-  return (
-    <div style={{ height }}>
-      <Skeleton className="h-full w-full rounded-lg" />
-    </div>
-  );
+const channelPeriodOptions = [1, 7, 30].map((days) => ({ value: days, label: `${days} j` }));
+
+function latestSnapshotSummary(data: MemberStatsDto | undefined): string | null {
+  const latest = data?.snapshots.at(-1);
+  if (!latest) return null;
+  return `Dernier snapshot : ${latest.total.toLocaleString("fr-FR")} membres, dont ${latest.humans.toLocaleString("fr-FR")} humains et ${latest.bots.toLocaleString("fr-FR")} bots.`;
 }
 
-function formatEventDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
-}
-
-function EventsList({ events, channelName }: { events: ScheduledEventDto[]; channelName: (id: string | null) => string | null }) {
-  if (events.length === 0) {
-    return (
-      <EmptyState
-        icon={<Icon.trophy />}
-        title="Aucun événement à venir"
-        description="Les événements programmés du serveur (Discord → Événements) apparaîtront ici, triés par date."
-      />
-    );
-  }
-  return (
-    <ul className="space-y-2">
-      {events.map((e) => {
-        const where = e.location ?? channelName(e.channelId);
-        return (
-          <li key={e.id} className="rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5">
-            <div className="flex items-start gap-2">
-              <span className="min-w-0 flex-1 truncate font-medium text-zinc-100">{e.name}</span>
-              {e.interestedCount != null && (
-                <span className="shrink-0 text-xs text-zinc-500">{e.interestedCount} intéressé(s)</span>
-              )}
-            </div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-zinc-400">
-              <span className="text-indigo-300">{formatEventDate(e.scheduledStartTime)}</span>
-              {where && <span className="truncate">· {where}</span>}
-            </div>
-          </li>
-        );
-      })}
-    </ul>
-  );
+function formatVoiceSeconds(value: number): string {
+  const minutes = Math.floor(value / 60);
+  const seconds = Math.round(value % 60);
+  return minutes > 0 ? `${minutes.toLocaleString("fr-FR")} min ${seconds.toString().padStart(2, "0")} s` : `${seconds} s`;
 }
 
 export function StatsPage() {
   const { guildId } = useParams<{ guildId: string }>();
-  const [memberDays, setMemberDays] = useState(7);
+  const [memberDays, setMemberDays] = useState<ChartPeriod>(7);
   const [channelDays, setChannelDays] = useState(7);
   const [channelMetric, setChannelMetric] = useState<"messages" | "voice">("messages");
   const [view, setView] = useState<"audience" | "activity">("audience");
@@ -99,14 +77,20 @@ export function StatsPage() {
     staleTime: 60_000,
   });
 
-  const channelName = (id: string | null): string | null =>
-    id ? (channelList.data?.find((c) => c.id === id)?.name ?? id) : null;
+  const activityData = buildActivitySeries(members.data?.deltas ?? []);
+  const activitySummary = summarizeActivity(activityData, memberDays);
+  const arrivals = activityData.reduce((sum, point) => sum + point.arrivals, 0);
+  const departures = activityData.reduce((sum, point) => sum + point.departures, 0);
+  const presenceData = buildPresenceChartData(presence.data ?? {});
 
-  const rawChannelData = channelMetric === "messages" ? channels.data?.topMessages : channels.data?.topVoice;
-  const channelData: NamedStat[] = (rawChannelData ?? []).map((c) => ({
-    name: `#${channelName(c.channelId) ?? c.channelId}`,
-    value: c.value,
-  }));
+  const channelName = (id: string): string =>
+    channelList.data?.find((channel) => channel.id === id)?.name ?? id;
+  const channelSource = channelMetric === "messages" ? channels.data?.topMessages : channels.data?.topVoice;
+  const rankedChannelData = rankChannels(channelSource ?? [], channelName);
+  const rankedEvents = rankScheduledEvents(events.data ?? []);
+  const channelUnit = channelMetric === "messages" ? "messages" : "secondes vocales";
+  const channelSummary = rankedSummary(rankedChannelData, channelUnit);
+  const eventsSummary = rankedSummary(rankedEvents, "intéressé(s)", events.data?.length ?? 0);
 
   return (
     <div className="space-y-4">
@@ -118,82 +102,127 @@ export function StatsPage() {
           { id: "activity", label: "Salons et événements" },
         ]}
       />
+
       {view === "audience" ? (
-        <>
-      {/* Membres — grande courbe humains/bots */}
-      <Card
-        title="Membres"
-        description="Évolution du nombre de membres (snapshots horaires du service Gateway)."
-        action={<SegmentedControl ariaLabel="Période — membres" value={memberDays} onChange={setMemberDays} options={dayOptions(7, 30, 90)} />}
-      >
-        {members.isPending ? (
-          <ChartSkeleton height={260} />
-        ) : members.isError ? (
-          <ErrorCard message="Impossible de charger l'évolution des membres." onRetry={() => void members.refetch()} />
-        ) : (
-          <MembersChart data={members.data?.snapshots ?? []} hourly={memberDays === 7} />
-        )}
-      </Card>
-
-      <div className="grid gap-3 lg:grid-cols-2">
-        <Card title="Arrivées & départs" description="Agrégées par jour depuis les événements du serveur.">
-          {members.isPending ? <ChartSkeleton height={200} /> : members.isError ? <ErrorCard message="Impossible de charger les arrivées et départs." onRetry={() => void members.refetch()} /> : <JoinLeaveChart data={members.data?.deltas ?? []} />}
-        </Card>
-
-        <Card title="Présence" description="Répartition des statuts en temps réel.">
-          {presence.isPending ? (
-            <ChartSkeleton height={200} />
-          ) : presence.isError ? (
-            <ErrorCard message="Impossible de charger la présence." onRetry={() => void presence.refetch()} />
-          ) : presence.data ? (
-            <PresenceDonut data={presence.data} />
-          ) : (
-            <InfoCard icon={<Icon.bolt />} title="Activer la présence">
-              La répartition en ligne / absent / ne pas déranger nécessite le <b>Presence Intent</b> (intent privilégié).
-              Active-le dans le portail développeur Discord (<i>Bot → Presence Intent</i>) puis redémarre le service
-              Gateway. La page reste fonctionnelle sans lui.
-            </InfoCard>
-          )}
-        </Card>
-      </div>
-        </>
-      ) : (
-      <div className="grid gap-3 lg:grid-cols-2">
-        <Card
-          title="Salons les plus actifs"
-          action={
-            <div className="flex items-center gap-2">
+        <section aria-label="Audience et présence" className="grid gap-3 xl:grid-cols-12">
+          <ChartCard
+            title="Mouvements de membres"
+            description="Arrivées et départs réellement enregistrés par le service Gateway."
+            action={
               <SegmentedControl
-                ariaLabel="Métrique — salons"
-                value={channelMetric}
-                onChange={setChannelMetric}
-                options={[{ value: "messages", label: "Messages" }, { value: "voice", label: "Vocal" }]}
+                ariaLabel="Période du graphique d’activité"
+                value={memberDays}
+                onChange={setMemberDays}
+                options={memberPeriodOptions}
               />
-              <SegmentedControl ariaLabel="Période — salons" value={channelDays} onChange={setChannelDays} options={dayOptions(1, 7, 30)} />
-            </div>
-          }
-        >
-          {channels.isPending ? (
-            <ChartSkeleton height={280} />
-          ) : channels.isError ? (
-            <ErrorCard message="Impossible de charger l'activité des salons." onRetry={() => void channels.refetch()} />
-          ) : channelMetric === "messages" ? (
-            <ChannelBarChart data={channelData} color="#3e7afc" unit="messages" />
-          ) : events.isError ? (
-            <ErrorCard message="Impossible de charger les événements." onRetry={() => void events.refetch()} />
-          ) : (
-            <ChannelBarChart data={channelData} color="#7c4dee" unit="secondes" />
-          )}
-        </Card>
+            }
+            legend={
+              <ChartLegend items={[
+                { label: "Arrivées", color: CHART_COLORS.violet, value: arrivals.toLocaleString("fr-FR") },
+                { label: "Départs", color: CHART_COLORS.green, value: departures.toLocaleString("fr-FR") },
+              ]} />
+            }
+            loading={members.isPending}
+            error={members.isError ? "Impossible de charger les mouvements de membres." : null}
+            onRetry={() => void members.refetch()}
+            empty={!members.isPending && !members.isError && activitySummary.empty}
+            emptyTitle="Aucun mouvement disponible"
+            emptyDescription={`Aucune arrivée ou aucun départ n’est disponible sur la période de ${memberDays} jours.`}
+            summary={activitySummary.text}
+            footer={latestSnapshotSummary(members.data)}
+            minHeight={390}
+            className="xl:col-span-8"
+          >
+            <ActivityAreaChart data={activityData} summary={activitySummary.text} height={285} />
+          </ChartCard>
 
-        <Card title="Événements à venir">
-          {events.isPending ? (
-            <ChartSkeleton height={200} />
-          ) : (
-            <EventsList events={events.data ?? []} channelName={channelName} />
-          )}
-        </Card>
-      </div>
+          <ChartCard
+            title="Présence des membres"
+            description="Répartition actuelle déclarée par Discord."
+            loading={presence.isPending}
+            error={presence.isError ? "Impossible de charger la présence des membres." : null}
+            onRetry={() => void presence.refetch()}
+            empty={!presence.isPending && !presence.isError && presenceData.total === 0}
+            emptyTitle="Présence non disponible"
+            emptyDescription="La Gateway et le Presence Intent sont nécessaires pour afficher cette répartition."
+            summary={presenceData.summary}
+            minHeight={390}
+            className="xl:col-span-4"
+          >
+            <PresenceDonut
+              slices={presenceData.slices}
+              total={presenceData.total}
+              summary={presenceData.summary}
+              height={250}
+            />
+          </ChartCard>
+        </section>
+      ) : (
+        <section aria-label="Classements d’activité" className="grid gap-3 lg:grid-cols-2">
+          <ChartCard
+            title="Salons les plus actifs"
+            description={
+              channelMetric === "messages"
+                ? "Classement des dix salons par messages collectés sur la période."
+                : "Classement des dix salons par durée vocale collectée sur la période."
+            }
+            action={
+              <div className="flex flex-wrap items-center gap-2">
+                <SegmentedControl
+                  ariaLabel="Métrique du classement des salons"
+                  value={channelMetric}
+                  onChange={setChannelMetric}
+                  options={[
+                    { value: "messages", label: "Messages" },
+                    { value: "voice", label: "Vocal" },
+                  ]}
+                />
+                <SegmentedControl
+                  ariaLabel="Période du classement des salons"
+                  value={channelDays}
+                  onChange={setChannelDays}
+                  options={channelPeriodOptions}
+                />
+              </div>
+            }
+            loading={channels.isPending || channelList.isPending}
+            error={channels.isError || channelList.isError ? "Impossible de charger le classement des salons." : null}
+            onRetry={() => {
+              void channels.refetch();
+              void channelList.refetch();
+            }}
+            empty={!channels.isPending && !channels.isError && rankedChannelData.length === 0}
+            emptyTitle="Aucune activité de salon"
+            emptyDescription="Aucune valeur n’est disponible pour cette métrique sur la période sélectionnée."
+            summary={channelSummary}
+            minHeight={430}
+          >
+            <RankedBarChart
+              data={rankedChannelData}
+              unit={channelMetric === "messages" ? "msg" : "vocal"}
+              formatValue={channelMetric === "messages" ? undefined : formatVoiceSeconds}
+            />
+          </ChartCard>
+
+          <ChartCard
+            title="Intérêt pour les événements Discord"
+            description="Classement des événements programmés disposant d’un nombre d’intéressés."
+            loading={events.isPending}
+            error={events.isError ? "Impossible de charger les événements programmés." : null}
+            onRetry={() => void events.refetch()}
+            empty={!events.isPending && !events.isError && rankedEvents.length === 0}
+            emptyTitle="Classement indisponible"
+            emptyDescription={
+              (events.data?.length ?? 0) === 0
+                ? "Aucun événement Discord n’est actuellement programmé."
+                : "Les événements ne fournissent pas de nombre d’intéressés comparable."
+            }
+            summary={eventsSummary}
+            minHeight={430}
+          >
+            <RankedBarChart data={rankedEvents} unit="intéressé(s)" />
+          </ChartCard>
+        </section>
       )}
     </div>
   );

@@ -22,15 +22,18 @@ export function PublicHeader() {
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        setOpen(false);
+        menuButtonRef.current?.focus();
+      }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open]);
 
   return (
-    <header className="sticky top-0 z-(--z-sticky) border-b border-zinc-800/70 bg-[rgba(12,10,17,0.82)] backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3.5 sm:px-6">
+    <header className="sticky top-0 z-(--z-sticky) border-b border-zinc-800/70 bg-[rgba(12,10,17,0.88)] backdrop-blur">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:gap-3 sm:px-6">
         <Link to="/" aria-label="Accueil Archodev" className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70">
           <Wordmark size={28} textClassName="text-[17px]" />
         </Link>
@@ -57,7 +60,7 @@ export function PublicHeader() {
       </div>
 
       {open && (
-        <div id="public-mobile-menu" className="border-t border-zinc-800/70 px-4 py-3 md:hidden">
+        <div id="public-mobile-menu" className="border-t border-zinc-800/70 bg-[#0d0b13] px-4 py-3 md:hidden">
           <PublicNav orientation="vertical" onNavigate={() => setOpen(false)} />
         </div>
       )}

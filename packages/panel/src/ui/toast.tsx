@@ -44,6 +44,10 @@ function schedule(id: number, tone: ToastTone) {
 }
 
 function push(tone: ToastTone, message: string, action?: ToastItem["action"]) {
+  const duplicate = items.find((item) => item.tone === tone && item.message === message);
+  if (duplicate) {
+    dismiss(duplicate.id);
+  }
   const id = nextId++;
   items = [...items.slice(-(MAX_VISIBLE - 1)), { id, tone, message, action }];
   schedule(id, tone);
@@ -76,7 +80,7 @@ export function Toaster() {
 
   return (
     <div
-      aria-live="polite"
+      aria-label="Notifications"
       className="pointer-events-none fixed inset-x-4 bottom-4 z-(--z-toast) flex flex-col items-end gap-2 sm:inset-x-auto sm:right-5 sm:bottom-5"
     >
       {list.map((t) => {
@@ -90,7 +94,14 @@ export function Toaster() {
               if (timer) clearTimeout(timer);
             }}
             onMouseLeave={() => schedule(t.id, t.tone)}
-            className="animate-toast-in pointer-events-auto flex w-full max-w-[380px] items-start gap-3 rounded-lg border border-zinc-800 bg-(--surface-2) p-3.5 shadow-(--shadow-md)"
+            onFocus={() => {
+              const timer = timers.get(t.id);
+              if (timer) clearTimeout(timer);
+            }}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) schedule(t.id, t.tone);
+            }}
+            className="animate-toast-in pointer-events-auto flex w-full max-w-[380px] items-start gap-3 overflow-hidden rounded-lg border border-zinc-800 bg-(--surface-2) p-3.5 shadow-(--shadow-md)"
           >
             <span
               className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${s.iconClass}`}
@@ -98,7 +109,7 @@ export function Toaster() {
             >
               {s.icon}
             </span>
-            <p className="min-w-0 flex-1 pt-0.5 text-sm text-zinc-100">{t.message}</p>
+            <p className="min-w-0 flex-1 break-words pt-0.5 text-sm leading-relaxed text-zinc-100">{t.message}</p>
             {t.action && (
               <button
                 type="button"
@@ -106,7 +117,7 @@ export function Toaster() {
                   t.action!.onClick();
                   dismiss(t.id);
                 }}
-                className="shrink-0 pt-0.5 text-sm font-semibold text-indigo-400 hover:text-indigo-300"
+                className="shrink-0 rounded pt-0.5 text-sm font-semibold text-indigo-400 hover:text-indigo-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
               >
                 {t.action.label}
               </button>
@@ -115,7 +126,7 @@ export function Toaster() {
               type="button"
               onClick={() => dismiss(t.id)}
               aria-label="Fermer la notification"
-              className="shrink-0 rounded p-0.5 text-zinc-500 transition hover:text-zinc-200"
+              className="shrink-0 rounded p-0.5 text-zinc-500 transition hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
             >
               <svg viewBox="0 0 20 20" className="h-4 w-4 fill-current" aria-hidden>
                 <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />

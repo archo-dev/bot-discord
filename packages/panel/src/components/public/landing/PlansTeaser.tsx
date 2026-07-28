@@ -1,5 +1,5 @@
+import { Link } from "react-router";
 import { Button } from "../../../ui/kit.js";
-import { Icon } from "../../../ui/icons.js";
 import { PLAN_TIERS, PLANS_DIRECTIVE, serversLabel } from "../../../lib/plans.js";
 
 /*
@@ -9,56 +9,48 @@ import { PLAN_TIERS, PLANS_DIRECTIVE, serversLabel } from "../../../lib/plans.js
  */
 export function PlansTeaser() {
   return (
-    <section id="offres" aria-labelledby="offres-title" className="scroll-mt-20 py-16">
-      <div className="text-center">
-        <h2 id="offres-title" className="font-display text-3xl font-semibold tracking-[-0.02em] text-zinc-50">Trois offres, une progression claire</h2>
-        <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-zinc-400">{PLANS_DIRECTIVE}</p>
+    <section id="offres" aria-labelledby="offres-title" className="scroll-mt-20 py-10 lg:py-12">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="font-display text-[11px] font-semibold uppercase tracking-[0.2em] text-indigo-300">Tarifs</div>
+          <h2 id="offres-title" className="mt-2 font-display text-2xl font-semibold tracking-[-0.02em] text-zinc-50 sm:text-3xl">
+            Une offre pour chaque étape
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400">{PLANS_DIRECTIVE}</p>
+        </div>
+        <Button to="/pricing" variant="secondary" size="sm" className="self-start shrink-0 sm:self-auto">
+          Comparer les offres
+        </Button>
       </div>
 
-      <div className="mt-10 grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="mt-7 grid grid-cols-1 gap-3 md:grid-cols-3">
         {PLAN_TIERS.map((plan) => (
-          <div
+          <article
             key={plan.id}
-            className={`relative flex flex-col rounded-2xl border p-6 shadow-(--shadow-card) ${
-              plan.highlighted ? "border-indigo-500/60 bg-[linear-gradient(160deg,rgba(107,78,242,0.12),rgba(22,20,31,0.9))]" : "border-zinc-800/90 bg-zinc-900/50"
+            className={`relative rounded-xl border p-5 ${
+              plan.highlighted
+                ? "border-indigo-500/45 bg-[linear-gradient(150deg,rgba(107,78,242,0.16),rgba(22,20,31,0.9))]"
+                : "border-zinc-800/90 bg-zinc-900/45"
             }`}
           >
             {plan.highlighted && (
-              <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-indigo-500 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">
+              <span className="absolute right-4 top-4 rounded-full bg-indigo-500/20 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-indigo-200">
                 Recommandé
               </span>
             )}
-            <h3 className="font-display text-xl font-semibold text-zinc-100">{plan.name}</h3>
-            <p className="mt-1 text-sm text-zinc-400">{plan.tagline}</p>
-            <div className="mt-4 flex items-baseline gap-2">
-              <span className="text-2xl font-semibold text-zinc-100">{serversLabel(plan.servers)}</span>
-            </div>
-            <p className="mt-1 text-xs text-zinc-500">Tarifs à venir</p>
-            <ul className="mt-5 flex-1 space-y-2 text-[13px] text-zinc-300">
-              {plan.benefits.map((benefit) => (
-                <li key={benefit} className="flex items-start gap-2">
-                  <span className="mt-0.5 text-indigo-400 [&_svg]:h-4 [&_svg]:w-4" aria-hidden><Icon.star /></span>
-                  {benefit}
-                </li>
-              ))}
-            </ul>
-            <div className="mt-5 flex flex-col gap-1.5 border-t border-zinc-800/70 pt-4 text-xs text-zinc-400">
-              <span>{plan.support}</span>
-            </div>
-            <Button
-              href="/auth/login"
-              variant={plan.highlighted ? "primary" : "secondary"}
-              size="md"
-              className="mt-5 w-full"
+            <h3 className="pr-24 font-display text-lg font-semibold text-zinc-100">{plan.name}</h3>
+            <p className="mt-1 text-[13px] text-zinc-400">{plan.tagline}</p>
+            <p className="mt-4 text-sm font-medium text-zinc-200">{serversLabel(plan.servers)}</p>
+            <p className="mt-1 text-xs text-zinc-500">{plan.support} · Tarifs à venir</p>
+            <Link
+              to="/pricing"
+              className="mt-3 inline-flex min-h-10 items-center rounded-md text-xs font-semibold text-indigo-300 transition hover:text-indigo-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
             >
-              Commencer
-            </Button>
-          </div>
+              Détails de l'offre <span className="ml-1" aria-hidden>→</span>
+            </Link>
+          </article>
         ))}
       </div>
-      <p className="mt-6 text-center text-xs text-zinc-500">
-        « Toutes les fonctionnalités » désigne les fonctions destinées aux utilisateurs. Les prix seront annoncés prochainement.
-      </p>
     </section>
   );
 }

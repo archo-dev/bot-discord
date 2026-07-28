@@ -32,7 +32,7 @@ export function attemptChunkRecoveryReload(diagnosticId: string): boolean {
 
 interface BoundaryProps {
   children: ReactNode;
-  zone?: "root" | "client" | "guild" | "modules" | "automations" | "subscription";
+  zone?: "root" | "client" | "guild" | "widget" | "modules" | "automations" | "subscription";
   resetKey?: string;
 }
 

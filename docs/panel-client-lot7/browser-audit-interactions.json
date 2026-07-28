@@ -1,0 +1,363 @@
+{
+  "generatedAt": "2026-07-28T04:10:47.525Z",
+  "mode": "interactions",
+  "routes": 34,
+  "configurations": 7,
+  "checks": 0,
+  "passed": 0,
+  "overflowCount": 0,
+  "boundaryErrorCount": 0,
+  "interactionChecks": [
+    {
+      "name": "drawer_mobile",
+      "open": true,
+      "bodyLocked": true,
+      "focusInside": true,
+      "insideViewport": true
+    },
+    {
+      "name": "drawer_escape_restore",
+      "closed": true,
+      "focusReturned": true
+    },
+    {
+      "name": "global_search_mobile",
+      "open": true,
+      "inputFocused": true,
+      "insideViewport": true
+    },
+    {
+      "name": "context_menu_320",
+      "open": true,
+      "focusInside": true,
+      "activeElement": "<button type=\"button\" role=\"menuitem\" class=\"flex min-h-10 w-full items-center rounded-md px-3 text-left text-[13px] transition text-zinc-300 hover:bg-(--state-hover) hover:text-zinc-100 \">Exporter</button>",
+      "menuItems": 3,
+      "insideViewport": true
+    },
+    {
+      "name": "confirm_modal_320",
+      "open": true,
+      "insideViewport": true,
+      "buttons": [
+        {
+          "width": 40,
+          "height": 40
+        },
+        {
+          "width": 270,
+          "height": 40
+        },
+        {
+          "width": 270,
+          "height": 40
+        }
+      ]
+    },
+    {
+      "name": "moderator_readonly",
+      "visible": true,
+      "disabledFields": true
+    },
+    {
+      "name": "gateway_offline",
+      "visible": true
+    },
+    {
+      "name": "empty_commands",
+      "visible": true
+    },
+    {
+      "name": "levels_320",
+      "title": "Niveaux — Communauté Archodev — serveur de validation responsive avec un nom volontairement très long",
+      "heading": "Niveaux",
+      "clientWidth": 320,
+      "scrollWidth": 320,
+      "bodyScrollWidth": 320,
+      "globalOverflow": false,
+      "offenders": [
+        {
+          "tag": "aside",
+          "cls": "fixed inset-y-0 left-0 z-(--z-drawer) h-[100dvh] max-h-[100dvh] w-[min(280px,calc(100vw-2rem))] border-r border-zinc-800",
+          "left": -280,
+          "right": 0,
+          "width": 280,
+          "text": "COCommunauté Archodev — serveur de validation responsive avec un nom volontairem"
+        },
+        {
+          "tag": "div",
+          "cls": "flex h-full min-h-0 flex-col",
+          "left": -280,
+          "right": -1,
+          "width": 279,
+          "text": "COCommunauté Archodev — serveur de validation responsive avec un nom volontairem"
+        },
+        {
+          "tag": "div",
+          "cls": "px-2 pb-1 pt-2",
+          "left": -280,
+          "right": -1,
+          "width": 279,
+          "text": "COCommunauté Archodev — serveur de validation responsive avec un nom volontairem"
+        },
+        {
+          "tag": "div",
+          "cls": "relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/75 p-2 shadow-(--shadow-sm)",
+          "left": -272,
+          "right": -9,
+          "width": 263,
+          "text": "COCommunauté Archodev — serveur de validation responsive avec un nom volontairem"
+        },
+        {
+          "tag": "div",
+          "cls": "pointer-events-none absolute inset-x-0 top-0 h-12 bg-[radial-gradient(circle_at_80%_0%,rgba(107,78,242,0.18),transparent",
+          "left": -271,
+          "right": -10,
+          "width": 261,
+          "text": ""
+        },
+        {
+          "tag": "div",
+          "cls": "relative flex items-center gap-2.5",
+          "left": -263,
+          "right": -18,
+          "width": 245,
+          "text": "COCommunauté Archodev — serveur de validation responsive avec un nom volontairem"
+        },
+        {
+          "tag": "span",
+          "cls": "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-950 text-xs font-bold text-indigo-300",
+          "left": -263,
+          "right": -227,
+          "width": 36,
+          "text": "CO"
+        },
+        {
+          "tag": "div",
+          "cls": "min-w-0 flex-1 lg:hidden xl:block",
+          "left": -217,
+          "right": -110,
+          "width": 107,
+          "text": "Communauté Archodev — serveur de validation responsive avec un nom volontairemen"
+        },
+        {
+          "tag": "div",
+          "cls": "truncate text-sm font-semibold text-zinc-100",
+          "left": -217,
+          "right": -110,
+          "width": 107,
+          "text": "Communauté Archodev — serveur de validation responsive avec un nom volontairemen"
+        },
+        {
+          "tag": "div",
+          "cls": "mt-0.5 truncate text-[11px] text-zinc-500",
+          "left": -217,
+          "right": -110,
+          "width": 107,
+          "text": "987654 membres"
+        },
+        {
+          "tag": "a",
+          "cls": "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-",
+          "left": -100,
+          "right": -68,
+          "width": 32,
+          "text": ""
+        },
+        {
+          "tag": "svg",
+          "cls": "[object SVGAnimatedString]",
+          "left": -92,
+          "right": -76,
+          "width": 16,
+          "text": ""
+        }
+      ],
+      "smallTargets": [
+        {
+          "name": "Accueil",
+          "width": 263,
+          "height": 28
+        },
+        {
+          "name": "Communauté",
+          "width": 263,
+          "height": 28
+        },
+        {
+          "name": "Modération",
+          "width": 263,
+          "height": 28
+        },
+        {
+          "name": "Automatisation",
+          "width": 263,
+          "height": 28
+        },
+        {
+          "name": "Audio",
+          "width": 263,
+          "height": 28
+        },
+        {
+          "name": "Pilotage",
+          "width": 263,
+          "height": 28
+        }
+      ],
+      "boundaryError": false,
+      "dialogs": 0,
+      "tables": 1,
+      "mobileCards": 2,
+      "alerts": []
+    },
+    {
+      "name": "mobile_landscape",
+      "title": "Commandes personnalisées — Communauté Archodev — serveur de validation responsive avec un nom volontairement très long",
+      "heading": "Commandes personnalisées",
+      "clientWidth": 844,
+      "scrollWidth": 844,
+      "bodyScrollWidth": 844,
+      "globalOverflow": false,
+      "offenders": [
+        {
+          "tag": "aside",
+          "cls": "fixed inset-y-0 left-0 z-(--z-drawer) h-[100dvh] max-h-[100dvh] w-[min(280px,calc(100vw-2rem))] border-r border-zinc-800",
+          "left": -280,
+          "right": 0,
+          "width": 280,
+          "text": "COCommunauté Archodev — serveur de validation responsive avec un nom volontairem"
+        },
+        {
+          "tag": "div",
+          "cls": "flex h-full min-h-0 flex-col",
+          "left": -280,
+          "right": -1,
+          "width": 279,
+          "text": "COCommunauté Archodev — serveur de validation responsive avec un nom volontairem"
+        },
+        {
+          "tag": "div",
+          "cls": "px-2 pb-1 pt-2",
+          "left": -280,
+          "right": -1,
+          "width": 279,
+          "text": "COCommunauté Archodev — serveur de validation responsive avec un nom volontairem"
+        },
+        {
+          "tag": "div",
+          "cls": "relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/75 p-2 shadow-(--shadow-sm)",
+          "left": -272,
+          "right": -9,
+          "width": 263,
+          "text": "COCommunauté Archodev — serveur de validation responsive avec un nom volontairem"
+        },
+        {
+          "tag": "div",
+          "cls": "pointer-events-none absolute inset-x-0 top-0 h-12 bg-[radial-gradient(circle_at_80%_0%,rgba(107,78,242,0.18),transparent",
+          "left": -271,
+          "right": -10,
+          "width": 261,
+          "text": ""
+        },
+        {
+          "tag": "div",
+          "cls": "relative flex items-center gap-2.5",
+          "left": -263,
+          "right": -18,
+          "width": 245,
+          "text": "COCommunauté Archodev — serveur de validation responsive avec un nom volontairem"
+        },
+        {
+          "tag": "span",
+          "cls": "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-950 text-xs font-bold text-indigo-300",
+          "left": -263,
+          "right": -227,
+          "width": 36,
+          "text": "CO"
+        },
+        {
+          "tag": "div",
+          "cls": "min-w-0 flex-1 lg:hidden xl:block",
+          "left": -217,
+          "right": -110,
+          "width": 107,
+          "text": "Communauté Archodev — serveur de validation responsive avec un nom volontairemen"
+        },
+        {
+          "tag": "div",
+          "cls": "truncate text-sm font-semibold text-zinc-100",
+          "left": -217,
+          "right": -110,
+          "width": 107,
+          "text": "Communauté Archodev — serveur de validation responsive avec un nom volontairemen"
+        },
+        {
+          "tag": "div",
+          "cls": "mt-0.5 truncate text-[11px] text-zinc-500",
+          "left": -217,
+          "right": -110,
+          "width": 107,
+          "text": "987654 membres"
+        },
+        {
+          "tag": "a",
+          "cls": "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-",
+          "left": -100,
+          "right": -68,
+          "width": 32,
+          "text": ""
+        },
+        {
+          "tag": "svg",
+          "cls": "[object SVGAnimatedString]",
+          "left": -92,
+          "right": -76,
+          "width": 16,
+          "text": ""
+        }
+      ],
+      "smallTargets": [
+        {
+          "name": "Accueil",
+          "width": 263,
+          "height": 28
+        },
+        {
+          "name": "Communauté",
+          "width": 263,
+          "height": 28
+        },
+        {
+          "name": "Modération",
+          "width": 263,
+          "height": 28
+        },
+        {
+          "name": "Automatisation",
+          "width": 263,
+          "height": 28
+        },
+        {
+          "name": "Audio",
+          "width": 263,
+          "height": 28
+        },
+        {
+          "name": "Pilotage",
+          "width": 263,
+          "height": 28
+        },
+        {
+          "name": "/aide",
+          "width": 39,
+          "height": 17
+        }
+      ],
+      "boundaryError": false,
+      "dialogs": 0,
+      "tables": 1,
+      "mobileCards": 2
+    }
+  ],
+  "records": []
+}

@@ -1,41 +1,72 @@
-/* Page éditeur de commande custom (création/édition, mode simple + avancé).
- * La logique de formulaire et les lignes condition/action vivent dans ./command-editor/. */
-
-import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useOutletContext, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   VARIABLES,
+  type ChannelOption,
   type CommandRevisionDto,
   type CustomCommandDto,
+  type GuildModulesResponse,
   type RoleOption,
-  type ChannelOption,
 } from "@bot/shared";
+import { EditorWorkspace, FlowSummary } from "../components/editors/EditorWorkspace.js";
+import { CommandPreview } from "../components/previews/CommandPreview.js";
 import { api, ApiError } from "../lib/api.js";
-import { Button, Card, Field, Input, SegmentedControl, Select, Textarea, Toggle } from "../ui/kit.js";
+import { useCanWrite } from "../lib/access.js";
+import { Badge, Button, Card, ErrorCard, Field, Input, OperationalState, SegmentedControl, Select, Textarea, Toggle } from "../ui/kit.js";
+import { SaveBar, useDirty } from "../ui/savebar.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { TimeAgo } from "../ui/mod-meta.js";
-import { useCanWrite } from "../lib/access.js";
-import { PERMISSION_OPTIONS, buildLogic, emptyForm, hydrate, type FormState } from "./command-editor/logic.js";
+import {
+  PERMISSION_OPTIONS,
+  buildCommandSummary,
+  buildLogic,
+  emptyForm,
+  hydrate,
+  moveItem,
+  validateCommandDraft,
+  type FormState,
+} from "./command-editor/logic.js";
 import { ConditionRow } from "./command-editor/ConditionRow.js";
 import { ActionRow } from "./command-editor/ActionRow.js";
+import type { GuildOutletContext } from "./GuildLayout.js";
+
+const COMMAND_LIMIT = 80;
+const cloneForm = (form: FormState): FormState => structuredClone(form);
+
+function saveErrorMessage(error: unknown): string {
+  if (!(error instanceof ApiError)) return "Erreur réseau. Le brouillon est conservé.";
+  if (error.status === 403) return "Enregistrement refusé : permissions insuffisantes.";
+  if (error.code === "duplicate_name") return "Une commande porte déjà ce nom sur ce serveur.";
+  if (error.code.startsWith("invalid_logic")) return "La logique a été refusée par le serveur. Le brouillon est conservé.";
+  if (error.code.startsWith("discord_error")) return "Discord a refusé la commande. Le brouillon est conservé.";
+  return "Enregistrement impossible. Le brouillon est conservé.";
+}
 
 export function CommandEditorPage() {
-  const { guildId, commandId } = useParams<{ guildId: string; commandId?: string }>();
+  const { guildId = "", commandId } = useParams<{ guildId: string; commandId?: string }>();
   const isEditing = commandId !== undefined;
   const navigate = useNavigate();
+  const { guild } = useOutletContext<GuildOutletContext>();
   const queryClient = useQueryClient();
   const canWrite = useCanWrite();
-
   const [mode, setMode] = useState<"simple" | "advanced">("simple");
-  const [form, setForm] = useState<FormState>(emptyForm);
-  const [error, setError] = useState<string | null>(null);
-  const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
+  const [form, setForm] = useState<FormState>(() => cloneForm(emptyForm));
+  const [baseline, setBaseline] = useState<FormState>(() => cloneForm(emptyForm));
+  const [showValidation, setShowValidation] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
+  const [pendingCreatedId, setPendingCreatedId] = useState<number | null>(null);
+  const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
+    setForm((current) => ({ ...current, [key]: value }));
 
   const existing = useQuery({
     queryKey: ["command", guildId, commandId],
     queryFn: ({ signal }) => api<CustomCommandDto>(`/api/guilds/${guildId}/commands/${commandId}`, { signal }),
     enabled: isEditing,
+  });
+  const commands = useQuery({
+    queryKey: ["commands", guildId],
+    queryFn: ({ signal }) => api<CustomCommandDto[]>(`/api/guilds/${guildId}/commands`, { signal }),
   });
   const roles = useQuery({
     queryKey: ["roles", guildId],
@@ -45,6 +76,11 @@ export function CommandEditorPage() {
     queryKey: ["channels", guildId],
     queryFn: ({ signal }) => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`, { signal }),
   });
+  const modules = useQuery({
+    queryKey: ["modules", guildId],
+    queryFn: ({ signal }) => api<GuildModulesResponse>(`/api/guilds/${guildId}/modules`, { signal }),
+    staleTime: 60_000,
+  });
   const revisions = useQuery({
     queryKey: ["revisions", guildId, commandId],
     queryFn: ({ signal }) => api<CommandRevisionDto[]>(`/api/guilds/${guildId}/commands/${commandId}/revisions`, { signal }),
@@ -52,327 +88,343 @@ export function CommandEditorPage() {
   });
 
   useEffect(() => {
-    if (existing.data) {
-      const f = hydrate(existing.data);
-      setForm(f);
-      if (f.conditions.length > 0 || f.extraActions.length > 0 || f.cooldownSeconds > 0 || f.requiredPermissions) {
-        setMode("advanced");
-      }
+    if (!existing.data) return;
+    const hydrated = hydrate(existing.data);
+    setForm(hydrated);
+    setBaseline(cloneForm(hydrated));
+    if (hydrated.conditions.length || hydrated.extraActions.length || hydrated.cooldownSeconds || hydrated.requiredPermissions) {
+      setMode("advanced");
     }
   }, [existing.data]);
 
+  const module = modules.data?.modules.find((candidate) => candidate.id === "custom_commands");
+  const configurationAllowed = module?.actions.canConfigure ?? !modules.isError;
+  const supportingDataReady = commands.isSuccess && roles.isSuccess && channels.isSuccess && modules.isSuccess;
+  const editorEnabled = canWrite && configurationAllowed && supportingDataReady;
+  const validation = useMemo(() => validateCommandDraft(form), [form]);
+  const dirty = useDirty(form, baseline);
+  const summary = useMemo(
+    () => buildCommandSummary(form, roles.data ?? [], channels.data ?? []),
+    [channels.data, form, roles.data],
+  );
+
   const save = useMutation({
-    mutationFn: () => {
-      const payload = { name: form.name, description: form.description, logic: buildLogic(form) };
-      return isEditing
-        ? api(`/api/guilds/${guildId}/commands/${commandId}`, { method: "PUT", body: JSON.stringify(payload) })
-        : api(`/api/guilds/${guildId}/commands`, { method: "POST", body: JSON.stringify(payload) });
+    mutationFn: (payload: FormState) => {
+      const body = JSON.stringify({ name: payload.name, description: payload.description, logic: buildLogic(payload) });
+      return api<CustomCommandDto>(
+        isEditing ? `/api/guilds/${guildId}/commands/${commandId}` : `/api/guilds/${guildId}/commands`,
+        { method: isEditing ? "PUT" : "POST", body },
+      );
     },
-    // L'erreur est affichée dans la page (bloc rouge) : pas de toast global en doublon
-    meta: {
-      successMessage: isEditing ? `Commande /${form.name} enregistrée` : `Commande /${form.name} créée`,
-      silentError: true,
-    },
-    onSuccess: () => {
+    meta: { silentError: true },
+    onSuccess: (saved) => {
+      const next = hydrate(saved);
+      setForm(next);
+      setBaseline(cloneForm(next));
+      setShowValidation(false);
+      queryClient.setQueryData(["command", guildId, String(saved.id)], saved);
       void queryClient.invalidateQueries({ queryKey: ["commands", guildId] });
-      void navigate(`/guilds/${guildId}/commands`);
-    },
-    onError: (err) => {
-      if (err instanceof ApiError) {
-        // duplicate_name s'affiche sous le champ Nom (E5), pas dans le bloc global
-        if (err.code === "duplicate_name") return;
-        setError(
-          err.code.startsWith("invalid_logic")
-              ? `Logique invalide : ${err.code.slice("invalid_logic: ".length)}`
-              : err.code.startsWith("discord_error")
-                ? `Erreur Discord : ${err.code.slice("discord_error: ".length)}`
-                : "Enregistrement impossible — vérifiez le formulaire.",
-        );
-      } else {
-        setError("Erreur réseau.");
-      }
+      void queryClient.invalidateQueries({ queryKey: ["revisions", guildId, commandId] });
+      if (!isEditing) setPendingCreatedId(saved.id);
     },
   });
+  useEffect(() => {
+    if (pendingCreatedId !== null && !dirty) {
+      void navigate(`/guilds/${guildId}/commands/${pendingCreatedId}`, { replace: true });
+    }
+  }, [dirty, guildId, navigate, pendingCreatedId]);
 
-  const nameError =
-    save.error instanceof ApiError && save.error.code === "duplicate_name"
-      ? "Une commande porte déjà ce nom sur ce serveur."
-      : undefined;
-  const nameValid = /^[a-z0-9_-]{1,32}$/.test(form.name);
-  // Tri-état hérité : (1) sain, (2) saisie locale invalide → bordure rouge seule (pas de message, hint conservé,
-  // pas d'aria-invalid), (3) duplicate_name → traitement d'erreur complet via Field (bordure + message + aria).
-  const nameLocalInvalid = form.name !== "" && !nameValid && !nameError;
-  const hasResponse = form.replyContent.trim() !== "" || form.embedEnabled;
-  const canSave = nameValid && form.description.trim() !== "" && (hasResponse || form.extraActions.length > 0);
+  const requestSave = () => {
+    setShowValidation(true);
+    if (!validation.valid) {
+      setAnnouncement(`${validation.blockingErrors.length} erreur(s) empêchent l’enregistrement.`);
+      document.getElementById("command-validation-summary")?.focus();
+      return;
+    }
+    save.mutate(cloneForm(form));
+  };
+  const moveCondition = (index: number, delta: -1 | 1) => {
+    const target = index + delta;
+    set("conditions", moveItem(form.conditions, index, delta));
+    setAnnouncement(`Condition ${index + 1} déplacée en position ${target + 1}.`);
+    requestAnimationFrame(() => document.getElementById(`command-condition-${target}`)?.focus());
+  };
+  const moveAction = (index: number, delta: -1 | 1) => {
+    const target = index + delta;
+    set("extraActions", moveItem(form.extraActions, index, delta));
+    setAnnouncement(`Action ${index + 1} déplacée en position ${target + 1}.`);
+    requestAnimationFrame(() => document.getElementById(`command-action-${target}`)?.focus());
+  };
 
-  if (isEditing && existing.isPending) return <SkeletonSettingsPage cards={2} />;
+  if (isEditing && existing.isPending) return <SkeletonSettingsPage cards={4} />;
+  if (isEditing && existing.isError) {
+    return <ErrorCard message="Impossible de charger cette commande." onRetry={() => void existing.refetch()} />;
+  }
+
+  const gatewayRequired = form.triggerType === "keyword";
+  const quotaReached = !isEditing && (commands.data?.length ?? 0) >= COMMAND_LIMIT;
+  const status = save.isPending ? "pending" : save.isError ? "error" : save.isSuccess ? "success" : "idle";
+  const visibleErrors = showValidation ? validation : null;
 
   return (
-    <div className="max-w-4xl space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">{isEditing ? `Modifier /${existing.data?.name ?? "…"}` : "Nouvelle commande"}</h2>
+    <div className="min-w-0 space-y-4 pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <button type="button" onClick={() => void navigate(`/guilds/${guildId}/commands`)} className="text-sm text-indigo-300 hover:text-indigo-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70">
+            ← Commandes
+          </button>
+          <h1 className="mt-1 text-xl font-semibold text-zinc-100">
+            {isEditing ? `Modifier /${existing.data?.name ?? "…"}` : "Nouvelle commande"}
+          </h1>
+        </div>
         <SegmentedControl<"simple" | "advanced">
-          ariaLabel="Mode d'édition"
-          options={[
-            { value: "simple", label: "Simple" },
-            { value: "advanced", label: "Avancé" },
-          ]}
+          ariaLabel="Mode d’édition"
+          options={[{ value: "simple", label: "Simple" }, { value: "advanced", label: "Avancé" }]}
           value={mode}
           onChange={setMode}
         />
       </div>
 
-      {/* fieldset disabled (M15) : tous les champs neutralisés en lecture seule ; l'en-tête (Simple/Avancé) et « Annuler » restent actifs. */}
-      <fieldset disabled={!canWrite} className="space-y-4">
-      <Card className="space-y-3">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Nom de la commande" error={nameError} hint="1-32 caractères : a-z, 0-9, - et _">
-            <Input
-              className={nameLocalInvalid ? "border-red-500/70" : ""}
-              value={form.name}
-              onChange={(e) => set("name", e.target.value.toLowerCase())}
-              placeholder="bienvenue"
-            />
-          </Field>
-          <Field label="Description">
-            <Input
-              value={form.description}
-              onChange={(e) => set("description", e.target.value)}
-              placeholder="Souhaite la bienvenue"
-              maxLength={100}
-            />
-          </Field>
-        </div>
-
-        {/* Selects inline auto-dimensionnés : `!w-auto` neutralise le `w-full` par défaut du kit (spec 2.2.f : md/sm
-            gardent w-full ; l'override d'une largeur passe par `!` car `.w-full` est émis après `.w-auto` dans le CSS). */}
-        <div className="flex items-center gap-4">
-          <label className="text-sm text-zinc-300">
-            Déclencheur{" "}
-            <Select size="sm" className="!w-auto" value={form.triggerType} onChange={(e) => set("triggerType", e.target.value as "slash" | "keyword")}>
-              <option value="slash">Slash command (/)</option>
-              <option value="keyword">Mot-clé (nécessite Gateway)</option>
-            </Select>
-          </label>
-          {form.triggerType === "keyword" && (
-            <>
-              <Input
-                size="sm"
-                className="flex-1"
-                value={form.keywords}
-                onChange={(e) => set("keywords", e.target.value)}
-                placeholder="mots-clés séparés par des virgules"
-              />
-              <Select size="sm" className="!w-auto" value={form.matchMode} onChange={(e) => set("matchMode", e.target.value as FormState["matchMode"])}>
-                <option value="contains">contient</option>
-                <option value="exact">exact</option>
-                <option value="starts_with">commence par</option>
-              </Select>
-            </>
-          )}
-        </div>
-        {form.triggerType === "keyword" && (
-          <p className="rounded-lg bg-amber-950/40 px-3 py-2 text-xs text-amber-300">
-            Les déclencheurs par mot-clé seront actifs quand le service Gateway (Option B) sera déployé. La commande
-            est enregistrée dès maintenant.
-          </p>
-        )}
-      </Card>
-
-      <Card className="space-y-3">
-        <h3 className="font-medium">Réponse</h3>
-        {/* Hauteur historique (min-h-24 ≈ 96 px) préservée : neutralise le min-h-[120px] du Textarea kit (précédent M34). */}
-        <Textarea
-          className="!min-h-24"
-          value={form.replyContent}
-          onChange={(e) => set("replyContent", e.target.value)}
-          placeholder="Bienvenue {mention} sur {server} ! Nous sommes {membercount} membres."
-        />
-        <div className="flex flex-wrap gap-1.5">
-          {VARIABLES.map((v) => (
-            <button
-              key={v.name}
-              title={v.description}
-              onClick={() => set("replyContent", form.replyContent + v.name)}
-              className="rounded-full border border-zinc-700 px-2 py-0.5 text-xs text-zinc-400 hover:border-indigo-500 hover:text-indigo-300"
-            >
-              {v.name}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
-          <div className="flex items-center gap-2 text-sm text-zinc-300">
-            <Toggle checked={form.replyEphemeral} onChange={(v) => set("replyEphemeral", v)} />
-            <span>Réponse éphémère (visible uniquement par l'utilisateur)</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-zinc-300">
-            <Toggle checked={form.embedEnabled} onChange={(v) => set("embedEnabled", v)} />
-            <span>Ajouter un embed</span>
-          </div>
-        </div>
-        {form.embedEnabled && (
-          <div className="grid grid-cols-1 gap-3 rounded-lg bg-zinc-950 p-4 sm:grid-cols-[1fr_1fr_auto]">
-            <Input value={form.embedTitle} onChange={(e) => set("embedTitle", e.target.value)} placeholder="Titre de l'embed" />
-            <Input
-              value={form.embedDescription}
-              onChange={(e) => set("embedDescription", e.target.value)}
-              placeholder="Description ({user}, {server}…)"
-            />
-            {/* Sélecteur de couleur natif : hors périmètre DS (aucune primitive équivalente). */}
-            <input type="color" className="h-9 w-14 cursor-pointer rounded border border-zinc-700 bg-zinc-950" value={form.embedColor} onChange={(e) => set("embedColor", e.target.value)} />
-          </div>
-        )}
-      </Card>
-
-      {mode === "advanced" && (
-        <>
-          <Card className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-medium">Conditions</h3>
-              <div className="flex items-center gap-2">
-                <Select size="sm" className="!w-auto" value={form.conditionMode} onChange={(e) => set("conditionMode", e.target.value as "all" | "any")}>
-                  <option value="all">Toutes requises (ET)</option>
-                  <option value="any">Au moins une (OU)</option>
-                </Select>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => set("conditions", [...form.conditions, { type: "user_has_role", roleId: roles.data?.[0]?.id ?? "" }])}
-                  disabled={form.conditions.length >= 10}
-                >
-                  + Condition
-                </Button>
-              </div>
-            </div>
-            {form.conditions.map((cond, i) => (
-              <ConditionRow
-                key={i}
-                condition={cond}
-                roles={roles.data ?? []}
-                channels={(channels.data ?? []).filter((ch) => ch.type !== 4)}
-                onChange={(c) => set("conditions", form.conditions.map((x, j) => (j === i ? c : x)))}
-                onRemove={() => set("conditions", form.conditions.filter((_, j) => j !== i))}
-              />
-            ))}
-            {form.conditions.length > 0 && (
-              <Field label="Réponse si les conditions échouent (éphémère)">
-                <Input
-                  value={form.elseReply}
-                  onChange={(e) => set("elseReply", e.target.value)}
-                  placeholder="Vous ne pouvez pas utiliser cette commande."
-                />
-              </Field>
-            )}
-          </Card>
-
-          <Card className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-medium">Actions supplémentaires (exécutées dans l'ordre)</h3>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() =>
-                  set("extraActions", [...form.extraActions, { type: "increment_counter", counter: "compteur", amount: 1 }])
-                }
-                disabled={form.extraActions.length >= 4}
-              >
-                + Action
-              </Button>
-            </div>
-            {form.extraActions.map((action, i) => (
-              <ActionRow
-                key={i}
-                action={action}
-                roles={roles.data ?? []}
-                channels={(channels.data ?? []).filter((ch) => ch.type !== 4)}
-                onChange={(a) => set("extraActions", form.extraActions.map((x, j) => (j === i ? a : x)))}
-                onRemove={() => set("extraActions", form.extraActions.filter((_, j) => j !== i))}
-              />
-            ))}
-            <p className="text-xs text-zinc-500">
-              Actions autorisées uniquement (liste blanche) — aucune exécution de code arbitraire.
-            </p>
-          </Card>
-
-          <Card className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Field label="Cooldown (secondes, 0 = aucun)">
-              <Input
-                type="number"
-                min={0}
-                max={86400}
-                value={form.cooldownSeconds}
-                onChange={(e) => set("cooldownSeconds", Number(e.target.value))}
-              />
-            </Field>
-            <Field label="Portée du cooldown">
-              <Select value={form.cooldownScope} onChange={(e) => set("cooldownScope", e.target.value as "user" | "guild")}>
-                <option value="user">Par utilisateur</option>
-                <option value="guild">Tout le serveur</option>
-              </Select>
-            </Field>
-            <Field label="Permission requise">
-              <Select value={form.requiredPermissions} onChange={(e) => set("requiredPermissions", e.target.value)}>
-                {PERMISSION_OPTIONS.map((p) => (
-                  <option key={p.value} value={p.value}>
-                    {p.label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </Card>
-        </>
-      )}
-      </fieldset>
-
-      {error && <p className="rounded-lg bg-red-950/40 px-4 py-3 text-sm text-red-300">{error}</p>}
-
-      <div className="flex items-center gap-3">
-        {canWrite && (
-        <Button
-          onClick={() => {
-            setError(null);
-            save.mutate();
+      {(commands.isError || roles.isError || channels.isError || modules.isError) && (
+        <ErrorCard
+          compact
+          title="Données d’édition incomplètes"
+          message="Impossible de charger les commandes, rôles, salons ou capacités du module. Le brouillon reste affiché, mais son enregistrement est neutralisé."
+          onRetry={() => {
+            if (commands.isError) void commands.refetch();
+            if (roles.isError) void roles.refetch();
+            if (channels.isError) void channels.refetch();
+            if (modules.isError) void modules.refetch();
           }}
-          disabled={!canSave}
-          loading={save.isPending}
-        >
-          {isEditing ? "Enregistrer les modifications" : "Créer la commande"}
-        </Button>
-        )}
-        <Button variant="secondary" onClick={() => void navigate(`/guilds/${guildId}/commands`)}>
-          {canWrite ? "Annuler" : "Retour"}
-        </Button>
-        {canWrite && !canSave && form.name && (
-          <span className="text-xs text-zinc-500">Nom valide, description et au moins une réponse/action requis.</span>
-        )}
-      </div>
-
-      {isEditing && revisions.data && revisions.data.length > 0 && (
-        <Card>
-          <h3 className="font-medium">Historique des modifications</h3>
-          <ul className="mt-3 space-y-2 text-sm">
-            {revisions.data.map((rev) => (
-              <li key={rev.id} className="flex items-center gap-3 rounded-lg bg-zinc-950 px-3 py-2">
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs ${
-                    rev.changeType === "create"
-                      ? "bg-green-950 text-green-300"
-                      : rev.changeType === "delete"
-                        ? "bg-red-950 text-red-300"
-                        : "bg-zinc-800 text-zinc-300"
-                  }`}
-                >
-                  {rev.changeType}
-                </span>
-                <span className="text-zinc-400">
-                  par <code className="text-zinc-300">{rev.changedBy}</code>
-                </span>
-                <TimeAgo iso={rev.changedAt} className="ml-auto text-xs text-zinc-500" />
-              </li>
-            ))}
-          </ul>
-        </Card>
+          retrying={commands.isFetching || roles.isFetching || channels.isFetching || modules.isFetching}
+        />
       )}
+      {isEditing && revisions.isError && (
+        <ErrorCard
+          compact
+          title="Historique indisponible"
+          message="La commande reste modifiable, mais ses révisions n’ont pas pu être chargées."
+          onRetry={() => void revisions.refetch()}
+          retrying={revisions.isFetching}
+        />
+      )}
+      {!canWrite && (
+        <OperationalState
+          kind="readonly"
+          title="Commande en lecture seule"
+          description="Votre rôle panel autorise la consultation du brouillon et de son aperçu, sans modification."
+          impact="Les champs et l’enregistrement sont désactivés."
+          available="Les révisions et le résumé restent consultables."
+        />
+      )}
+      {canWrite && modules.isSuccess && !configurationAllowed && (
+        <OperationalState
+          kind="permission"
+          title="Permission insuffisante"
+          description="Le registre du module indique qu’un prérequis Discord empêche actuellement sa configuration."
+          impact="La création et l’enregistrement sont neutralisés."
+          available="Le brouillon et le diagnostic du module restent visibles."
+        />
+      )}
+      {module && !module.enabled && (
+        <OperationalState
+          kind="module"
+          title="Module Commandes désactivé"
+          description="Les commandes existantes restent conservées, mais leur exécution est arrêtée."
+          impact="Aucune commande personnalisée ne répondra sur Discord."
+          available="La consultation reste possible ; réactivez le module depuis Modules."
+          action={<Button to={`/guilds/${guildId}/modules`} variant="secondary" size="sm">Ouvrir Modules</Button>}
+        />
+      )}
+      {gatewayRequired && !guild?.gatewayConnected && (
+        <OperationalState
+          kind="gateway"
+          title="Gateway indisponible"
+          description="Le déclencheur par mot-clé dépend de la Gateway."
+          impact="Le mot-clé ne sera pas exécuté tant que la Gateway reste hors ligne."
+          available="Le brouillon peut toujours être enregistré."
+          action={<Button to={`/guilds/${guildId}/health`} variant="secondary" size="sm">Voir le diagnostic</Button>}
+        />
+      )}
+      {quotaReached && (
+        <OperationalState
+          kind="quota"
+          title="Limite de commandes atteinte"
+          description={`Usage actuel : ${commands.data?.length ?? COMMAND_LIMIT}/${COMMAND_LIMIT} commandes. Cette limite de création n’est pas une erreur de formulaire.`}
+          impact="La création d’une nouvelle commande est bloquée."
+          available="Les commandes existantes peuvent être consultées, modifiées ou supprimées."
+          action={<Button to={`/guilds/${guildId}/commands`} variant="secondary" size="sm">Gérer les commandes</Button>}
+        />
+      )}
+
+      {visibleErrors && visibleErrors.blockingErrors.length > 0 && (
+        <div id="command-validation-summary" tabIndex={-1} role="alert" className="rounded-xl border border-red-800 bg-red-950/35 p-4">
+          <p className="text-sm font-semibold text-red-200">Corrigez les erreurs suivantes :</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-red-300">
+            {visibleErrors.blockingErrors.map((error) => <li key={error}>{error}</li>)}
+          </ul>
+        </div>
+      )}
+      <p className="sr-only" aria-live="polite">{announcement}</p>
+
+      <EditorWorkspace
+        mainDescription="Identité, réponse, conditions et actions dans l’ordre envoyé au serveur."
+        railDescription="Aperçu local, prérequis et état du brouillon."
+        main={
+          <fieldset disabled={!editorEnabled || quotaReached} className="space-y-4">
+            <Card title="Identité et déclencheur" description="Nom Discord, description et mode de déclenchement." pad="compact">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Nom de la commande" error={visibleErrors?.fieldErrors.name} hint="1–32 caractères : a-z, 0-9, - et _">
+                  <Input value={form.name} onChange={(event) => set("name", event.target.value.toLowerCase())} placeholder="bienvenue" />
+                </Field>
+                <Field label="Description" error={visibleErrors?.fieldErrors.description}>
+                  <Input value={form.description} onChange={(event) => set("description", event.target.value)} placeholder="Souhaite la bienvenue" maxLength={100} />
+                </Field>
+              </div>
+              <fieldset className="mt-4">
+                <legend className="mb-2 text-xs font-semibold text-zinc-300">Déclencheur</legend>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Type">
+                    <Select value={form.triggerType} onChange={(event) => set("triggerType", event.target.value as FormState["triggerType"])}>
+                      <option value="slash">Commande slash (/)</option>
+                      <option value="keyword">Mot-clé (Gateway)</option>
+                    </Select>
+                  </Field>
+                  {form.triggerType === "keyword" && (
+                    <Field label="Mots-clés" error={visibleErrors?.fieldErrors.keywords} hint="Séparés par des virgules, 10 maximum.">
+                      <Input value={form.keywords} onChange={(event) => set("keywords", event.target.value)} placeholder="bonjour, salut" />
+                    </Field>
+                  )}
+                  {form.triggerType === "keyword" && (
+                    <Field label="Correspondance">
+                      <Select value={form.matchMode} onChange={(event) => set("matchMode", event.target.value as FormState["matchMode"])}>
+                        <option value="contains">Contient</option><option value="exact">Exact</option><option value="starts_with">Commence par</option>
+                      </Select>
+                    </Field>
+                  )}
+                </div>
+              </fieldset>
+              <div className="mt-3 flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2 text-xs text-zinc-400">
+                <span>Activation</span>
+                <span>{isEditing ? (existing.data?.enabled ? "Active" : "Inactive") : "Après création"}</span>
+              </div>
+              <p className="mt-2 text-[11px] text-zinc-500">L’activation utilise l’action dédiée de la liste ; elle ne fait pas partie du contrat d’enregistrement de cet éditeur.</p>
+            </Card>
+
+            <Card title="Réponse Discord" description="Réponse principale exécutée avant les actions supplémentaires." pad="compact">
+              <Field label="Contenu" error={visibleErrors?.fieldErrors.response}>
+                <Textarea className="!min-h-24" maxLength={2000} value={form.replyContent} onChange={(event) => set("replyContent", event.target.value)} placeholder="Bienvenue {mention} sur {server} !" />
+              </Field>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {VARIABLES.map((variable) => (
+                  <button key={variable.name} type="button" title={variable.description} onClick={() => set("replyContent", form.replyContent + variable.name)} className="rounded-full border border-zinc-700 px-2 py-1 text-xs text-zinc-400 hover:border-indigo-500 hover:text-indigo-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70">
+                    {variable.name}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <Toggle checked={form.replyEphemeral} onChange={(value) => set("replyEphemeral", value)} label="Réponse éphémère" />
+                <Toggle checked={form.embedEnabled} onChange={(value) => set("embedEnabled", value)} label="Ajouter un embed" />
+              </div>
+              {form.embedEnabled && (
+                <div className="mt-3 grid gap-3 rounded-lg bg-zinc-950 p-3 sm:grid-cols-2">
+                  <Field label="Titre de l’embed"><Input value={form.embedTitle} maxLength={256} onChange={(event) => set("embedTitle", event.target.value)} /></Field>
+                  <Field label="Description de l’embed"><Input value={form.embedDescription} maxLength={4096} onChange={(event) => set("embedDescription", event.target.value)} /></Field>
+                  <Field label="Couleur"><input type="color" className="h-10 w-full cursor-pointer rounded border border-zinc-700 bg-zinc-950" value={form.embedColor} onChange={(event) => set("embedColor", event.target.value)} /></Field>
+                </div>
+              )}
+            </Card>
+
+            {mode === "advanced" && (
+              <>
+                <Card
+                  title={`Conditions · ${form.conditions.length}/10`}
+                  description="Évaluées dans l’ordre affiché avant toute action."
+                  action={<Button type="button" size="sm" variant="secondary" disabled={form.conditions.length >= 10} onClick={() => { set("conditions", [...form.conditions, { type: "user_has_role", roleId: roles.data?.[0]?.id ?? "" }]); setAnnouncement("Condition ajoutée."); }}>+ Condition</Button>}
+                  pad="compact"
+                >
+                  <Field label="Regroupement logique">
+                    <Select value={form.conditionMode} onChange={(event) => set("conditionMode", event.target.value as FormState["conditionMode"])}>
+                      <option value="all">Toutes requises (ET)</option><option value="any">Au moins une (OU)</option>
+                    </Select>
+                  </Field>
+                  <div className="mt-3 space-y-3">
+                    {form.conditions.map((condition, index) => (
+                      <ConditionRow key={`${index}-${condition.type}`} condition={condition} roles={roles.data ?? []} channels={(channels.data ?? []).filter((channel) => channel.type !== 4)} index={index} count={form.conditions.length} error={visibleErrors?.conditionErrors[index]} onChange={(next) => set("conditions", form.conditions.map((item, itemIndex) => itemIndex === index ? next : item))} onRemove={() => { set("conditions", form.conditions.filter((_, itemIndex) => itemIndex !== index)); setAnnouncement(`Condition ${index + 1} supprimée.`); }} onMove={(delta) => moveCondition(index, delta)} />
+                    ))}
+                    {form.conditions.length === 0 && <p className="rounded-lg border border-dashed border-zinc-700 px-3 py-5 text-center text-sm text-zinc-500">Aucune condition : la commande passe directement aux actions.</p>}
+                  </div>
+                  {form.conditions.length > 0 && (
+                    <div className="mt-3"><Field label="Réponse si les conditions échouent"><Input value={form.elseReply} maxLength={2000} onChange={(event) => set("elseReply", event.target.value)} placeholder="Vous ne pouvez pas utiliser cette commande." /></Field></div>
+                  )}
+                </Card>
+
+                <Card
+                  title={`Actions supplémentaires · ${form.extraActions.length}/4`}
+                  description="Exécutées après la réponse principale, dans l’ordre affiché."
+                  action={<Button type="button" size="sm" variant="secondary" disabled={form.extraActions.length >= 4} onClick={() => { set("extraActions", [...form.extraActions, { type: "increment_counter", counter: "compteur", amount: 1 }]); setAnnouncement("Action ajoutée."); }}>+ Action</Button>}
+                  pad="compact"
+                >
+                  <div className="space-y-3">
+                    {form.extraActions.map((action, index) => (
+                      <ActionRow key={`${index}-${action.type}`} action={action} roles={roles.data ?? []} channels={(channels.data ?? []).filter((channel) => channel.type !== 4)} index={index} count={form.extraActions.length} error={visibleErrors?.actionErrors[index]} onChange={(next) => set("extraActions", form.extraActions.map((item, itemIndex) => itemIndex === index ? next : item))} onRemove={() => { set("extraActions", form.extraActions.filter((_, itemIndex) => itemIndex !== index)); setAnnouncement(`Action ${index + 1} supprimée.`); }} onMove={(delta) => moveAction(index, delta)} />
+                    ))}
+                    {form.extraActions.length === 0 && <p className="rounded-lg border border-dashed border-zinc-700 px-3 py-5 text-center text-sm text-zinc-500">Aucune action supplémentaire.</p>}
+                  </div>
+                </Card>
+
+                <Card title="Garde-fous" description="Cooldown et permission Discord requise." pad="compact">
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <Field label="Cooldown (secondes)" error={visibleErrors?.fieldErrors.cooldownSeconds}><Input type="number" min={0} max={86400} value={form.cooldownSeconds} onChange={(event) => set("cooldownSeconds", Number(event.target.value))} /></Field>
+                    <Field label="Portée"><Select value={form.cooldownScope} onChange={(event) => set("cooldownScope", event.target.value as FormState["cooldownScope"])}><option value="user">Par utilisateur</option><option value="guild">Tout le serveur</option></Select></Field>
+                    <Field label="Permission requise"><Select value={form.requiredPermissions} onChange={(event) => set("requiredPermissions", event.target.value)}>{PERMISSION_OPTIONS.map((permission) => <option key={permission.value} value={permission.value}>{permission.label}</option>)}</Select></Field>
+                  </div>
+                </Card>
+              </>
+            )}
+          </fieldset>
+        }
+        rail={
+          <div className="space-y-3">
+            <FlowSummary sentence={summary.sentence} steps={summary.steps} label="Fonctionnement de la commande" />
+            <CommandPreview form={form} />
+            <Card title="État et prérequis" description="Contexte réel de cette commande." pad="compact">
+              <dl className="space-y-2 text-xs">
+                <div className="flex justify-between gap-3"><dt className="text-zinc-500">Statut</dt><dd className="text-right text-zinc-200">{isEditing ? (existing.data?.enabled ? "Active" : "Inactive") : "Non créée"}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-zinc-500">Module</dt><dd className="text-right text-zinc-200">{module?.enabled === false ? "Désactivé" : "Actif"}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-zinc-500">Gateway</dt><dd className={`text-right ${gatewayRequired && !guild?.gatewayConnected ? "text-red-300" : "text-zinc-200"}`}>{gatewayRequired ? (guild?.gatewayConnected ? "Requise · connectée" : "Requise · indisponible") : "Non requise pour le slash"}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-zinc-500">Accès</dt><dd className="text-right text-zinc-200">{canWrite ? "Administration" : "Lecture seule"}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-zinc-500">Quota serveur</dt><dd className="text-right tabular-nums text-zinc-200">{commands.data?.length ?? "—"}/{COMMAND_LIMIT}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-zinc-500">Brouillon</dt><dd className={`text-right ${dirty ? "text-amber-300" : "text-emerald-300"}`}>{dirty ? "Modifié" : "Enregistré"}</dd></div>
+              </dl>
+            </Card>
+            {(validation.warnings.length > 0 || gatewayRequired) && (
+              <Card title="Avertissements" pad="compact">
+                <ul className="space-y-2 text-xs text-amber-200">{validation.warnings.map((warning) => <li key={warning}>• {warning}</li>)}</ul>
+              </Card>
+            )}
+            {isEditing && revisions.data && revisions.data.length > 0 && (
+              <Card title="Historique" pad="compact">
+                <ul className="space-y-2">{revisions.data.slice(0, 5).map((revision) => <li key={revision.id} className="flex items-center justify-between gap-2 text-xs"><Badge tone="neutral">{revision.changeType}</Badge><TimeAgo iso={revision.changedAt} className="text-zinc-500" /></li>)}</ul>
+              </Card>
+            )}
+          </div>
+        }
+      />
+
+      <SaveBar
+        dirty={dirty}
+        status={status}
+        onSave={requestSave}
+        onReset={() => { setForm(cloneForm(baseline)); setShowValidation(false); save.reset(); }}
+        showWhenClean
+        cleanLabel={isEditing ? "Commande enregistrée" : "Nouvelle commande"}
+        actionLabel={isEditing ? "Enregistrer" : "Créer la commande"}
+        pendingLabel="Enregistrement en cours"
+        successLabel="✓ Commande enregistrée"
+        errorMessage={saveErrorMessage(save.error)}
+        actionDisabled={!editorEnabled || quotaReached}
+      />
     </div>
   );
 }

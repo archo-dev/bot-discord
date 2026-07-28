@@ -14,12 +14,21 @@ export interface Benefit {
 }
 
 export const BENEFITS: readonly Benefit[] = [
-  { icon: "bolt", title: "Gagnez du temps", description: "L'automatisation prend en charge les tâches répétitives à votre place." },
-  { icon: "shield", title: "Protégez votre communauté", description: "Auto-modération et modération réduisent les incidents au quotidien." },
-  { icon: "star", title: "Professionnalisez votre serveur", description: "Accueil, rôles, niveaux et tickets soignés dès la première minute." },
-  { icon: "chart", title: "Comprenez votre activité", description: "Des statistiques claires et un historique pour piloter votre serveur." },
-  { icon: "users", title: "Centralisez vos serveurs", description: "Plusieurs communautés gérées depuis un seul panel (Premium, Business)." },
-  { icon: "ticket", title: "Obtenez de l'aide plus vite", description: "Un support priorisé selon votre offre, sans quitter Discord." },
+  {
+    icon: "bolt",
+    title: "Tout centralisé",
+    description: "Retrouvez réglages, modules et actions essentielles dans une interface unique.",
+  },
+  {
+    icon: "shield",
+    title: "Communauté plus saine",
+    description: "Gardez la modération, les alertes et les outils communautaires faciles à piloter.",
+  },
+  {
+    icon: "chart",
+    title: "Statistiques en temps réel",
+    description: "Lisez l’activité et la santé du serveur depuis des indicateurs immédiatement compréhensibles.",
+  },
 ];
 
 export interface UseCase {

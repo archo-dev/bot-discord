@@ -1,0 +1,229 @@
+{
+  "generatedAt": "2026-07-28T01:08:44.679Z",
+  "checks": [
+    {
+      "name": "commands_search",
+      "value": true
+    },
+    {
+      "name": "commands_empty",
+      "value": true
+    },
+    {
+      "name": "commands_read_error",
+      "value": true
+    },
+    {
+      "name": "commands_quota",
+      "value": true
+    },
+    {
+      "name": "commands_read_only",
+      "value": true
+    },
+    {
+      "name": "commands_toggle",
+      "value": true
+    },
+    {
+      "name": "commands_delete",
+      "value": true
+    },
+    {
+      "name": "command_dirty",
+      "value": true
+    },
+    {
+      "name": "command_condition_order",
+      "value": true
+    },
+    {
+      "name": "command_action_order",
+      "value": true
+    },
+    {
+      "name": "command_save_success",
+      "value": true
+    },
+    {
+      "name": "command_save_error_keeps_draft",
+      "value": true
+    },
+    {
+      "name": "command_navigation_guard",
+      "value": true
+    },
+    {
+      "name": "command_local_validation",
+      "value": true
+    },
+    {
+      "name": "automations_search",
+      "value": true
+    },
+    {
+      "name": "automations_empty",
+      "value": true
+    },
+    {
+      "name": "automations_read_error",
+      "value": true
+    },
+    {
+      "name": "automations_read_only",
+      "value": true
+    },
+    {
+      "name": "automation_dirty",
+      "value": true
+    },
+    {
+      "name": "automation_action_order",
+      "value": true
+    },
+    {
+      "name": "automation_save_success",
+      "value": true
+    },
+    {
+      "name": "automation_save_error_keeps_draft",
+      "value": true
+    },
+    {
+      "name": "automation_navigation_guard",
+      "value": true
+    },
+    {
+      "name": "automation_local_validation",
+      "value": true
+    },
+    {
+      "name": "automation_gateway",
+      "value": true
+    },
+    {
+      "name": "automation_permission",
+      "value": true
+    },
+    {
+      "name": "automation_module_disabled",
+      "value": true
+    },
+    {
+      "name": "automation_editor_read_only",
+      "value": true
+    },
+    {
+      "name": "commands_no_horizontal_1440",
+      "value": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      }
+    },
+    {
+      "name": "commands_no_horizontal_1024",
+      "value": {
+        "scrollWidth": 1024,
+        "clientWidth": 1024
+      }
+    },
+    {
+      "name": "commands_no_horizontal_390",
+      "value": {
+        "scrollWidth": 390,
+        "clientWidth": 390
+      }
+    },
+    {
+      "name": "commands_no_horizontal_320",
+      "value": {
+        "scrollWidth": 320,
+        "clientWidth": 320
+      }
+    },
+    {
+      "name": "commandEditor_no_horizontal_1440",
+      "value": {
+        "scrollWidth": 1425,
+        "clientWidth": 1425
+      }
+    },
+    {
+      "name": "commandEditor_no_horizontal_1024",
+      "value": {
+        "scrollWidth": 1009,
+        "clientWidth": 1009
+      }
+    },
+    {
+      "name": "commandEditor_no_horizontal_390",
+      "value": {
+        "scrollWidth": 390,
+        "clientWidth": 390
+      }
+    },
+    {
+      "name": "commandEditor_no_horizontal_320",
+      "value": {
+        "scrollWidth": 320,
+        "clientWidth": 320
+      }
+    },
+    {
+      "name": "automations_no_horizontal_1440",
+      "value": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      }
+    },
+    {
+      "name": "automations_no_horizontal_1024",
+      "value": {
+        "scrollWidth": 1024,
+        "clientWidth": 1024
+      }
+    },
+    {
+      "name": "automations_no_horizontal_390",
+      "value": {
+        "scrollWidth": 390,
+        "clientWidth": 390
+      }
+    },
+    {
+      "name": "automations_no_horizontal_320",
+      "value": {
+        "scrollWidth": 320,
+        "clientWidth": 320
+      }
+    },
+    {
+      "name": "automationEditor_no_horizontal_1440",
+      "value": {
+        "scrollWidth": 1425,
+        "clientWidth": 1425
+      }
+    },
+    {
+      "name": "automationEditor_no_horizontal_1024",
+      "value": {
+        "scrollWidth": 1009,
+        "clientWidth": 1009
+      }
+    },
+    {
+      "name": "automationEditor_no_horizontal_390",
+      "value": {
+        "scrollWidth": 390,
+        "clientWidth": 390
+      }
+    },
+    {
+      "name": "automationEditor_no_horizontal_320",
+      "value": {
+        "scrollWidth": 320,
+        "clientWidth": 320
+      }
+    }
+  ]
+}

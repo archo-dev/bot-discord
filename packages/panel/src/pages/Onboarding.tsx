@@ -90,6 +90,7 @@ export function OnboardingPage() {
       method: "POST",
       body: JSON.stringify({ step }),
     }),
+    meta: { silentError: true },
     onSuccess: (data) => queryClient.setQueryData(queryKey, data),
     onError: () => toast.error("Action impossible pour le moment."),
   });

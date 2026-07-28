@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PanelAccessEntry, RoleOption } from "@bot/shared";
 import { api, ApiError } from "../lib/api.js";
-import { Button, Card, Chip, InfoCard, Input } from "../ui/kit.js";
+import { Button, Card, Chip, ErrorCard, InfoCard, Input, OperationalState } from "../ui/kit.js";
 import { SaveBar, useDirty } from "../ui/savebar.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { Icon } from "../ui/icons.js";
@@ -24,7 +24,7 @@ function LevelSelect({ value, onChange }: { value: Level; onChange: (v: Level) =
           type="button"
           aria-pressed={value === lvl}
           onClick={() => onChange(lvl)}
-          className={`rounded-md px-2.5 py-1 font-medium transition ${
+          className={`min-h-8 rounded-md px-2.5 py-1 font-medium transition ${
             value === lvl ? "bg-indigo-600 text-white" : "text-zinc-400 hover:text-zinc-200"
           }`}
         >
@@ -98,13 +98,35 @@ export function PanelAccessPage() {
   const setUserLevel = (userId: string, level: Level) =>
     setUserGrants((prev) => prev.map((g) => (g.id === userId ? { ...g, level } : g)));
 
-  if (entries.isPending) return <SkeletonSettingsPage cards={2} />;
+  if (entries.isPending || roles.isPending) return <SkeletonSettingsPage cards={2} />;
 
   if (entries.isError && entries.error instanceof ApiError && entries.error.status === 403) {
     return (
-      <p className="text-zinc-400">
-        Seuls les membres avec la permission « Gérer le serveur » peuvent configurer l'accès au panel.
-      </p>
+      <OperationalState
+        kind="admin"
+        title="Accès administrateur requis"
+        description="Seuls les membres disposant de la permission Discord « Gérer le serveur » peuvent configurer les accès au panel."
+        impact="Aucun rôle ni utilisateur autorisé ne peut être ajouté, retiré ou modifié."
+        available="Les autres pages restent accessibles selon votre rôle panel."
+      />
+    );
+  }
+  if (entries.isError) {
+    return (
+      <ErrorCard
+        message="Impossible de charger les accès au panel."
+        onRetry={() => void entries.refetch()}
+        retrying={entries.isFetching}
+      />
+    );
+  }
+  if (roles.isError) {
+    return (
+      <ErrorCard
+        message="Impossible de charger les rôles Discord nécessaires à la configuration des accès."
+        onRetry={() => void roles.refetch()}
+        retrying={roles.isFetching}
+      />
     );
   }
 
@@ -130,12 +152,13 @@ export function PanelAccessPage() {
         {roleGrants.length > 0 && (
           <ul className="mt-4 space-y-1.5">
             {roleGrants.map((g) => (
-              <li key={g.id} className="flex items-center gap-3 rounded-lg bg-zinc-950 px-3 py-2 text-sm">
-                <span className="min-w-0 flex-1 truncate text-zinc-200">{roleName(g.id)}</span>
+              <li key={g.id} className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg bg-zinc-950 px-3 py-2 text-sm">
+                <span className="min-w-0 basis-full break-words text-zinc-200 sm:flex-1 sm:basis-auto">{roleName(g.id)}</span>
                 <LevelSelect value={g.level} onChange={(level) => setRoleLevel(g.id, level)} />
                 <button
+                  type="button"
                   onClick={() => toggleRole(g.id)}
-                  className="text-zinc-500 transition hover:text-red-400"
+                  className="inline-flex min-h-10 items-center rounded-lg px-2 text-zinc-500 transition hover:bg-red-950/40 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
                 >
                   Retirer
                 </button>
@@ -146,12 +169,13 @@ export function PanelAccessPage() {
       </Card>
 
       <Card title="Utilisateurs autorisés (par ID)">
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Input
+            aria-label="ID utilisateur Discord à autoriser"
             value={newUserId}
             onChange={(e) => setNewUserId(e.target.value)}
             placeholder="ID utilisateur Discord"
-            className="flex-1"
+            className="min-w-0 flex-1"
           />
           <Button
             variant="secondary"
@@ -167,12 +191,13 @@ export function PanelAccessPage() {
         </div>
         <ul className="mt-3 space-y-1.5">
           {userGrants.map((g) => (
-            <li key={g.id} className="flex items-center gap-3 rounded-lg bg-zinc-950 px-3 py-2 text-sm">
-              <code className="min-w-0 flex-1 truncate">{g.id}</code>
+            <li key={g.id} className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg bg-zinc-950 px-3 py-2 text-sm">
+              <code className="min-w-0 basis-full break-all sm:flex-1 sm:basis-auto">{g.id}</code>
               <LevelSelect value={g.level} onChange={(level) => setUserLevel(g.id, level)} />
               <button
+                type="button"
                 onClick={() => setUserGrants((prev) => prev.filter((u) => u.id !== g.id))}
-                className="text-zinc-500 transition hover:text-red-400"
+                className="inline-flex min-h-10 items-center rounded-lg px-2 text-zinc-500 transition hover:bg-red-950/40 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
               >
                 Retirer
               </button>

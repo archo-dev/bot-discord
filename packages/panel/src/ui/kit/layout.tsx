@@ -19,7 +19,7 @@ export function PageHeader({
         <h1 className="font-display text-2xl font-semibold tracking-[-0.02em] text-zinc-100 sm:text-[26px]">{title}</h1>
         {description && <p className="mt-1 max-w-2xl text-body leading-relaxed text-zinc-400">{description}</p>}
       </div>
-      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0">{actions}</div>}
     </header>
   );
 }
@@ -28,8 +28,8 @@ export function PageHeader({
 export function Toolbar({ children, actions, className = "" }: { children?: ReactNode; actions?: ReactNode; className?: string }) {
   return (
     <div className={`flex flex-col gap-2 rounded-xl border border-zinc-800/90 bg-(--surface-1) p-2.5 sm:flex-row sm:items-center sm:justify-between ${className}`}>
-      <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">{children}</div>
-      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+      <div className="flex min-w-0 w-full flex-1 flex-col gap-2 sm:flex-row sm:items-center">{children}</div>
+      {actions && <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0">{actions}</div>}
     </div>
   );
 }
@@ -38,8 +38,8 @@ export function Toolbar({ children, actions, className = "" }: { children?: Reac
 export function ResponsiveData({ table, cards }: { table: ReactNode; cards: ReactNode }) {
   return (
     <>
-      <div className="hidden sm:block">{table}</div>
-      <div className="space-y-2 sm:hidden">{cards}</div>
+      <div className="hidden md:block">{table}</div>
+      <div className="space-y-2 md:hidden">{cards}</div>
     </>
   );
 }

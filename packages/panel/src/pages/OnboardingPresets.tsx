@@ -8,7 +8,7 @@ import type {
 } from "@bot/shared";
 import { api } from "../lib/api.js";
 import { moduleReasonLabel } from "../lib/modules.js";
-import { Badge, Button, Card } from "../ui/kit.js";
+import { Badge, Button, Card, ErrorCard, OperationalState } from "../ui/kit.js";
 import { Modal } from "../ui/overlay.js";
 import { toast } from "../ui/toast.js";
 
@@ -31,8 +31,8 @@ export function PresetPicker({ guildId, response, canWrite }: {
       method: "POST",
       body: JSON.stringify({ preset, dryRun: true }),
     }),
+    meta: { silentError: true },
     onSuccess: setPreview,
-    onError: () => toast.error("Aperçu du preset impossible."),
   });
 
   const applyMutation = useMutation({
@@ -40,13 +40,13 @@ export function PresetPicker({ guildId, response, canWrite }: {
       method: "POST",
       body: JSON.stringify({ preset }),
     }),
+    meta: { silentError: true },
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["onboarding", guildId] });
       void queryClient.invalidateQueries({ queryKey: ["modules", guildId] });
       setPreview(null);
       toast.success(result.enabled.length > 0 ? `${result.enabled.length} module(s) activé(s).` : "Preset appliqué.");
     },
-    onError: () => toast.error("Application du preset impossible."),
   });
 
   return (
@@ -56,6 +56,25 @@ export function PresetPicker({ guildId, response, canWrite }: {
         Activez d'un coup un ensemble de modules cohérent. Aucun réglage existant n'est écrasé — vous configurez ensuite
         chaque module.
       </p>
+      {!canWrite && (
+        <div className="mt-4">
+          <OperationalState
+            compact
+            kind="readonly"
+            title="Presets en lecture seule"
+            description="Vous pouvez consulter les modules proposés, mais seul un administrateur du panel peut prévisualiser et appliquer un preset."
+          />
+        </div>
+      )}
+      {previewMutation.isError && (
+        <div className="mt-4">
+          <ErrorCard
+            compact
+            title="Aperçu indisponible"
+            message="Le preset n’a pas été appliqué. Vérifiez votre connexion puis relancez la prévisualisation."
+          />
+        </div>
+      )}
       <div className="mt-4 grid gap-4 md:grid-cols-3">
         {response.presets.map((preset) => (
           <div key={preset.id} className="flex flex-col rounded-xl border border-zinc-800/90 bg-(--surface-2) p-4">
@@ -97,6 +116,15 @@ export function PresetPicker({ guildId, response, canWrite }: {
                 </li>
               ))}
             </ul>
+            {applyMutation.isError && (
+              <div className="mt-4">
+                <ErrorCard
+                  compact
+                  title="Preset non appliqué"
+                  message="Aucun succès n’a été annoncé et la prévisualisation reste ouverte. Corrigez les prérequis éventuels puis réessayez."
+                />
+              </div>
+            )}
             <div className="mt-5 flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setPreview(null)} disabled={applyMutation.isPending}>Annuler</Button>
               <Button

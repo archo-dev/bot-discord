@@ -12,7 +12,7 @@ import {
 } from "@bot/shared";
 import { api } from "../lib/api.js";
 import { useCanWrite } from "../lib/access.js";
-import { Badge, Button, Card, EmptyState, ErrorCard } from "../ui/kit.js";
+import { Badge, Button, Card, EmptyState, ErrorCard, OperationalState } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
 import { Modal } from "../ui/overlay.js";
 import { Skeleton } from "../ui/skeleton.js";
@@ -55,11 +55,11 @@ export function BackupPage() {
 
   const create = useMutation({
     mutationFn: () => api(`/api/guilds/${guildId}/config-snapshots`, { method: "POST", body: JSON.stringify({}) }),
+    meta: { silentError: true },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["config-snapshots", guildId] });
       toast.success("Sauvegarde créée.");
     },
-    onError: () => toast.error("Création de la sauvegarde impossible."),
   });
 
   async function exportSnapshot(id: string) {
@@ -82,6 +82,13 @@ export function BackupPage() {
 
   return (
     <div className="space-y-4">
+      {!canWrite && (
+        <OperationalState
+          kind="readonly"
+          title="Consultation en lecture seule"
+          description="Les sauvegardes existantes peuvent être comparées et exportées, mais aucune configuration ne peut être créée, importée ou restaurée."
+        />
+      )}
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="max-w-2xl">
@@ -97,6 +104,15 @@ export function BackupPage() {
           </div>
         </div>
       </Card>
+      {create.isError && (
+        <ErrorCard
+          compact
+          title="Sauvegarde non créée"
+          message="La configuration n’a pas été modifiée. Vérifiez votre connexion puis réessayez."
+          onRetry={() => create.mutate()}
+          retrying={create.isPending}
+        />
+      )}
 
       {snapshots.data.snapshots.length === 0 ? (
         <Card><EmptyState icon={<Icon.scroll />} title="Aucune sauvegarde" description="Créez une première sauvegarde pour pouvoir restaurer votre configuration plus tard." action={canWrite ? <Button size="sm" loading={create.isPending} onClick={() => create.mutate()}>Créer une sauvegarde</Button> : undefined} /></Card>
@@ -147,7 +163,7 @@ function DiffModal({ guildId, snapshotId, onClose }: { guildId: string; snapshot
   return (
     <Modal open onClose={onClose} title="Comparaison avec la configuration actuelle" size="2xl">
       {diff.isPending ? <Skeleton className="h-40 rounded-xl" /> : diff.isError ? (
-        <ErrorCard message="Impossible de calculer la comparaison." />
+        <ErrorCard message="Impossible de calculer la comparaison." onRetry={() => void diff.refetch()} retrying={diff.isFetching} />
       ) : total === 0 ? (
         <p className="text-sm text-zinc-400">La configuration actuelle est identique à cette sauvegarde.</p>
       ) : (
@@ -186,8 +202,8 @@ function RestoreModal({ guildId, snapshot, onClose, onDone }: {
 
   const restore = useMutation({
     mutationFn: () => api<RestoreResult>(`/api/guilds/${guildId}/config-snapshots/${snapshot.id}/restore`, { method: "POST", body: JSON.stringify({ modules: selected }) }),
+    meta: { silentError: true },
     onSuccess: () => { toast.success("Configuration restaurée."); onDone(); },
-    onError: () => toast.error("Restauration impossible."),
   });
 
   return (
@@ -204,6 +220,11 @@ function RestoreModal({ guildId, snapshot, onClose, onDone }: {
           </label>
         ))}
       </div>
+      {restore.isError && (
+        <div className="mt-4">
+          <ErrorCard compact title="Restauration non appliquée" message="La configuration actuelle est conservée. Vérifiez votre connexion puis réessayez." />
+        </div>
+      )}
       <div className="mt-5 flex justify-end gap-2">
         <Button variant="ghost" onClick={onClose} disabled={restore.isPending}>Annuler</Button>
         <Button disabled={selected.length === 0} loading={restore.isPending} onClick={() => restore.mutate()}>Restaurer</Button>

@@ -26,9 +26,10 @@ interface ChannelSelectProps {
   clearable?: boolean;
   invalid?: boolean;
   id?: string;
+  ariaLabel?: string;
 }
 
-export function ChannelSelect({ guildId, value, onChange, types = [0, 5], placeholder = "Choisir un salon…", clearable = true, invalid, id }: ChannelSelectProps) {
+export function ChannelSelect({ guildId, value, onChange, types = [0, 5], placeholder = "Choisir un salon…", clearable = true, invalid, id, ariaLabel }: ChannelSelectProps) {
   const channels = useQuery({
     queryKey: ["channels", guildId],
     queryFn: ({ signal }) => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`, { signal }),
@@ -46,16 +47,28 @@ export function ChannelSelect({ guildId, value, onChange, types = [0, 5], placeh
     [channels.data, types],
   );
   return (
-    <Combobox
-      id={id}
-      value={value}
-      onChange={onChange}
-      options={options}
-      placeholder={channels.isLoading ? "Chargement des salons…" : placeholder}
-      clearable={clearable}
-      invalid={invalid}
-      emptyText="Aucun salon."
-    />
+    <div>
+      <Combobox
+        id={id}
+        ariaLabel={ariaLabel}
+        value={value}
+        onChange={onChange}
+        options={options}
+        placeholder={channels.isLoading ? "Chargement des salons…" : channels.isError ? "Salons indisponibles" : placeholder}
+        clearable={clearable}
+        invalid={invalid || channels.isError}
+        disabled={channels.isError}
+        emptyText="Aucun salon."
+      />
+      {channels.isError && (
+        <p className="mt-1.5 text-xs leading-relaxed text-red-400" role="alert">
+          Impossible de charger les salons.{" "}
+          <button type="button" className="rounded font-semibold underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70" onClick={() => void channels.refetch()}>
+            Réessayer
+          </button>
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -69,9 +82,10 @@ interface RoleSelectProps {
   clearable?: boolean;
   invalid?: boolean;
   id?: string;
+  ariaLabel?: string;
 }
 
-export function RoleSelect({ guildId, value, onChange, excludeManaged = false, placeholder = "Choisir un rôle…", clearable = true, invalid, id }: RoleSelectProps) {
+export function RoleSelect({ guildId, value, onChange, excludeManaged = false, placeholder = "Choisir un rôle…", clearable = true, invalid, id, ariaLabel }: RoleSelectProps) {
   const roles = useQuery({
     queryKey: ["roles", guildId],
     queryFn: ({ signal }) => api<RoleOption[]>(`/api/guilds/${guildId}/roles`, { signal }),
@@ -89,16 +103,28 @@ export function RoleSelect({ guildId, value, onChange, excludeManaged = false, p
     [roles.data, excludeManaged],
   );
   return (
-    <Combobox
-      id={id}
-      value={value}
-      onChange={onChange}
-      options={options}
-      placeholder={roles.isLoading ? "Chargement des rôles…" : placeholder}
-      clearable={clearable}
-      invalid={invalid}
-      emptyText="Aucun rôle."
-    />
+    <div>
+      <Combobox
+        id={id}
+        ariaLabel={ariaLabel}
+        value={value}
+        onChange={onChange}
+        options={options}
+        placeholder={roles.isLoading ? "Chargement des rôles…" : roles.isError ? "Rôles indisponibles" : placeholder}
+        clearable={clearable}
+        invalid={invalid || roles.isError}
+        disabled={roles.isError}
+        emptyText="Aucun rôle."
+      />
+      {roles.isError && (
+        <p className="mt-1.5 text-xs leading-relaxed text-red-400" role="alert">
+          Impossible de charger les rôles.{" "}
+          <button type="button" className="rounded font-semibold underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70" onClick={() => void roles.refetch()}>
+            Réessayer
+          </button>
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -122,10 +148,11 @@ interface MemberComboboxProps {
   placeholder?: string;
   clearable?: boolean;
   id?: string;
+  ariaLabel?: string;
 }
 
 /** Recherche de membre (plan E4) — remplace la saisie brute d'un snowflake. */
-export function MemberCombobox({ guildId, value, onChange, placeholder = "Rechercher un membre…", clearable = true, id }: MemberComboboxProps) {
+export function MemberCombobox({ guildId, value, onChange, placeholder = "Rechercher un membre…", clearable = true, id, ariaLabel }: MemberComboboxProps) {
   const [query, setQuery] = useState("");
   const debounced = useDebounced(query.trim(), 250);
   const search = useQuery({
@@ -151,17 +178,30 @@ export function MemberCombobox({ guildId, value, onChange, placeholder = "Recher
     : null;
 
   return (
-    <Combobox
-      id={id}
-      value={value}
-      onChange={onChange}
-      options={options}
-      onSearch={setQuery}
-      loading={debounced.length > 0 && search.isFetching}
-      placeholder={placeholder}
-      clearable={clearable}
-      selectedOption={selectedOption}
-      emptyText="Aucun membre trouvé."
-    />
+    <div>
+      <Combobox
+        id={id}
+        ariaLabel={ariaLabel}
+        value={value}
+        onChange={onChange}
+        options={options}
+        onSearch={setQuery}
+        loading={debounced.length > 0 && search.isFetching}
+        placeholder={search.isError ? "Recherche indisponible" : placeholder}
+        clearable={clearable}
+        selectedOption={selectedOption}
+        invalid={search.isError}
+        disabled={search.isError}
+        emptyText="Aucun membre trouvé."
+      />
+      {search.isError && (
+        <p className="mt-1.5 text-xs leading-relaxed text-red-400" role="alert">
+          Impossible de rechercher les membres.{" "}
+          <button type="button" className="rounded font-semibold underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70" onClick={() => void search.refetch()}>
+            Réessayer
+          </button>
+        </p>
+      )}
+    </div>
   );
 }

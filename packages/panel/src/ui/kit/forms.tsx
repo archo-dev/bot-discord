@@ -77,12 +77,14 @@ export function Toggle({
   label,
   description,
   ariaLabel,
+  disabled = false,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   label?: ReactNode;
   description?: ReactNode;
   ariaLabel?: string;
+  disabled?: boolean;
 }) {
   const sw = (
     <button
@@ -90,14 +92,15 @@ export function Toggle({
       role="switch"
       aria-checked={checked}
       aria-label={ariaLabel ?? (typeof label === "string" ? label : "Activer ou désactiver cette option")}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 ${
+      className={`relative inline-flex h-8 w-12 shrink-0 items-center rounded-full border border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 disabled:cursor-not-allowed disabled:opacity-45 ${
         checked ? "bg-indigo-600" : "bg-zinc-700"
       }`}
     >
       <span
-        className={`inline-block h-[18px] w-[18px] transform rounded-full bg-white shadow-sm transition-transform ${
-          checked ? "translate-x-[22px]" : "translate-x-0.5"
+        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${
+          checked ? "translate-x-6" : "translate-x-1"
         }`}
       />
     </button>

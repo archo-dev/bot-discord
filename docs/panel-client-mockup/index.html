@@ -1,0 +1,1538 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src data:">
+  <title>Archodev — Maquette du panel client</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #090810;
+      --canvas: #0d0c15;
+      --sidebar: #100e18;
+      --surface: #16141f;
+      --surface-2: #1d1a28;
+      --surface-3: #262133;
+      --border: #292535;
+      --border-strong: #3a3448;
+      --text: #f5f3f8;
+      --secondary: #aaa4b3;
+      --muted: #777080;
+      --primary: #7657f6;
+      --primary-2: #9a86f9;
+      --primary-subtle: rgba(118, 87, 246, .16);
+      --green: #39d98a;
+      --blue: #4d8dff;
+      --amber: #f0b429;
+      --red: #f36b73;
+      --shadow: 0 18px 55px rgba(0, 0, 0, .26);
+      --sidebar-width: 252px;
+      --radius: 14px;
+      --focus: 0 0 0 3px rgba(154, 134, 249, .45);
+    }
+
+    * { box-sizing: border-box; }
+    html { min-width: 320px; background: var(--bg); }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at 75% -12%, rgba(118, 87, 246, .12), transparent 32rem),
+        linear-gradient(145deg, #100b19 0%, var(--bg) 54%, #07070d 100%);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      font-size: 14px;
+      font-feature-settings: "tnum" 1;
+      -webkit-font-smoothing: antialiased;
+    }
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      opacity: .025;
+      background-image: radial-gradient(rgba(255,255,255,.4) .5px, transparent .5px);
+      background-size: 4px 4px;
+    }
+    button, input, textarea, select { font: inherit; }
+    button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
+    button, a { color: inherit; }
+    button { cursor: pointer; }
+    :focus-visible { outline: none; box-shadow: var(--focus); }
+    .hidden { display: none !important; }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+    .icon {
+      display: inline-flex;
+      width: 18px;
+      height: 18px;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      font-size: 16px;
+      line-height: 1;
+    }
+    .btn {
+      min-height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      padding: 0 15px;
+      color: white;
+      font-weight: 680;
+      text-decoration: none;
+      transition: 160ms ease;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn-primary {
+      background: linear-gradient(180deg, #8669fa, #6747ec);
+      box-shadow: 0 7px 22px rgba(103, 71, 236, .22);
+    }
+    .btn-primary:hover { filter: brightness(1.08); }
+    .btn-secondary { border-color: var(--border-strong); background: var(--surface-2); color: var(--text); }
+    .btn-secondary:hover { background: var(--surface-3); }
+    .btn-ghost { border-color: var(--border); background: transparent; color: var(--secondary); }
+    .btn-danger { border-color: rgba(243,107,115,.36); background: rgba(243,107,115,.12); color: #ffb1b6; }
+    .btn-sm { min-height: 32px; padding-inline: 11px; font-size: 12px; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 24px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      color: var(--secondary);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .badge-demo { color: #c9bdfc; background: var(--primary-subtle); }
+    .badge-success { color: var(--green); background: rgba(57,217,138,.1); }
+    .badge-warning { color: var(--amber); background: rgba(240,180,41,.1); }
+    .badge-danger { color: var(--red); background: rgba(243,107,115,.1); }
+    .wordmark { display: inline-flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 760; }
+    .logo {
+      display: inline-grid;
+      width: 32px; height: 32px;
+      place-items: center;
+      border-radius: 10px;
+      background: linear-gradient(140deg, #7252f3, #a887ff);
+      box-shadow: inset 0 1px rgba(255,255,255,.25), 0 5px 16px rgba(114,82,243,.22);
+      color: white;
+      font-size: 15px;
+    }
+    .demo-note {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .demo-note::before { content: "◇"; color: var(--primary-2); }
+
+    /* Landing */
+    #landingView { min-height: 100vh; }
+    .public-header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      background: rgba(9,8,16,.82);
+      backdrop-filter: blur(18px);
+    }
+    .public-header-inner {
+      max-width: 1240px;
+      min-height: 62px;
+      margin: auto;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+    .public-nav { display: flex; align-items: center; gap: 5px; }
+    .public-nav a {
+      padding: 9px 12px;
+      border-radius: 9px;
+      color: var(--secondary);
+      text-decoration: none;
+      font-size: 13px;
+    }
+    .public-nav a:hover { color: var(--text); background: rgba(255,255,255,.04); }
+    .landing-main { max-width: 1240px; margin: auto; padding: 42px 24px 34px; }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, .88fr) minmax(520px, 1.12fr);
+      gap: 48px;
+      align-items: center;
+      min-height: 470px;
+    }
+    .eyebrow {
+      color: #baaafc;
+      text-transform: uppercase;
+      letter-spacing: .17em;
+      font-size: 11px;
+      font-weight: 760;
+    }
+    .hero-copy h1 {
+      max-width: 650px;
+      margin: 14px 0 16px;
+      font-size: clamp(42px, 5vw, 66px);
+      line-height: .99;
+      letter-spacing: -.045em;
+    }
+    .hero-copy p { max-width: 600px; margin: 0; color: var(--secondary); font-size: 17px; line-height: 1.65; }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 25px; }
+    .hero-meta { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 18px; color: var(--muted); font-size: 12px; }
+    .hero-meta span { display: inline-flex; gap: 6px; align-items: center; }
+    .hero-meta span::before { content: "✓"; color: var(--green); }
+    .panel-preview {
+      position: relative;
+      padding: 12px;
+      border: 1px solid rgba(154,134,249,.22);
+      border-radius: 22px;
+      background: linear-gradient(145deg, rgba(38,33,51,.84), rgba(13,12,21,.94));
+      box-shadow: 0 32px 90px rgba(0,0,0,.38), 0 0 60px rgba(118,87,246,.08);
+    }
+    .panel-preview::before {
+      content: "";
+      position: absolute;
+      inset: -24px;
+      z-index: -1;
+      background: radial-gradient(circle, rgba(118,87,246,.15), transparent 68%);
+      filter: blur(18px);
+    }
+    .preview-window {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #0c0b12;
+    }
+    .preview-top { height: 34px; display: flex; align-items: center; gap: 5px; padding: 0 12px; border-bottom: 1px solid var(--border); }
+    .preview-top i { width: 6px; height: 6px; border-radius: 50%; background: var(--border-strong); }
+    .preview-layout { display: grid; grid-template-columns: 122px 1fr; min-height: 336px; }
+    .preview-side { padding: 14px 10px; border-right: 1px solid var(--border); background: #100e18; }
+    .preview-brand { height: 38px; border-radius: 9px; background: var(--primary-subtle); margin-bottom: 16px; }
+    .preview-link { height: 7px; margin: 10px 5px; border-radius: 5px; background: #373242; }
+    .preview-link.active { width: 72%; height: 22px; margin-inline: 0; background: rgba(118,87,246,.28); }
+    .preview-content { padding: 14px; min-width: 0; }
+    .preview-title { width: 100px; height: 11px; border-radius: 4px; background: #d7d1df; }
+    .preview-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 14px; }
+    .preview-kpi { height: 48px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+    .preview-charts { display: grid; grid-template-columns: 1.6fr .9fr; gap: 8px; margin-top: 8px; }
+    .preview-chart, .preview-list { height: 122px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); position: relative; overflow: hidden; }
+    .preview-chart svg { position: absolute; inset: 22px 8px 8px; width: calc(100% - 16px); height: calc(100% - 30px); }
+    .preview-bottom { display: grid; grid-template-columns: .85fr 1.15fr; gap: 8px; margin-top: 8px; }
+    .preview-bottom > div { height: 74px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+    .preview-list::after {
+      content: "";
+      position: absolute;
+      inset: 26px 14px 14px;
+      background: repeating-linear-gradient(to bottom, #363141 0 5px, transparent 5px 21px);
+      opacity: .7;
+    }
+    .landing-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 28px;
+    }
+    .benefit {
+      display: grid;
+      grid-template-columns: 38px 1fr;
+      gap: 12px;
+      align-items: start;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(22,20,31,.72);
+    }
+    .benefit .benefit-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; background: var(--primary-subtle); color: #c7bafb; }
+    .benefit h2 { margin: 1px 0 4px; font-size: 14px; }
+    .benefit p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .landing-footer-row {
+      display: grid;
+      grid-template-columns: .9fr 1.6fr;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .proof, .pricing-compact {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(22,20,31,.72);
+      padding: 15px 17px;
+    }
+    .proof { display: flex; flex-direction: column; justify-content: center; }
+    .proof strong { font-size: 14px; }
+    .proof p { color: var(--muted); margin: 5px 0 0; font-size: 12px; line-height: 1.5; }
+    .pricing-compact { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 10px; }
+    .price { padding: 10px 12px; border-radius: 10px; }
+    .price.featured { background: var(--primary-subtle); }
+    .price b { display: block; font-size: 13px; }
+    .price span { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
+
+    /* Connected shell */
+    #panelView { min-height: 100vh; }
+    .app-shell { display: flex; min-height: 100vh; }
+    .sidebar {
+      position: fixed;
+      inset: 0 auto 0 0;
+      z-index: 31;
+      width: var(--sidebar-width);
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      background: rgba(16,14,24,.97);
+      transition: transform 200ms ease, width 200ms ease;
+    }
+    .server-card {
+      margin: 12px 10px 8px;
+      min-height: 62px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: linear-gradient(145deg, rgba(118,87,246,.18), rgba(29,26,40,.78));
+    }
+    .server-icon { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 auto; border-radius: 11px; background: #282047; color: #c6b9fb; font-size: 11px; font-weight: 800; }
+    .server-info { min-width: 0; flex: 1; }
+    .server-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 720; font-size: 13px; }
+    .server-count { margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .server-count::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: var(--green); }
+    .nav-scroll { flex: 1; overflow-y: auto; padding: 2px 9px 12px; }
+    .nav-group { margin-top: 2px; }
+    .nav-group-toggle {
+      width: 100%;
+      min-height: 25px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border: 0;
+      border-radius: 8px;
+      padding: 0 8px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 760;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .nav-group-toggle:hover { color: var(--secondary); background: rgba(255,255,255,.03); }
+    .nav-group-toggle .chev { font-size: 12px; transition: transform 160ms ease; }
+    .nav-group.closed .chev { transform: rotate(-90deg); }
+    .nav-group-items { display: grid; grid-template-rows: 1fr; transition: 160ms ease; }
+    .nav-group.closed .nav-group-items { grid-template-rows: 0fr; opacity: 0; }
+    .nav-group-items-inner { min-height: 0; overflow: hidden; }
+    .nav-item {
+      position: relative;
+      width: 100%;
+      min-height: 29px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: 0;
+      border-radius: 9px;
+      padding: 0 10px;
+      background: transparent;
+      color: #948d9e;
+      text-align: left;
+      font-size: 12px;
+      transition: 130ms ease;
+    }
+    .nav-item:hover { color: var(--text); background: rgba(255,255,255,.04); }
+    .nav-item.active { color: white; background: var(--primary-subtle); font-weight: 700; }
+    .nav-item.active::before { content: ""; position: absolute; left: 0; width: 3px; height: 18px; border-radius: 0 3px 3px 0; background: var(--primary-2); }
+    .nav-item .icon { color: #716a7d; }
+    .nav-item.active .icon { color: #a994fb; }
+    .sidebar-footer {
+      margin: 8px 10px 12px;
+      min-height: 54px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 9px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+    }
+    .avatar { display: grid; place-items: center; width: 31px; height: 31px; flex: 0 0 auto; border-radius: 50%; background: linear-gradient(135deg,#6045d7,#ab88ff); font-size: 10px; font-weight: 800; }
+    .user-meta { min-width: 0; flex: 1; }
+    .user-meta b, .user-meta span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .user-meta b { font-size: 12px; }
+    .user-meta span { margin-top: 2px; color: var(--muted); font-size: 10px; }
+    .app-main { min-width: 0; flex: 1; margin-left: var(--sidebar-width); transition: margin 200ms ease; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 18;
+      height: 62px;
+      display: grid;
+      grid-template-columns: minmax(180px,.7fr) minmax(300px,1.2fr) minmax(170px,.6fr);
+      align-items: center;
+      gap: 20px;
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      background: rgba(9,8,16,.86);
+      backdrop-filter: blur(16px);
+    }
+    .page-context { min-width: 0; }
+    .page-context h1 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 18px; letter-spacing: -.015em; }
+    .page-context p { margin: 2px 0 0; color: var(--muted); font-size: 11px; }
+    .search-trigger {
+      width: 100%;
+      min-height: 37px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      border: 1px solid var(--border-strong);
+      border-radius: 10px;
+      padding: 0 11px;
+      background: rgba(29,26,40,.84);
+      color: var(--muted);
+      text-align: left;
+    }
+    .search-trigger:hover { border-color: #55496f; color: var(--secondary); }
+    .search-trigger span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .shortcut { margin-left: auto; display: inline-flex; gap: 3px; }
+    kbd { min-width: 22px; height: 21px; display: inline-grid; place-items: center; border: 1px solid var(--border-strong); border-bottom-color: #4d4658; border-radius: 5px; background: #15131c; color: var(--secondary); font-family: inherit; font-size: 10px; }
+    .top-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+    .mobile-menu { display: none; width: 38px; height: 38px; border: 0; border-radius: 9px; background: transparent; color: var(--secondary); font-size: 20px; }
+    .content { width: 100%; max-width: 1560px; margin: auto; padding: 18px 24px 30px; }
+    .page-view { animation: fade 150ms ease; }
+    @keyframes fade { from { opacity: .45; } to { opacity: 1; } }
+    .page-banner { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
+    .page-banner p { margin: 0; color: var(--secondary); font-size: 12px; }
+    .card {
+      min-width: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: linear-gradient(145deg, rgba(25,23,35,.98), rgba(20,18,28,.98));
+      box-shadow: inset 0 1px rgba(255,255,255,.025), 0 8px 30px rgba(0,0,0,.09);
+    }
+    .card-pad { padding: 15px; }
+    .card-head { min-height: 38px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 14px 15px 0; }
+    .card-title { margin: 0; color: var(--text); font-size: 13px; font-weight: 760; }
+    .card-desc { margin: 3px 0 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
+    .card-body { padding: 11px 15px 15px; }
+
+    /* Dashboard */
+    .kpi-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 11px; }
+    .kpi { min-height: 88px; display: flex; align-items: center; gap: 12px; padding: 14px; }
+    .kpi-icon { display: grid; place-items: center; width: 41px; height: 41px; flex: 0 0 auto; border-radius: 13px; color: white; box-shadow: inset 0 1px rgba(255,255,255,.22); }
+    .kpi-icon.violet { background: linear-gradient(145deg,#7b50f5,#5739cf); }
+    .kpi-icon.green { background: linear-gradient(145deg,#35d58a,#189657); }
+    .kpi-icon.blue { background: linear-gradient(145deg,#4c91ff,#2860d7); }
+    .kpi-icon.red { background: linear-gradient(145deg,#f26c76,#bd3848); }
+    .kpi-value { font-size: 23px; line-height: 1; font-weight: 800; letter-spacing: -.025em; }
+    .kpi-label { margin-top: 5px; color: var(--secondary); font-size: 11px; }
+    .kpi-delta { margin-top: 3px; color: var(--green); font-size: 9px; }
+    .dashboard-analytics {
+      display: grid;
+      grid-template-columns: minmax(0, 2.1fr) minmax(220px, .95fr) minmax(260px, 1.05fr);
+      gap: 11px;
+      margin-top: 11px;
+      align-items: stretch;
+    }
+    .periods { display: flex; gap: 4px; }
+    .period-btn {
+      min-width: 35px;
+      height: 27px;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .period-btn:hover { color: var(--text); background: var(--surface-2); }
+    .period-btn.active { color: white; background: var(--primary-subtle); }
+    .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 2px 0 7px; color: var(--muted); font-size: 9px; }
+    .legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .legend i { width: 7px; height: 7px; border-radius: 50%; }
+    .chart-wrap { position: relative; min-height: 196px; }
+    .activity-svg { display: block; width: 100%; height: 196px; overflow: visible; }
+    .gridline { stroke: #292535; stroke-width: 1; stroke-dasharray: 3 5; }
+    .axis-text { fill: #6f6878; font-size: 9px; }
+    .area-violet { fill: url(#areaViolet); }
+    .area-green { fill: url(#areaGreen); }
+    .line-violet, .line-green { fill: none; stroke-width: 2.2; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; }
+    .line-violet { stroke: #8b6afa; }
+    .line-green { stroke: #39d98a; }
+    .chart-point { cursor: crosshair; fill: transparent; stroke-width: 10; }
+    .chart-tooltip {
+      position: absolute;
+      z-index: 5;
+      min-width: 125px;
+      pointer-events: none;
+      transform: translate(-50%,-112%);
+      border: 1px solid var(--border-strong);
+      border-radius: 9px;
+      padding: 8px 9px;
+      background: #211e2a;
+      box-shadow: var(--shadow);
+      font-size: 10px;
+    }
+    .chart-tooltip b { display: block; margin-bottom: 4px; font-size: 10px; }
+    .chart-tooltip span { display: flex; justify-content: space-between; gap: 15px; color: var(--secondary); line-height: 1.6; }
+    .event-bars { display: flex; flex-direction: column; justify-content: center; gap: 12px; min-height: 205px; }
+    .event-row { display: grid; grid-template-columns: 72px minmax(0,1fr) 24px; align-items: center; gap: 8px; font-size: 10px; }
+    .event-row > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--secondary); }
+    .event-track { height: 7px; border-radius: 99px; background: #282431; overflow: hidden; }
+    .event-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg,#7354f4,#9a86f9); transform-origin: left; animation: grow 500ms ease; }
+    @keyframes grow { from { transform: scaleX(0); } }
+    .event-value { color: var(--text); text-align: right; font-weight: 760; }
+    .donut-layout { min-height: 205px; display: grid; grid-template-columns: minmax(110px, .9fr) minmax(110px, 1.1fr); align-items: center; gap: 8px; }
+    .donut {
+      position: relative;
+      width: min(142px,100%);
+      aspect-ratio: 1;
+      margin: auto;
+      border-radius: 50%;
+      background: conic-gradient(var(--green) 0 30%, var(--amber) 30% 41%, var(--red) 41% 49%, #535a72 49% 100%);
+      box-shadow: inset 0 0 18px rgba(0,0,0,.2);
+      animation: donut-in 500ms ease;
+    }
+    @keyframes donut-in { from { transform: rotate(-20deg) scale(.88); opacity: .2; } }
+    .donut::after { content: ""; position: absolute; inset: 19%; border-radius: 50%; background: #17151f; box-shadow: 0 0 0 3px #17151f; }
+    .donut-total { position: absolute; inset: 0; z-index: 1; display: grid; place-content: center; text-align: center; }
+    .donut-total strong { font-size: 21px; letter-spacing: -.03em; }
+    .donut-total span { margin-top: 2px; color: var(--muted); font-size: 9px; }
+    .donut-legend { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+    .donut-legend li { display: grid; grid-template-columns: 8px minmax(0,1fr) auto; align-items: center; gap: 7px; font-size: 9px; }
+    .donut-legend i { width: 7px; height: 7px; border-radius: 50%; }
+    .donut-legend span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--secondary); }
+    .donut-legend b { color: var(--text); font-size: 9px; }
+    .dashboard-bottom { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 11px; margin-top: 11px; }
+    .compact-card { min-height: 180px; }
+    .health-score { display: flex; align-items: center; gap: 12px; }
+    .health-ring { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: radial-gradient(circle at center,#18161f 56%,transparent 58%), conic-gradient(var(--green) 0 94%,#34303f 94%); color: var(--text); font-size: 13px; font-weight: 800; }
+    .health-copy b { display: block; color: var(--green); font-size: 12px; }
+    .health-copy span { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; }
+    .mini-list { display: grid; gap: 7px; margin: 12px 0 0; padding: 0; list-style: none; }
+    .mini-list li { min-width: 0; display: flex; align-items: center; gap: 7px; padding-top: 7px; border-top: 1px solid rgba(255,255,255,.05); font-size: 10px; }
+    .mini-list li:first-child { border-top: 0; padding-top: 0; }
+    .mini-list .dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--primary-2); }
+    .mini-list .grow { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--secondary); }
+    .mini-list time, .mini-list em { flex: 0 0 auto; color: var(--muted); font-size: 9px; font-style: normal; }
+    .quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+    .quick-action {
+      min-height: 51px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 5px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 7px 9px;
+      background: #14121b;
+      color: var(--secondary);
+      text-align: left;
+      font-size: 9px;
+    }
+    .quick-action:hover { color: var(--text); border-color: #55496f; background: var(--primary-subtle); }
+    .quick-action .icon { color: #a48efa; font-size: 13px; }
+
+    /* Role workspace */
+    .roles-grid { display: grid; grid-template-columns: minmax(330px,1.18fr) minmax(300px,1fr) minmax(255px,.78fr); gap: 12px; align-items: start; }
+    .role-column { display: grid; gap: 12px; min-width: 0; }
+    .field { display: grid; gap: 6px; margin-bottom: 12px; }
+    .field:last-child { margin-bottom: 0; }
+    .field label { color: var(--secondary); font-size: 10px; font-weight: 720; }
+    .input, .select, .textarea {
+      width: 100%;
+      min-height: 38px;
+      border: 1px solid var(--border-strong);
+      border-radius: 9px;
+      padding: 0 11px;
+      background: #14121b;
+      color: var(--text);
+      outline: 0;
+      font-size: 12px;
+    }
+    .textarea { min-height: 74px; resize: vertical; padding-block: 9px; line-height: 1.45; }
+    .input:focus, .select:focus, .textarea:focus { border-color: var(--primary-2); box-shadow: var(--focus); }
+    .role-builder { display: grid; gap: 8px; }
+    .role-row { display: grid; grid-template-columns: 12px minmax(0,1fr) 70px 36px; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 9px; background: #14121b; }
+    .role-color { width: 11px; height: 11px; border-radius: 50%; }
+    .role-row input[type="color"] { width: 30px; height: 26px; border: 0; padding: 0; background: transparent; cursor: pointer; }
+    .role-row .input { min-height: 32px; padding-inline: 8px; }
+    .discord-preview {
+      overflow: hidden;
+      border: 1px solid #303442;
+      border-radius: 12px;
+      background: #313338;
+      box-shadow: 0 16px 36px rgba(0,0,0,.2);
+    }
+    .discord-channel { height: 42px; display: flex; align-items: center; gap: 8px; padding: 0 13px; border-bottom: 1px solid rgba(0,0,0,.2); color: #f2f3f5; font-size: 12px; font-weight: 700; }
+    .discord-message { display: grid; grid-template-columns: 38px 1fr; gap: 10px; padding: 16px 13px 20px; }
+    .discord-avatar { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg,#684ee9,#a288ff); font-size: 10px; font-weight: 800; }
+    .discord-author { color: #f2f3f5; font-size: 12px; font-weight: 720; }
+    .bot-tag { margin-left: 5px; padding: 1px 4px; border-radius: 3px; background: #5865f2; color: white; font-size: 8px; }
+    .discord-time { margin-left: 5px; color: #949ba4; font-size: 8px; font-weight: 400; }
+    .discord-embed { margin-top: 7px; border-left: 4px solid var(--role-accent,#7657f6); border-radius: 4px; padding: 10px 11px; background: #2b2d31; }
+    .discord-embed h3 { margin: 0 0 6px; color: #f2f3f5; font-size: 13px; }
+    .discord-embed p { margin: 0; color: #dbdee1; font-size: 11px; line-height: 1.45; white-space: pre-wrap; }
+    .discord-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .discord-button { min-height: 30px; border: 0; border-radius: 4px; padding: 0 11px; background: #4e5058; color: white; font-size: 10px; font-weight: 600; }
+    .discord-button:first-child { background: var(--role-accent,#5865f2); }
+    .ephemeral-preview { display: flex; gap: 7px; margin-top: 9px; border-radius: 5px; padding: 8px; background: rgba(88,101,242,.08); color: #b5bac1; font-size: 9px; }
+    .context-list { display: grid; gap: 9px; margin: 0; }
+    .context-row { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 10px; padding-bottom: 9px; border-bottom: 1px solid rgba(255,255,255,.06); }
+    .context-row:last-child { border-bottom: 0; padding-bottom: 0; }
+    .context-row dt { color: var(--muted); font-size: 10px; }
+    .context-row dd { margin: 0; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: 10px; font-weight: 700; text-align: right; }
+    .advice-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .advice-list li { display: flex; gap: 8px; color: var(--secondary); font-size: 10px; line-height: 1.45; }
+    .advice-list li::before { content: "✓"; color: var(--green); font-weight: 800; }
+    .context-actions { display: grid; gap: 8px; }
+    .savebar {
+      position: sticky;
+      bottom: 12px;
+      z-index: 12;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 12px;
+      border: 1px solid #574b70;
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: rgba(29,26,40,.96);
+      box-shadow: var(--shadow);
+      animation: slide-up 180ms ease;
+    }
+    @keyframes slide-up { from { transform: translateY(12px); opacity: 0; } }
+    .savebar strong { font-size: 11px; }
+    .savebar .save-actions { margin-left: auto; display: flex; gap: 7px; }
+    .toast-stack { position: fixed; z-index: 60; right: 18px; bottom: 18px; width: min(350px,calc(100vw - 32px)); display: grid; gap: 8px; pointer-events: none; }
+    .toast {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      border: 1px solid var(--border-strong);
+      border-radius: 11px;
+      padding: 11px 12px;
+      background: #211e2a;
+      box-shadow: var(--shadow);
+      color: var(--text);
+      font-size: 11px;
+      animation: toast-in 180ms ease;
+    }
+    @keyframes toast-in { from { transform: translateY(8px); opacity: 0; } }
+    .toast.success::before { content: "✓"; color: var(--green); }
+    .toast.error::before { content: "!"; color: var(--red); font-weight: 900; }
+    .drawer-backdrop { position: fixed; inset: 0; z-index: 30; background: rgba(5,4,9,.72); backdrop-filter: blur(2px); }
+
+    /* Search dialog */
+    .search-overlay { position: fixed; inset: 0; z-index: 50; display: grid; align-items: start; justify-items: center; padding: 9vh 18px 18px; background: rgba(5,4,9,.76); backdrop-filter: blur(5px); }
+    .search-dialog {
+      width: min(690px,100%);
+      overflow: hidden;
+      border: 1px solid #443b55;
+      border-radius: 17px;
+      background: #15131c;
+      box-shadow: 0 36px 110px rgba(0,0,0,.55);
+    }
+    .search-input-row { display: grid; grid-template-columns: 24px minmax(0,1fr) auto; align-items: center; gap: 8px; min-height: 58px; padding: 0 15px; border-bottom: 1px solid var(--border); }
+    .search-input-row input { width: 100%; border: 0; background: transparent; color: var(--text); outline: 0; font-size: 15px; }
+    .search-input-row input::placeholder { color: var(--muted); }
+    .search-results { max-height: 480px; overflow-y: auto; padding: 8px; }
+    .result-group-title { padding: 9px 9px 5px; color: var(--muted); text-transform: uppercase; letter-spacing: .13em; font-size: 9px; font-weight: 800; }
+    .result {
+      width: 100%;
+      min-height: 47px;
+      display: grid;
+      grid-template-columns: 32px minmax(0,1fr) auto;
+      align-items: center;
+      gap: 10px;
+      border: 0;
+      border-radius: 9px;
+      padding: 6px 9px;
+      background: transparent;
+      color: var(--text);
+      text-align: left;
+    }
+    .result:hover, .result.active { background: var(--primary-subtle); }
+    .result-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--surface-2); color: #a994fb; }
+    .result b, .result span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .result b { font-size: 12px; }
+    .result small { display: block; margin-top: 2px; color: var(--muted); font-size: 9px; }
+    .result-type { color: var(--muted); font-size: 9px; }
+    .search-empty { padding: 30px; color: var(--muted); text-align: center; font-size: 12px; }
+    .search-footer { display: flex; flex-wrap: wrap; gap: 14px; border-top: 1px solid var(--border); padding: 9px 14px; color: var(--muted); font-size: 9px; }
+    .search-footer span { display: inline-flex; align-items: center; gap: 5px; }
+
+    /* Placeholder and chart focus */
+    .placeholder-page { min-height: 460px; display: grid; place-items: center; text-align: center; padding: 30px; }
+    .placeholder-page .placeholder-icon { margin: auto; display: grid; place-items: center; width: 50px; height: 50px; border-radius: 15px; background: var(--primary-subtle); color: #b7a7fb; font-size: 21px; }
+    .placeholder-page h2 { margin: 15px 0 6px; font-size: 17px; }
+    .placeholder-page p { max-width: 460px; margin: 0; color: var(--secondary); line-height: 1.6; }
+    .chart-focus .kpi-grid, .chart-focus .dashboard-bottom, .chart-focus .page-banner { display: none; }
+    .chart-focus .dashboard-analytics { grid-template-columns: 1.8fr 1fr 1.1fr; margin-top: 0; }
+    .chart-focus .chart-wrap, .chart-focus .event-bars, .chart-focus .donut-layout { min-height: 430px; }
+    .chart-focus .activity-svg { height: 410px; }
+    .chart-focus .donut { width: min(210px,100%); }
+    .chart-focus .donut-total strong { font-size: 28px; }
+    .chart-focus .event-row { grid-template-columns: 100px minmax(0,1fr) 32px; font-size: 12px; }
+    .chart-focus .donut-legend li, .chart-focus .donut-legend b { font-size: 11px; }
+
+    /* Responsive */
+    @media (max-width: 1100px) and (min-width: 641px) {
+      :root { --sidebar-width: 72px; }
+      .server-card { min-height: 52px; justify-content: center; padding: 8px; }
+      .server-info, .server-card > .icon, .sidebar-footer .user-meta, .sidebar-footer > .icon,
+      .nav-group-toggle span:first-child, .nav-group-toggle .chev, .nav-item .nav-label { display: none; }
+      .nav-group-toggle { min-height: 12px; pointer-events: none; }
+      .nav-group { margin-top: 3px; }
+      .nav-item { min-height: 42px; justify-content: center; padding: 0; }
+      .nav-item .icon { width: 25px; height: 25px; font-size: 17px; }
+      .nav-item::after {
+        content: attr(data-label);
+        position: absolute;
+        left: 58px;
+        z-index: 34;
+        pointer-events: none;
+        opacity: 0;
+        transform: translateX(-4px);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 6px 8px;
+        background: #211e2a;
+        color: var(--text);
+        white-space: nowrap;
+        box-shadow: var(--shadow);
+        transition: 120ms ease;
+      }
+      .nav-item:hover::after, .nav-item:focus-visible::after { opacity: 1; transform: none; }
+      .sidebar-footer { justify-content: center; padding: 7px; }
+      .topbar { grid-template-columns: minmax(160px,.8fr) minmax(260px,1.2fr) auto; padding-inline: 18px; gap: 12px; }
+      .content { padding-inline: 18px; }
+      .kpi-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      .dashboard-analytics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      .activity-card { grid-column: 1/-1; }
+      .dashboard-bottom { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      .roles-grid { grid-template-columns: minmax(0,1.08fr) minmax(0,.92fr); }
+      .roles-context { grid-column: 1/-1; grid-template-columns: 1fr 1fr; }
+      .roles-context .card:last-child { grid-column: 2; grid-row: 1; }
+      .chart-focus .dashboard-analytics { grid-template-columns: 1fr 1fr; }
+      .chart-focus .activity-card { grid-column: 1/-1; }
+      .chart-focus .chart-wrap { min-height: 300px; }
+      .chart-focus .activity-svg { height: 285px; }
+    }
+    @media (max-width: 850px) {
+      .hero-grid { grid-template-columns: 1fr; gap: 30px; }
+      .hero-copy { text-align: center; }
+      .hero-copy p, .hero-copy h1 { margin-inline: auto; }
+      .hero-actions, .hero-meta { justify-content: center; }
+      .landing-strip, .landing-footer-row { grid-template-columns: 1fr; }
+      .pricing-compact { grid-template-columns: repeat(3,1fr); }
+      .topbar { grid-template-columns: minmax(150px,1fr) minmax(250px,1.4fr) auto; }
+      .top-actions .badge { display: none; }
+    }
+    @media (max-width: 640px) {
+      :root { --sidebar-width: 252px; }
+      .public-header-inner { min-height: 58px; padding-inline: 16px; }
+      .public-nav { display: none; }
+      .public-header .btn { min-height: 34px; padding-inline: 11px; font-size: 11px; }
+      .landing-main { padding: 30px 16px; }
+      .hero-grid { min-height: auto; }
+      .hero-copy h1 { font-size: 42px; }
+      .hero-copy p { font-size: 15px; }
+      .hero-actions { display: grid; grid-template-columns: 1fr; }
+      .hero-actions .btn { width: 100%; }
+      .panel-preview { padding: 7px; }
+      .preview-layout { grid-template-columns: 66px 1fr; min-height: 250px; }
+      .preview-side { padding-inline: 6px; }
+      .preview-content { padding: 9px; }
+      .preview-kpis { grid-template-columns: repeat(2,1fr); }
+      .preview-kpi { height: 32px; }
+      .preview-charts { grid-template-columns: 1fr; }
+      .preview-chart { height: 82px; }
+      .preview-list, .preview-bottom { display: none; }
+      .landing-strip { margin-top: 18px; }
+      .pricing-compact { grid-template-columns: 1fr; }
+      .sidebar { transform: translateX(-100%); box-shadow: var(--shadow); }
+      .sidebar.drawer-open { transform: translateX(0); }
+      .app-main { margin-left: 0; }
+      .topbar {
+        height: 58px;
+        grid-template-columns: 38px minmax(0,1fr) 40px;
+        gap: 7px;
+        padding: 0 12px;
+      }
+      .mobile-menu { display: grid; place-items: center; }
+      .page-context p { display: none; }
+      .page-context h1 { font-size: 16px; }
+      .search-trigger { width: 38px; min-height: 38px; padding: 0; justify-content: center; }
+      .search-trigger span:nth-child(2), .search-trigger .shortcut { display: none; }
+      .top-actions { justify-content: center; }
+      .top-actions .btn { width: 38px; min-height: 38px; padding: 0; font-size: 0; }
+      .top-actions .btn::before { content: "⌕"; font-size: 18px; }
+      .content { padding: 14px 12px 90px; }
+      .page-banner { align-items: flex-start; flex-wrap: wrap; }
+      .page-banner > * { min-width: 0; }
+      .page-banner .demo-note { max-width: 120px; text-align: right; }
+      .kpi-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+      .kpi { min-height: 78px; gap: 9px; padding: 10px; }
+      .kpi-icon { width: 34px; height: 34px; border-radius: 10px; }
+      .kpi-value { font-size: 18px; }
+      .dashboard-analytics, .dashboard-bottom, .roles-grid, .chart-focus .dashboard-analytics { grid-template-columns: minmax(0,1fr); gap: 9px; }
+      .dashboard-analytics, .dashboard-bottom { margin-top: 9px; }
+      .activity-card { grid-column: auto; }
+      .chart-wrap { min-height: 174px; }
+      .activity-svg { height: 174px; }
+      .donut-layout { grid-template-columns: 135px minmax(0,1fr); min-height: 174px; }
+      .donut { width: 125px; }
+      .compact-card { min-height: auto; }
+      .card-head { padding: 13px 13px 0; }
+      .card-body { padding: 10px 13px 13px; }
+      .roles-grid, .role-column, .roles-grid .card, .discord-preview, .discord-message, .discord-message > div { min-width: 0; max-width: 100%; }
+      .roles-context { grid-template-columns: 1fr; grid-column: auto; }
+      .roles-context .card:last-child { grid-column: auto; grid-row: auto; }
+      .roles-grid .card-head { flex-wrap: wrap; }
+      .role-row { grid-template-columns: 11px minmax(0,1fr) 58px; }
+      .role-row input[type="color"] { display: none; }
+      .discord-message { grid-template-columns: 32px minmax(0,1fr); gap: 8px; padding-inline: 10px; }
+      .discord-avatar { width: 32px; height: 32px; }
+      .discord-author { overflow-wrap: anywhere; }
+      .discord-time { display: block; margin: 2px 0 0; }
+      .context-actions .btn, .savebar .btn { width: 100%; }
+      .savebar { position: fixed; left: 12px; right: 12px; bottom: 12px; flex-wrap: wrap; }
+      .savebar .save-actions { width: 100%; margin-left: 0; }
+      .savebar .save-actions .btn { flex: 1; }
+      .search-overlay { padding: 10px; align-items: start; }
+      .search-dialog { margin-top: 7vh; }
+      .search-results { max-height: 62vh; }
+      .chart-focus .chart-wrap, .chart-focus .event-bars, .chart-focus .donut-layout { min-height: 250px; }
+      .chart-focus .activity-svg { height: 235px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <section id="landingView">
+    <header class="public-header">
+      <div class="public-header-inner">
+        <div class="wordmark"><span class="logo">A</span>Archodev</div>
+        <nav class="public-nav" aria-label="Navigation publique">
+          <a href="#panel-overview">Le panel</a>
+          <a href="#benefits">Bénéfices</a>
+          <a href="#plans">Tarifs</a>
+        </nav>
+        <button class="btn btn-secondary btn-sm" data-action="login">Se connecter</button>
+      </div>
+    </header>
+    <main class="landing-main">
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <div class="eyebrow">Panel Discord tout-en-un</div>
+          <h1>Pilotez votre serveur Discord sans friction</h1>
+          <p>Modération, communauté, automatisations et santé du serveur réunies dans une interface claire, rapide et immédiatement compréhensible.</p>
+          <div class="hero-actions">
+            <button class="btn btn-primary" data-action="login">Se connecter avec Discord</button>
+            <button class="btn btn-secondary" data-action="demo">Voir la démo <span aria-hidden>→</span></button>
+          </div>
+          <div class="hero-meta">
+            <span>Configuration guidée</span>
+            <span>Responsive par défaut</span>
+            <span>Actions centralisées</span>
+          </div>
+          <p class="demo-note" style="margin-top:17px">Données de démonstration</p>
+        </div>
+        <div class="panel-preview" id="panel-overview" aria-label="Aperçu fictif du panel Archodev">
+          <div class="preview-window">
+            <div class="preview-top"><i></i><i></i><i></i></div>
+            <div class="preview-layout">
+              <div class="preview-side">
+                <div class="preview-brand"></div>
+                <div class="preview-link active"></div>
+                <div class="preview-link"></div><div class="preview-link"></div><div class="preview-link"></div><div class="preview-link"></div>
+              </div>
+              <div class="preview-content">
+                <div class="preview-title"></div>
+                <div class="preview-kpis"><div class="preview-kpi"></div><div class="preview-kpi"></div><div class="preview-kpi"></div><div class="preview-kpi"></div></div>
+                <div class="preview-charts">
+                  <div class="preview-chart">
+                    <svg viewBox="0 0 400 100" preserveAspectRatio="none" aria-hidden="true">
+                      <defs><linearGradient id="miniFill" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#7657f6" stop-opacity=".5"/><stop offset="1" stop-color="#7657f6" stop-opacity=".02"/></linearGradient></defs>
+                      <path d="M0,78 C35,58 60,68 95,47 C128,28 158,64 195,48 C228,34 242,16 278,31 C315,47 343,15 400,22 L400,100 L0,100Z" fill="url(#miniFill)"/>
+                      <path d="M0,78 C35,58 60,68 95,47 C128,28 158,64 195,48 C228,34 242,16 278,31 C315,47 343,15 400,22" fill="none" stroke="#8c6bfd" stroke-width="3"/>
+                    </svg>
+                  </div>
+                  <div class="preview-list"></div>
+                </div>
+                <div class="preview-bottom"><div></div><div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <section class="landing-strip" id="benefits" aria-label="Trois bénéfices">
+        <article class="benefit"><span class="benefit-icon">⌁</span><div><h2>Tout retrouver, immédiatement</h2><p>Une navigation structurée et une recherche globale pour chaque page, module et action.</p></div></article>
+        <article class="benefit"><span class="benefit-icon">◇</span><div><h2>Décider en un regard</h2><p>Les indicateurs, alertes et tendances importantes restent visibles sans scroll inutile.</p></div></article>
+        <article class="benefit"><span class="benefit-icon">✓</span><div><h2>Configurer avec confiance</h2><p>Aperçus en direct, prérequis et statuts de publication à côté de chaque réglage.</p></div></article>
+      </section>
+      <div class="landing-footer-row">
+        <aside class="proof">
+          <strong>Une interface pensée pour les équipes Discord</strong>
+          <p>Preuve sociale volontairement neutre : aucun témoignage, client ou chiffre réel n’est présenté dans cette maquette locale.</p>
+        </aside>
+        <section class="pricing-compact" id="plans" aria-label="Tarifs condensés de démonstration">
+          <div class="price"><b>Gratuit</b><span>Les essentiels pour démarrer</span></div>
+          <div class="price featured"><b>Premium</b><span>Plus de serveurs et de contrôle</span></div>
+          <div class="price"><b>Business</b><span>Pilotage avancé et support</span></div>
+        </section>
+      </div>
+    </main>
+  </section>
+
+  <section id="panelView" class="hidden">
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar" aria-label="Navigation du serveur">
+        <div class="server-card">
+          <span class="server-icon">AD</span>
+          <div class="server-info"><div class="server-name">Archodev Community</div><div class="server-count">1 284 membres fictifs</div></div>
+          <span class="icon" aria-hidden>⌄</span>
+        </div>
+        <nav class="nav-scroll" id="sidebarNav" aria-label="Pages du panel"></nav>
+        <div class="sidebar-footer">
+          <span class="avatar">AR</span>
+          <div class="user-meta"><b>Archo</b><span>Administrateur · Démo</span></div>
+          <span class="icon" aria-hidden>↗</span>
+        </div>
+      </aside>
+      <div class="drawer-backdrop hidden" id="drawerBackdrop"></div>
+      <div class="app-main">
+        <header class="topbar">
+          <button class="mobile-menu" id="mobileMenu" aria-label="Ouvrir le menu" aria-expanded="false">☰</button>
+          <div class="page-context">
+            <h1 id="pageTitle">Vue d’ensemble</h1>
+            <p id="pageSubtitle">L’essentiel de votre serveur, sans détour.</p>
+          </div>
+          <button class="search-trigger" id="searchTrigger" aria-haspopup="dialog" aria-label="Ouvrir la recherche globale">
+            <span class="icon" aria-hidden>⌕</span>
+            <span>Rechercher une page, un module ou une action…</span>
+            <span class="shortcut"><kbd>Ctrl</kbd><kbd>K</kbd></span>
+          </button>
+          <div class="top-actions">
+            <span class="badge badge-success" id="gatewayTop">Gateway connectée</span>
+            <button class="btn btn-secondary btn-sm" id="topQuickAction">Action rapide</button>
+          </div>
+        </header>
+        <main class="content">
+          <section class="page-view" id="dashboardPage">
+            <div class="page-banner">
+              <p>Bonjour Archo — votre serveur fonctionne normalement.</p>
+              <span class="demo-note">Données de démonstration</span>
+            </div>
+            <div class="kpi-grid">
+              <article class="card kpi"><span class="kpi-icon violet">♟</span><div><div class="kpi-value">1 284</div><div class="kpi-label">Membres</div><div class="kpi-delta">+4,2 % sur la période</div></div></article>
+              <article class="card kpi"><span class="kpi-icon green">↗</span><div><div class="kpi-value">389</div><div class="kpi-label">En ligne</div><div class="kpi-delta">30,3 % du total</div></div></article>
+              <article class="card kpi"><span class="kpi-icon blue">▣</span><div><div class="kpi-value">5 842</div><div class="kpi-label">Messages 24 h</div><div class="kpi-delta">Valeur fictive</div></div></article>
+              <article class="card kpi"><span class="kpi-icon red">!</span><div><div class="kpi-value">3</div><div class="kpi-label">Alertes ouvertes</div><div class="kpi-delta" style="color:var(--red)">Valeur fictive</div></div></article>
+            </div>
+            <div class="dashboard-analytics">
+              <article class="card activity-card">
+                <div class="card-head">
+                  <div><h2 class="card-title">Activité du serveur</h2><p class="card-desc">Membres actifs et messages — tendance fictive.</p></div>
+                  <div class="periods" role="radiogroup" aria-label="Période du graphique">
+                    <button class="period-btn active" data-period="7" aria-pressed="true">7 j</button>
+                    <button class="period-btn" data-period="30" aria-pressed="false">30 j</button>
+                    <button class="period-btn" data-period="90" aria-pressed="false">90 j</button>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <div class="legend"><span><i style="background:#8b6afa"></i>Membres actifs</span><span><i style="background:#39d98a"></i>Messages × 10</span></div>
+                  <div class="chart-wrap" id="chartWrap">
+                    <svg class="activity-svg" id="activityChart" viewBox="0 0 620 200" preserveAspectRatio="none" role="img" aria-labelledby="activityChartTitle activityChartDesc">
+                      <title id="activityChartTitle">Activité fictive du serveur sur sept jours</title>
+                      <desc id="activityChartDesc">Les membres actifs progressent de 318 à 456 et le volume de messages de 246 à 392 unités normalisées.</desc>
+                      <defs>
+                        <linearGradient id="areaViolet" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#8b6afa" stop-opacity=".38"/><stop offset="1" stop-color="#8b6afa" stop-opacity=".02"/></linearGradient>
+                        <linearGradient id="areaGreen" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#39d98a" stop-opacity=".22"/><stop offset="1" stop-color="#39d98a" stop-opacity=".01"/></linearGradient>
+                      </defs>
+                      <g id="chartGrid"></g>
+                      <path id="violetArea" class="area-violet"></path><path id="greenArea" class="area-green"></path>
+                      <path id="violetLine" class="line-violet"></path><path id="greenLine" class="line-green"></path>
+                      <g id="chartPoints"></g><g id="chartLabels"></g>
+                    </svg>
+                    <div class="chart-tooltip hidden" id="chartTooltip"></div>
+                  </div>
+                  <p class="sr-only" id="chartSummary">Résumé : tendance fictive en hausse sur sept jours, avec un pic de membres actifs le dernier jour.</p>
+                </div>
+              </article>
+              <article class="card">
+                <div class="card-head"><div><h2 class="card-title">Événements</h2><p class="card-desc">Classement fictif · 24 h</p></div><span class="badge badge-demo">Top 5</span></div>
+                <div class="card-body event-bars" role="img" aria-label="Commandes 96, tickets 72, rôles 61, modération 43 et musique 28 événements fictifs">
+                  <div class="event-row"><span>Commandes</span><div class="event-track"><div class="event-fill" style="width:100%"></div></div><b class="event-value">96</b></div>
+                  <div class="event-row"><span>Tickets</span><div class="event-track"><div class="event-fill" style="width:75%"></div></div><b class="event-value">72</b></div>
+                  <div class="event-row"><span>Rôles</span><div class="event-track"><div class="event-fill" style="width:64%"></div></div><b class="event-value">61</b></div>
+                  <div class="event-row"><span>Modération</span><div class="event-track"><div class="event-fill" style="width:45%"></div></div><b class="event-value">43</b></div>
+                  <div class="event-row"><span>Musique</span><div class="event-track"><div class="event-fill" style="width:29%"></div></div><b class="event-value">28</b></div>
+                </div>
+              </article>
+              <article class="card">
+                <div class="card-head"><div><h2 class="card-title">Répartition des membres</h2><p class="card-desc">Présence fictive en temps réel</p></div></div>
+                <div class="card-body donut-layout" role="img" aria-label="1 284 membres fictifs : 30 pour cent en ligne, 11 pour cent absents, 8 pour cent ne pas déranger et 51 pour cent hors ligne">
+                  <div class="donut"><div class="donut-total"><strong>1 284</strong><span>Total</span></div></div>
+                  <ul class="donut-legend">
+                    <li><i style="background:var(--green)"></i><span>En ligne</span><b>30 %</b></li>
+                    <li><i style="background:var(--amber)"></i><span>Absent</span><b>11 %</b></li>
+                    <li><i style="background:var(--red)"></i><span>Ne pas déranger</span><b>8 %</b></li>
+                    <li><i style="background:#535a72"></i><span>Hors ligne</span><b>51 %</b></li>
+                  </ul>
+                  <p class="sr-only">Résumé : un peu moins d’un membre sur trois est en ligne dans ces données de démonstration.</p>
+                </div>
+              </article>
+            </div>
+            <div class="dashboard-bottom">
+              <article class="card compact-card">
+                <div class="card-head"><h2 class="card-title">Santé du serveur</h2><button class="btn btn-ghost btn-sm" data-nav-view="health">Détails</button></div>
+                <div class="card-body">
+                  <div class="health-score"><div class="health-ring">94</div><div class="health-copy"><b>Excellente</b><span>4 services opérationnels</span></div></div>
+                  <ul class="mini-list"><li><span class="dot" style="background:var(--green)"></span><span class="grow">Gateway</span><em>12 ms</em></li><li><span class="dot" style="background:var(--green)"></span><span class="grow">Interactions</span><em>99,8 %</em></li></ul>
+                </div>
+              </article>
+              <article class="card compact-card">
+                <div class="card-head"><h2 class="card-title">Actions rapides</h2></div>
+                <div class="card-body quick-grid">
+                  <button class="quick-action" data-nav-view="roles"><span class="icon">◇</span>Publier des rôles</button>
+                  <button class="quick-action" data-nav-view="automod"><span class="icon">⌁</span>Régler l’auto-mod</button>
+                  <button class="quick-action" data-nav-view="tickets"><span class="icon">▤</span>Voir les tickets</button>
+                  <button class="quick-action" data-nav-view="settings"><span class="icon">⚙</span>Paramètres</button>
+                </div>
+              </article>
+              <article class="card compact-card">
+                <div class="card-head"><h2 class="card-title">Alertes récentes</h2><span class="badge badge-warning">3 fictives</span></div>
+                <div class="card-body"><ul class="mini-list"><li><span class="dot" style="background:var(--amber)"></span><span class="grow">Permission manquante · Tickets</span><time>12 min</time></li><li><span class="dot" style="background:var(--red)"></span><span class="grow">Pic d’échecs · Auto-mod</span><time>1 h</time></li><li><span class="dot" style="background:var(--amber)"></span><span class="grow">Quota proche · Commandes</span><time>3 h</time></li></ul></div>
+              </article>
+              <article class="card compact-card">
+                <div class="card-head"><h2 class="card-title">Activité récente</h2><button class="btn btn-ghost btn-sm" data-nav-view="activity">Tout voir</button></div>
+                <div class="card-body"><ul class="mini-list"><li><span class="dot"></span><span class="grow">Panneau de rôles publié</span><time>2 min</time></li><li><span class="dot" style="background:var(--blue)"></span><span class="grow">Ticket #104 fermé</span><time>18 min</time></li><li><span class="dot" style="background:var(--green)"></span><span class="grow">Configuration sauvegardée</span><time>42 min</time></li></ul></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="page-view hidden" id="rolesPage">
+            <div class="page-banner">
+              <p>Composez, prévisualisez puis publiez un message de rôles.</p>
+              <span class="demo-note">Données de démonstration</span>
+            </div>
+            <div class="roles-grid">
+              <div class="role-column">
+                <article class="card">
+                  <div class="card-head"><div><h2 class="card-title">Configuration</h2><p class="card-desc">Le rendu se met à jour pendant la saisie.</p></div><span class="badge badge-demo">Brouillon</span></div>
+                  <div class="card-body">
+                    <div class="field"><label for="roleChannel">Salon cible</label><select class="select role-input" id="roleChannel"><option>#choix-des-rôles</option><option>#bienvenue</option><option>#général</option></select></div>
+                    <div class="field"><label for="roleTitle">Titre</label><input class="input role-input" id="roleTitle" value="Choisissez vos rôles"></div>
+                    <div class="field"><label for="roleDescription">Description</label><textarea class="textarea role-input" id="roleDescription">Cliquez sur un bouton pour recevoir ou retirer le rôle correspondant.</textarea></div>
+                  </div>
+                </article>
+                <article class="card">
+                  <div class="card-head"><div><h2 class="card-title">Rôles et boutons</h2><p class="card-desc">Couleur, libellé et emoji du bouton.</p></div><button class="btn btn-secondary btn-sm" id="addRole">+ Ajouter</button></div>
+                  <div class="card-body role-builder" id="roleBuilder">
+                    <div class="role-row"><span class="role-color" style="background:#7657f6"></span><input class="input role-label" value="Membre"><input class="input role-emoji" value="✨" aria-label="Emoji du rôle Membre"><input type="color" class="role-color-input" value="#7657f6" aria-label="Couleur du rôle Membre"></div>
+                    <div class="role-row"><span class="role-color" style="background:#39d98a"></span><input class="input role-label" value="Créateur"><input class="input role-emoji" value="🎨" aria-label="Emoji du rôle Créateur"><input type="color" class="role-color-input" value="#39d98a" aria-label="Couleur du rôle Créateur"></div>
+                    <div class="role-row"><span class="role-color" style="background:#4d8dff"></span><input class="input role-label" value="Gaming"><input class="input role-emoji" value="🎮" aria-label="Emoji du rôle Gaming"><input type="color" class="role-color-input" value="#4d8dff" aria-label="Couleur du rôle Gaming"></div>
+                  </div>
+                </article>
+              </div>
+              <div class="role-column">
+                <article class="card">
+                  <div class="card-head"><div><h2 class="card-title">Aperçu Discord</h2><p class="card-desc">Rendu indicatif, sans connexion à Discord.</p></div><span class="badge badge-success">Direct</span></div>
+                  <div class="card-body">
+                    <div class="discord-preview">
+                      <div class="discord-channel"># <span id="previewChannel">choix-des-rôles</span></div>
+                      <div class="discord-message">
+                        <div class="discord-avatar">A</div>
+                        <div>
+                          <div class="discord-author">Archodev <span class="bot-tag">APP</span><span class="discord-time">Aujourd’hui à 14:32</span></div>
+                          <div class="discord-embed" id="discordEmbed">
+                            <h3 id="previewTitle">Choisissez vos rôles</h3>
+                            <p id="previewDescription">Cliquez sur un bouton pour recevoir ou retirer le rôle correspondant.</p>
+                          </div>
+                          <div class="discord-buttons" id="previewButtons"></div>
+                          <div class="ephemeral-preview"><span>◉</span><span>Réponse éphémère : « Votre rôle a bien été mis à jour. »</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+                <article class="card card-pad">
+                  <h2 class="card-title">Réponse utilisateur</h2>
+                  <p class="card-desc" style="margin-top:7px">Le membre reçoit une confirmation privée après chaque ajout ou retrait. Les couleurs du rôle restent visibles dans l’aperçu des boutons.</p>
+                </article>
+              </div>
+              <div class="role-column roles-context">
+                <article class="card">
+                  <div class="card-head"><div><h2 class="card-title">Contexte de publication</h2><p class="card-desc">État local simulé.</p></div></div>
+                  <div class="card-body">
+                    <dl class="context-list">
+                      <div class="context-row"><dt>Gateway</dt><dd><span class="badge badge-success" id="gatewayStatus">Connectée</span></dd></div>
+                      <div class="context-row"><dt>Publication</dt><dd id="publicationStatus">Synchronisée</dd></div>
+                      <div class="context-row"><dt>Salon cible</dt><dd id="contextChannel">#choix-des-rôles</dd></div>
+                      <div class="context-row"><dt>Dernière mise à jour</dt><dd id="lastUpdate">Aujourd’hui, 14:28</dd></div>
+                      <div class="context-row"><dt>Permissions</dt><dd>Validées</dd></div>
+                    </dl>
+                    <div class="context-actions" style="margin-top:13px">
+                      <button class="btn btn-primary" id="publishRoles">Publier dans Discord</button>
+                      <button class="btn btn-danger btn-sm" id="gatewaySimulation">Simuler une panne Gateway</button>
+                    </div>
+                  </div>
+                </article>
+                <article class="card">
+                  <div class="card-head"><h2 class="card-title">Conseils et prérequis</h2></div>
+                  <div class="card-body"><ul class="advice-list"><li>Placez le rôle du bot au-dessus des rôles distribués.</li><li>Vérifiez l’accès au salon cible avant de publier.</li><li>Gardez des libellés courts et explicites.</li></ul></div>
+                </article>
+              </div>
+            </div>
+            <div class="savebar hidden" id="rolesSavebar" role="status">
+              <strong>Modifications non enregistrées</strong>
+              <span class="demo-note">État local simulé</span>
+              <div class="save-actions"><button class="btn btn-ghost btn-sm" id="resetRoles">Réinitialiser</button><button class="btn btn-primary btn-sm" id="saveRoles">Enregistrer</button></div>
+            </div>
+          </section>
+
+          <section class="page-view hidden" id="placeholderPage"></section>
+        </main>
+      </div>
+    </div>
+  </section>
+
+  <div class="search-overlay hidden" id="searchOverlay">
+    <div class="search-dialog" role="dialog" aria-modal="true" aria-labelledby="searchDialogTitle">
+      <h2 id="searchDialogTitle" class="sr-only">Recherche globale</h2>
+      <div class="search-input-row"><span class="icon" aria-hidden>⌕</span><input id="globalSearch" autocomplete="off" placeholder="Rechercher une page, un module ou une action…"><kbd>Échap</kbd></div>
+      <div class="search-results" id="searchResults"></div>
+      <div class="search-footer"><span><kbd>↑</kbd><kbd>↓</kbd> naviguer</span><span><kbd>Entrée</kbd> ouvrir</span><span><kbd>Échap</kbd> fermer</span><span>Résultats de démonstration</span></div>
+    </div>
+  </div>
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+  <script>
+    (() => {
+      "use strict";
+      const $ = (selector, root = document) => root.querySelector(selector);
+      const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+      const params = new URLSearchParams(location.search);
+      const landingView = $("#landingView");
+      const panelView = $("#panelView");
+      const sidebar = $("#sidebar");
+      const drawerBackdrop = $("#drawerBackdrop");
+      const mobileMenu = $("#mobileMenu");
+      const pageTitle = $("#pageTitle");
+      const pageSubtitle = $("#pageSubtitle");
+      const dashboardPage = $("#dashboardPage");
+      const rolesPage = $("#rolesPage");
+      const placeholderPage = $("#placeholderPage");
+      const searchOverlay = $("#searchOverlay");
+      const searchTrigger = $("#searchTrigger");
+      const globalSearch = $("#globalSearch");
+      const searchResults = $("#searchResults");
+      const rolesSavebar = $("#rolesSavebar");
+      let lastFocus = null;
+      let activeResult = 0;
+      let currentView = "dashboard";
+      let gatewayOnline = true;
+      let roleInitial = null;
+
+      const icons = {
+        home: "⌂", health: "♡", activity: "↻", welcome: "✦", roles: "◇", levels: "♜",
+        starboard: "★", voice: "◖", automod: "⌁", moderation: "◆", tickets: "▤",
+        logs: "≣", commands: "⌘", automation: "⤨", music: "♫", charts: "⌁",
+        audit: "◈", settings: "⚙", modules: "▦", backup: "↥", privacy: "◉", access: "⌑"
+      };
+      const navGroups = [
+        { group: "Accueil", items: [
+          ["dashboard","Vue d’ensemble","home","L’essentiel de votre serveur, sans détour."],
+          ["health","Santé du serveur","health","Services, disponibilité et prérequis."],
+          ["activity","Activité récente","activity","Les changements et actions importantes."]
+        ]},
+        { group: "Communauté", items: [
+          ["welcome","Bienvenue","welcome","Messages d’accueil et parcours des nouveaux membres."],
+          ["roles","Rôles","roles","Messages à boutons, aperçu et publication."],
+          ["levels","Niveaux","levels","Progression, récompenses et classement."],
+          ["starboard","Starboard","starboard","Les meilleurs messages de votre communauté."],
+          ["voice","Vocaux temporaires","voice","Salons vocaux créés à la demande."]
+        ]},
+        { group: "Modération", items: [
+          ["automod","Auto-mod","automod","Protections automatiques et exceptions."],
+          ["moderation","Modération","moderation","Sanctions, avertissements et historique."],
+          ["tickets","Tickets","tickets","Support, priorités et transcripts."],
+          ["logs","Journaux","logs","Événements et traces du serveur."]
+        ]},
+        { group: "Automatisation", items: [
+          ["commands","Commandes personnalisées","commands","Créez des commandes adaptées à votre communauté."],
+          ["automations","Automatisations","automation","Scénarios, déclencheurs et actions."]
+        ]},
+        { group: "Audio", items: [["music","Musique","music","Lecture, file d’attente et playlists."]]},
+        { group: "Pilotage", items: [
+          ["observability","Observabilité","charts","Tendances, performances et activité."],
+          ["audit","Audit","audit","Historique administratif sécurisé."],
+          ["settings","Paramètres","settings","Configuration, accès et confidentialité."]
+        ]}
+      ];
+      const secondaryItems = [
+        ["modules","Centre des modules","Modules","Activer ou diagnostiquer un module"],
+        ["backup","Sauvegardes","Paramètres","Exporter ou restaurer la configuration"],
+        ["privacy","Confidentialité","Paramètres","Rétention et données du serveur"],
+        ["access","Accès panel","Paramètres","Gérer les droits de consultation"]
+      ];
+      const searchIndex = [
+        ...navGroups.flatMap(g => g.items.map(i => ({ label:i[1], group:"Pages", view:i[0], icon:i[2], detail:g.group }))),
+        { label:"Centre des modules", group:"Modules", view:"modules", icon:"modules", detail:"Activer et diagnostiquer" },
+        { label:"Messages de rôles", group:"Modules", view:"roles", icon:"roles", detail:"Communauté" },
+        { label:"Système de tickets", group:"Modules", view:"tickets", icon:"tickets", detail:"Modération" },
+        { label:"Sauvegardes", group:"Paramètres", view:"backup", icon:"backup", detail:"Exporter ou restaurer" },
+        { label:"Confidentialité", group:"Paramètres", view:"privacy", icon:"privacy", detail:"Rétention des données" },
+        { label:"Accès au panel", group:"Paramètres", view:"access", icon:"access", detail:"Rôles administrateur et modérateur" },
+        { label:"Publier un panneau de rôles", group:"Actions", view:"roles", icon:"roles", detail:"Ouvre Rôles" },
+        { label:"Créer une commande", group:"Actions", view:"commands", icon:"commands", detail:"Nouvelle commande personnalisée" },
+        { label:"Ouvrir un ticket", group:"Actions", view:"tickets", icon:"tickets", detail:"Accéder à la file de support" },
+        { label:"Vérifier la Gateway", group:"Actions", view:"health", icon:"health", detail:"Santé du serveur" }
+      ];
+
+      function buildSidebar() {
+        const nav = $("#sidebarNav");
+        nav.innerHTML = navGroups.map((group, groupIndex) => `
+          <section class="nav-group" data-group="${groupIndex}">
+            <button class="nav-group-toggle" aria-expanded="true">
+              <span>${group.group}</span><span class="chev" aria-hidden>⌄</span>
+            </button>
+            <div class="nav-group-items"><div class="nav-group-items-inner">
+              ${group.items.map(item => `<button class="nav-item" data-view="${item[0]}" data-label="${item[1]}" title="${item[1]}"><span class="icon" aria-hidden>${icons[item[2]]}</span><span class="nav-label">${item[1]}</span></button>`).join("")}
+            </div></div>
+          </section>`).join("");
+        $$(".nav-group-toggle", nav).forEach(button => button.addEventListener("click", () => {
+          const group = button.closest(".nav-group");
+          group.classList.toggle("closed");
+          button.setAttribute("aria-expanded", String(!group.classList.contains("closed")));
+        }));
+        $$(".nav-item", nav).forEach(button => button.addEventListener("click", () => navigateTo(button.dataset.view)));
+      }
+
+      function metaFor(view) {
+        for (const group of navGroups) for (const item of group.items) if (item[0] === view) return { title:item[1], subtitle:item[3], icon:item[2] };
+        const secondary = secondaryItems.find(i => i[0] === view);
+        return secondary ? { title:secondary[1], subtitle:secondary[3], icon:"settings" } : { title:"Page", subtitle:"Aperçu de la destination.", icon:"home" };
+      }
+
+      function navigateTo(view, options = {}) {
+        currentView = view;
+        landingView.classList.add("hidden");
+        panelView.classList.remove("hidden");
+        dashboardPage.classList.toggle("hidden", view !== "dashboard");
+        rolesPage.classList.toggle("hidden", view !== "roles");
+        placeholderPage.classList.toggle("hidden", view === "dashboard" || view === "roles");
+        const meta = metaFor(view);
+        pageTitle.textContent = meta.title;
+        pageSubtitle.textContent = meta.subtitle;
+        $$(".nav-item").forEach(item => item.classList.toggle("active", item.dataset.view === view));
+        if (view !== "dashboard" && view !== "roles") {
+          placeholderPage.innerHTML = `<div class="card placeholder-page"><div><div class="placeholder-icon">${icons[meta.icon] || "◇"}</div><h2>${meta.title}</h2><p>${meta.subtitle}<br>Cette destination secondaire reste accessible dans la maquette sans reproduire son contenu applicatif.</p><button class="btn btn-secondary" style="margin-top:18px" data-return-dashboard>Revenir à la vue d’ensemble</button></div></div>`;
+          $("[data-return-dashboard]", placeholderPage).addEventListener("click", () => navigateTo("dashboard"));
+        }
+        closeDrawer();
+        if (!options.keepSearch) closeSearch();
+        if (!options.noFocus) $(".content").focus?.();
+        document.title = `${meta.title} — Archodev (maquette)`;
+      }
+
+      function openDrawer() {
+        lastFocus = document.activeElement;
+        sidebar.classList.add("drawer-open");
+        drawerBackdrop.classList.remove("hidden");
+        mobileMenu.setAttribute("aria-expanded","true");
+        mobileMenu.setAttribute("aria-label","Fermer le menu");
+        $(".nav-item", sidebar)?.focus();
+      }
+      function closeDrawer() {
+        if (!sidebar.classList.contains("drawer-open")) return;
+        sidebar.classList.remove("drawer-open");
+        drawerBackdrop.classList.add("hidden");
+        mobileMenu.setAttribute("aria-expanded","false");
+        mobileMenu.setAttribute("aria-label","Ouvrir le menu");
+        if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+      }
+
+      function renderSearch() {
+        const term = globalSearch.value.trim().toLocaleLowerCase("fr");
+        const matches = searchIndex.filter(item => `${item.label} ${item.group} ${item.detail}`.toLocaleLowerCase("fr").includes(term));
+        const order = ["Pages","Modules","Paramètres","Actions"];
+        const visibleMatches = term ? matches : order.flatMap(group => matches.filter(item => item.group === group).slice(0,2));
+        activeResult = Math.min(activeResult, Math.max(0,visibleMatches.length-1));
+        searchResults.innerHTML = matches.length ? order.map(group => {
+          const allItems = matches.filter(item => item.group === group);
+          if (!allItems.length) return "";
+          const items = term ? allItems : allItems.slice(0,2);
+          return `<section><div class="result-group-title">${group}${term ? "" : ` · ${allItems.length}`}</div>${items.map(item => {
+            const index = visibleMatches.indexOf(item);
+            return `<button class="result ${index === activeResult ? "active" : ""}" data-result-index="${index}" data-search-view="${item.view}"><span class="result-icon">${icons[item.icon] || "◇"}</span><span><b>${item.label}</b><small>${item.detail}</small></span><span class="result-type">${group}</span></button>`;
+          }).join("")}</section>`;
+        }).join("") : `<div class="search-empty">Aucun résultat pour « ${globalSearch.value.replace(/[<>&]/g,"")} »</div>`;
+        $$("[data-search-view]", searchResults).forEach(button => {
+          button.addEventListener("mouseenter", () => { activeResult = Number(button.dataset.resultIndex); updateSearchActive(); });
+          button.addEventListener("click", () => navigateTo(button.dataset.searchView));
+        });
+      }
+      function updateSearchActive() {
+        const results = $$(".result", searchResults);
+        results.forEach((result,index) => result.classList.toggle("active", index === activeResult));
+        results[activeResult]?.scrollIntoView({block:"nearest"});
+      }
+      function openSearch() {
+        lastFocus = document.activeElement;
+        searchOverlay.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+        globalSearch.value = "";
+        activeResult = 0;
+        renderSearch();
+        globalSearch.focus();
+      }
+      function closeSearch() {
+        if (searchOverlay.classList.contains("hidden")) return;
+        searchOverlay.classList.add("hidden");
+        document.body.style.overflow = "";
+        if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+      }
+
+      const chartSets = {
+        7: { labels:["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"], violet:[318,370,342,419,397,446,456], green:[246,290,271,338,320,370,392], summary:"Tendance fictive en hausse sur sept jours, avec un pic de membres actifs le dernier jour." },
+        30: { labels:["1 j","5 j","10 j","15 j","20 j","25 j","30 j"], violet:[284,332,318,401,380,438,472], green:[228,260,252,330,305,354,410], summary:"Sur trente jours fictifs, les deux séries progressent malgré deux replis intermédiaires." },
+        90: { labels:["J-90","J-75","J-60","J-45","J-30","J-15","Auj."], violet:[241,278,316,355,398,430,486], green:[205,235,259,302,341,376,425], summary:"Sur quatre-vingt-dix jours fictifs, la progression est régulière et plus marquée sur la fin." }
+      };
+      function smoothPath(points) {
+        if (!points.length) return "";
+        let d = `M${points[0][0]},${points[0][1]}`;
+        for (let i=1;i<points.length;i++) {
+          const [x0,y0] = points[i-1], [x1,y1] = points[i];
+          const mid = (x0+x1)/2;
+          d += ` C${mid},${y0} ${mid},${y1} ${x1},${y1}`;
+        }
+        return d;
+      }
+      function renderChart(period = 7) {
+        const data = chartSets[period];
+        const width = 620, height = 200, left = 35, right = 10, top = 10, bottom = 27;
+        const all = [...data.violet,...data.green], min = Math.min(...all)-25, max = Math.max(...all)+20;
+        const x = i => left + i * ((width-left-right)/(data.labels.length-1));
+        const y = value => top + (max-value) * ((height-top-bottom)/(max-min));
+        const vp = data.violet.map((v,i)=>[x(i),y(v)]);
+        const gp = data.green.map((v,i)=>[x(i),y(v)]);
+        const baseline = height-bottom;
+        $("#violetLine").setAttribute("d",smoothPath(vp));
+        $("#greenLine").setAttribute("d",smoothPath(gp));
+        $("#violetArea").setAttribute("d",`${smoothPath(vp)} L${vp.at(-1)[0]},${baseline} L${vp[0][0]},${baseline}Z`);
+        $("#greenArea").setAttribute("d",`${smoothPath(gp)} L${gp.at(-1)[0]},${baseline} L${gp[0][0]},${baseline}Z`);
+        $("#chartGrid").innerHTML = [0,.33,.66,1].map(p => {
+          const gy = top + p*(baseline-top);
+          const value = Math.round(max-p*(max-min));
+          return `<line class="gridline" x1="${left}" x2="${width-right}" y1="${gy}" y2="${gy}"/><text class="axis-text" x="0" y="${gy+3}">${value}</text>`;
+        }).join("");
+        $("#chartLabels").innerHTML = data.labels.map((label,i)=>`<text class="axis-text" text-anchor="middle" x="${x(i)}" y="${height-7}">${label}</text>`).join("");
+        $("#chartPoints").innerHTML = data.labels.map((label,i)=>`
+          <circle class="chart-point" data-point="${i}" cx="${x(i)}" cy="${y(data.violet[i])}" r="5" stroke="transparent"/>
+          <circle cx="${x(i)}" cy="${y(data.violet[i])}" r="2.8" fill="#8b6afa"/>
+          <circle cx="${x(i)}" cy="${y(data.green[i])}" r="2.5" fill="#39d98a"/>`).join("");
+        $$(".chart-point").forEach(point => {
+          point.addEventListener("mouseenter", event => {
+            const i = Number(event.target.dataset.point);
+            const tip = $("#chartTooltip");
+            const wrapRect = $("#chartWrap").getBoundingClientRect();
+            const svgRect = $("#activityChart").getBoundingClientRect();
+            tip.innerHTML = `<b>${data.labels[i]}</b><span>Membres actifs <strong>${data.violet[i]}</strong></span><span>Messages × 10 <strong>${data.green[i]}</strong></span>`;
+            tip.style.left = `${svgRect.left-wrapRect.left+(x(i)/width)*svgRect.width}px`;
+            tip.style.top = `${svgRect.top-wrapRect.top+(Math.min(y(data.violet[i]),y(data.green[i]))/height)*svgRect.height}px`;
+            tip.classList.remove("hidden");
+          });
+          point.addEventListener("mouseleave", () => $("#chartTooltip").classList.add("hidden"));
+        });
+        $("#activityChartTitle").textContent = `Activité fictive du serveur sur ${period} jours`;
+        $("#activityChartDesc").textContent = data.summary;
+        $("#chartSummary").textContent = `Résumé : ${data.summary}`;
+      }
+
+      function readRoleState() {
+        return {
+          channel: $("#roleChannel").value,
+          title: $("#roleTitle").value,
+          description: $("#roleDescription").value,
+          roles: $$(".role-row", $("#roleBuilder")).map(row => ({
+            label: $(".role-label",row).value,
+            emoji: $(".role-emoji",row).value,
+            color: $(".role-color-input",row)?.value || $(".role-color",row).style.background
+          }))
+        };
+      }
+      function updateRolePreview(markDirty = true) {
+        const state = readRoleState();
+        $("#previewChannel").textContent = state.channel.replace(/^#/,"");
+        $("#contextChannel").textContent = state.channel;
+        $("#previewTitle").textContent = state.title || "Sans titre";
+        $("#previewDescription").textContent = state.description || "Aucune description.";
+        $("#previewButtons").innerHTML = state.roles.map((role,index) => `<button class="discord-button" style="${index===0?`--role-accent:${role.color};background:${role.color}`:""}">${role.emoji} ${role.label || "Rôle"}</button>`).join("");
+        $("#discordEmbed").style.setProperty("--role-accent", state.roles[0]?.color || "#7657f6");
+        $$(".role-row").forEach((row,index) => {
+          const color = state.roles[index].color;
+          $(".role-color",row).style.background = color;
+        });
+        if (markDirty && roleInitial && JSON.stringify(state) !== JSON.stringify(roleInitial)) {
+          rolesSavebar.classList.remove("hidden");
+          $("#publicationStatus").textContent = "Brouillon modifié";
+        }
+      }
+      function bindRoleInputs() {
+        $$(".role-input, .role-label, .role-emoji, .role-color-input").forEach(input => {
+          input.removeEventListener("input", updateRolePreview);
+          input.addEventListener("input", updateRolePreview);
+          input.addEventListener("change", updateRolePreview);
+        });
+      }
+      function addRole() {
+        const row = document.createElement("div");
+        row.className = "role-row";
+        row.innerHTML = `<span class="role-color" style="background:#f0b429"></span><input class="input role-label" value="Nouveau rôle"><input class="input role-emoji" value="⭐" aria-label="Emoji du nouveau rôle"><input type="color" class="role-color-input" value="#f0b429" aria-label="Couleur du nouveau rôle">`;
+        $("#roleBuilder").append(row);
+        bindRoleInputs();
+        updateRolePreview();
+      }
+      function showToast(message,type="success") {
+        const toast = document.createElement("div");
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        $("#toastStack").append(toast);
+        setTimeout(()=>toast.remove(),3200);
+      }
+      function saveRoles() {
+        $("#saveRoles").textContent = "Enregistrement…";
+        $("#saveRoles").disabled = true;
+        setTimeout(() => {
+          roleInitial = readRoleState();
+          rolesSavebar.classList.add("hidden");
+          $("#publicationStatus").textContent = "Enregistrée";
+          $("#lastUpdate").textContent = "À l’instant";
+          $("#saveRoles").textContent = "Enregistrer";
+          $("#saveRoles").disabled = false;
+          showToast("Configuration des rôles enregistrée.");
+        },450);
+      }
+      function resetRoles() {
+        if (!roleInitial) return;
+        $("#roleChannel").value = roleInitial.channel;
+        $("#roleTitle").value = roleInitial.title;
+        $("#roleDescription").value = roleInitial.description;
+        const rows = $$(".role-row",$("#roleBuilder"));
+        roleInitial.roles.forEach((role,index)=>{
+          if (!rows[index]) return;
+          $(".role-label",rows[index]).value = role.label;
+          $(".role-emoji",rows[index]).value = role.emoji;
+          if ($(".role-color-input",rows[index])) $(".role-color-input",rows[index]).value = role.color;
+        });
+        rows.slice(roleInitial.roles.length).forEach(row=>row.remove());
+        rolesSavebar.classList.add("hidden");
+        $("#publicationStatus").textContent = "Synchronisée";
+        updateRolePreview(false);
+      }
+      function toggleGateway() {
+        gatewayOnline = !gatewayOnline;
+        const status = $("#gatewayStatus");
+        status.textContent = gatewayOnline ? "Connectée" : "Indisponible";
+        status.className = `badge ${gatewayOnline?"badge-success":"badge-danger"}`;
+        $("#gatewayTop").textContent = gatewayOnline ? "Gateway connectée" : "Gateway indisponible";
+        $("#gatewayTop").className = `badge ${gatewayOnline?"badge-success":"badge-danger"}`;
+        $("#gatewaySimulation").textContent = gatewayOnline ? "Simuler une panne Gateway" : "Rétablir la Gateway";
+        if (!gatewayOnline) showToast("Gateway indisponible — publication bloquée.","error");
+        else showToast("Gateway rétablie.");
+      }
+      function publishRoles() {
+        if (!gatewayOnline) {
+          $("#publicationStatus").textContent = "Échec Gateway";
+          showToast("Publication impossible : Gateway indisponible.","error");
+          return;
+        }
+        $("#publishRoles").textContent = "Publication…";
+        $("#publishRoles").disabled = true;
+        setTimeout(()=>{
+          $("#publishRoles").textContent = "Publier dans Discord";
+          $("#publishRoles").disabled = false;
+          $("#publicationStatus").textContent = "Publiée";
+          $("#lastUpdate").textContent = "À l’instant";
+          showToast(`Panneau publié dans ${$("#roleChannel").value}.`);
+        },500);
+      }
+
+      buildSidebar();
+      renderChart(7);
+      bindRoleInputs();
+      updateRolePreview(false);
+      roleInitial = readRoleState();
+
+      $$("[data-action=demo]").forEach(button => button.addEventListener("click",()=>navigateTo("dashboard")));
+      $$("[data-action=login]").forEach(button => button.addEventListener("click",()=>showToast("Connexion Discord simulée — aucun appel réseau.")));
+      $$("[data-nav-view]").forEach(button => button.addEventListener("click",()=>navigateTo(button.dataset.navView)));
+      $(".periods").addEventListener("click",event => {
+        const button = event.target.closest(".period-btn");
+        if (!button) return;
+        $$(".period-btn").forEach(item => { item.classList.toggle("active",item===button); item.setAttribute("aria-pressed",String(item===button)); });
+        renderChart(Number(button.dataset.period));
+      });
+      $(".periods").addEventListener("keydown",event => {
+        if (!["ArrowLeft","ArrowRight"].includes(event.key)) return;
+        const buttons = $$(".period-btn");
+        const current = buttons.indexOf(document.activeElement);
+        const next = (current + (event.key==="ArrowRight"?1:buttons.length-1)) % buttons.length;
+        event.preventDefault(); buttons[next].click(); buttons[next].focus();
+      });
+      mobileMenu.addEventListener("click",()=>sidebar.classList.contains("drawer-open")?closeDrawer():openDrawer());
+      drawerBackdrop.addEventListener("click",closeDrawer);
+      searchTrigger.addEventListener("click",openSearch);
+      searchOverlay.addEventListener("mousedown",event=>{ if(event.target===searchOverlay) closeSearch(); });
+      globalSearch.addEventListener("input",()=>{activeResult=0;renderSearch();});
+      globalSearch.addEventListener("keydown",event=>{
+        const results = $$(".result",searchResults);
+        if (event.key==="ArrowDown") { event.preventDefault(); activeResult=(activeResult+1)%Math.max(1,results.length); updateSearchActive(); }
+        if (event.key==="ArrowUp") { event.preventDefault(); activeResult=(activeResult+Math.max(1,results.length)-1)%Math.max(1,results.length); updateSearchActive(); }
+        if (event.key==="Enter" && results[activeResult]) { event.preventDefault(); results[activeResult].click(); }
+      });
+      document.addEventListener("keydown",event=>{
+        if ((event.ctrlKey||event.metaKey) && event.key.toLowerCase()==="k") { event.preventDefault(); if(panelView.classList.contains("hidden")) navigateTo("dashboard",{noFocus:true}); openSearch(); }
+        if (event.key==="Escape") { if(!searchOverlay.classList.contains("hidden")) closeSearch(); else closeDrawer(); }
+      });
+      $("#addRole").addEventListener("click",addRole);
+      $("#saveRoles").addEventListener("click",saveRoles);
+      $("#resetRoles").addEventListener("click",resetRoles);
+      $("#gatewaySimulation").addEventListener("click",toggleGateway);
+      $("#publishRoles").addEventListener("click",publishRoles);
+      $("#topQuickAction").addEventListener("click",()=>navigateTo(currentView==="roles"?"dashboard":"roles"));
+
+      const requested = params.get("view") || "landing";
+      if (requested === "landing") {
+        landingView.classList.remove("hidden");
+        panelView.classList.add("hidden");
+      } else {
+        navigateTo(requested === "charts" ? "dashboard" : requested,{noFocus:true});
+        if (requested === "charts") document.body.classList.add("chart-focus");
+      }
+      if (params.get("search")==="1") setTimeout(openSearch,30);
+      if (params.get("drawer")==="1") setTimeout(openDrawer,30);
+      if (params.get("gateway")==="error" && gatewayOnline) setTimeout(toggleGateway,30);
+      if (params.get("dirty")==="1") {
+        setTimeout(()=>{ $("#roleTitle").value="Choisissez vos passions"; updateRolePreview(); },30);
+      }
+    })();
+  </script>
+</body>
+</html>

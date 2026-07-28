@@ -1,0 +1,171 @@
+{
+  "generatedAt": "2026-07-28T01:51:56.881Z",
+  "total": 41,
+  "passed": 41,
+  "checks": [
+    {
+      "name": "tickets_workspace",
+      "value": true
+    },
+    {
+      "name": "tickets_preview_local",
+      "value": true
+    },
+    {
+      "name": "tickets_real_list",
+      "value": true
+    },
+    {
+      "name": "tickets_gateway_not_required",
+      "value": true
+    },
+    {
+      "name": "tickets_quota_honest",
+      "value": true
+    },
+    {
+      "name": "tickets_local_search",
+      "value": true
+    },
+    {
+      "name": "tickets_search_result",
+      "value": true
+    },
+    {
+      "name": "tickets_dirty",
+      "value": true
+    },
+    {
+      "name": "tickets_savebar_dirty",
+      "value": true
+    },
+    {
+      "name": "tickets_save_success_click",
+      "value": true
+    },
+    {
+      "name": "tickets_save_success",
+      "value": true
+    },
+    {
+      "name": "tickets_save_error_keeps_draft",
+      "value": true
+    },
+    {
+      "name": "tickets_empty",
+      "value": true
+    },
+    {
+      "name": "tickets_load_error",
+      "value": true
+    },
+    {
+      "name": "tickets_readonly",
+      "value": true
+    },
+    {
+      "name": "tickets_readonly_savebar",
+      "value": true
+    },
+    {
+      "name": "tickets_permission",
+      "value": true
+    },
+    {
+      "name": "tickets_disabled_configuration",
+      "value": true
+    },
+    {
+      "name": "music_current_track",
+      "value": true
+    },
+    {
+      "name": "music_voice_channel",
+      "value": true
+    },
+    {
+      "name": "music_queue",
+      "value": true
+    },
+    {
+      "name": "music_no_fake_settings",
+      "value": true
+    },
+    {
+      "name": "music_realtime_no_dirty",
+      "value": true
+    },
+    {
+      "name": "music_search_type",
+      "value": true
+    },
+    {
+      "name": "music_search_results",
+      "value": true
+    },
+    {
+      "name": "music_search_source",
+      "value": true
+    },
+    {
+      "name": "music_search_empty",
+      "value": true
+    },
+    {
+      "name": "music_search_error",
+      "value": true
+    },
+    {
+      "name": "music_empty",
+      "value": true
+    },
+    {
+      "name": "music_state_error",
+      "value": true
+    },
+    {
+      "name": "music_readonly",
+      "value": true
+    },
+    {
+      "name": "music_gateway_offline",
+      "value": true
+    },
+    {
+      "name": "music_module_disabled",
+      "value": true
+    },
+    {
+      "name": "tickets_no_horizontal_1440",
+      "value": true
+    },
+    {
+      "name": "music_no_horizontal_1440",
+      "value": true
+    },
+    {
+      "name": "tickets_no_horizontal_1024",
+      "value": true
+    },
+    {
+      "name": "music_no_horizontal_1024",
+      "value": true
+    },
+    {
+      "name": "tickets_no_horizontal_390",
+      "value": true
+    },
+    {
+      "name": "music_no_horizontal_390",
+      "value": true
+    },
+    {
+      "name": "tickets_no_horizontal_320",
+      "value": true
+    },
+    {
+      "name": "music_no_horizontal_320",
+      "value": true
+    }
+  ]
+}

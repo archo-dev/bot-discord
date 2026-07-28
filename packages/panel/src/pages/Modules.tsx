@@ -5,14 +5,14 @@ import type { GuildModuleDto, GuildModulesResponse, ModuleCategory } from "@bot/
 import { api, ApiError } from "../lib/api.js";
 import { useCanWrite } from "../lib/access.js";
 import { MODULE_STATE_META, moduleReasonLabel } from "../lib/modules.js";
-import { Badge, Button, Card, EmptyState, ErrorCard, Input, Select, Toolbar } from "../ui/kit.js";
+import { Badge, Button, Card, EmptyState, ErrorCard, Input, OperationalState, Select, Toolbar } from "../ui/kit.js";
 import { Icon, type IconName } from "../ui/icons.js";
 import { ConfirmModal } from "../ui/overlay.js";
 import { Skeleton } from "../ui/skeleton.js";
 import { toast } from "../ui/toast.js";
 
 const CATEGORY_LABELS: Record<ModuleCategory, string> = {
-  server: "Serveur", engagement: "Engagement", moderation: "Modération", tools: "Outils", operations: "Opérations",
+  server: "Serveur", engagement: "Communauté", moderation: "Modération", tools: "Outils", operations: "Opérations",
 };
 
 function ModuleIcon({ name }: { name: string }) {
@@ -93,9 +93,14 @@ export function ModulesPage() {
       </Toolbar>
 
       {!modules.data.gateway.online && (
-        <div role="status" className="rounded-xl border border-amber-900/60 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">
-          La Gateway est hors ligne. Les modules temps réel restent configurés, mais leur activation est bloquée jusqu’au retour du service.
-        </div>
+        <OperationalState
+          kind="gateway"
+          title="Gateway hors ligne"
+          description="Les modules temps réel restent configurés, mais leur activation est bloquée jusqu’au retour du service."
+          impact="Les activations qui nécessitent la Gateway sont temporairement indisponibles."
+          available="Les modules sans dépendance temps réel et leurs configurations restent consultables."
+          action={<Button to={`/guilds/${guildId}/health`} variant="secondary" size="sm">Voir le diagnostic</Button>}
+        />
       )}
 
       {filtered.length === 0 ? (

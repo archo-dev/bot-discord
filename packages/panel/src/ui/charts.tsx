@@ -1,251 +1,293 @@
-import type { ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  Bar,
-  BarChart,
+  Area,
+  AreaChart,
   CartesianGrid,
   Cell,
-  Legend,
-  Line,
-  LineChart,
   Pie,
   PieChart,
-  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import type { MemberDeltaPoint, MemberSnapshotPoint, PresenceStatsDto } from "@bot/shared";
+import type {
+  ActivityChartPoint,
+  PresenceChartSlice,
+  RankedChartDatum,
+} from "../lib/chart-data.js";
+import { formatChartDay } from "../lib/chart-data.js";
 
-/*
- * Recharts wrappers for the Stats page (M19). Dark-theme only (Nocturne), styled
- * from the --viz-* tokens. Colors are assigned by role (skill: dataviz) and the
- * categorical pair violet↔green is CVD-validated (ΔE > 100); text uses ink
- * tokens, never a series color; every chart has an empty state.
- */
-
-const VIZ = {
-  violet: "#7c4dee",
-  blue: "#3e7afc",
-  green: "#1fc069",
-  amber: "#f0b114",
-  red: "#ed4b4b",
-  gray: "#4b5163",
+export const CHART_COLORS = {
+  violet: "#8b5cf6",
+  green: "#34d399",
+  amber: "#fbbf24",
+  red: "#fb7185",
+  gray: "#71717a",
+  axis: "#777283",
+  grid: "#2b2735",
+  surface: "#17131f",
 } as const;
 
-const AXIS = "#6b7180"; // text-muted
-const GRID = "#232838"; // border
-const SURFACE = "#1a1f2e"; // surface-2 (tooltip bg)
+const numberFormat = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
 
-function EmptyChart({ height, children }: { height: number; children: ReactNode }) {
+function useReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(
+    () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+  useEffect(() => {
+    if (typeof matchMedia !== "function") return;
+    const media = matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduced(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  return reduced;
+}
+
+const axisProps = {
+  stroke: CHART_COLORS.axis,
+  tick: { fill: CHART_COLORS.axis, fontSize: 10 },
+  tickLine: false,
+  axisLine: false,
+} as const;
+
+function TooltipSurface({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="flex items-center justify-center text-center text-sm text-zinc-500" style={{ height }}>
+    <div
+      data-chart-tooltip
+      className="min-w-36 rounded-lg border border-zinc-700/90 bg-[#17131f]/98 px-3 py-2 shadow-(--shadow-lg)"
+    >
+      <p className="mb-1.5 text-[11px] font-medium text-zinc-400">{title}</p>
       {children}
     </div>
   );
 }
 
-/** Dark tooltip; labels/values in ink tokens, a small colored dot carries identity. */
-function TooltipBox({ title, rows }: { title: string; rows: { label: string; value: string; color: string }[] }) {
+function TooltipRow({ color, label, value }: { color: string; label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-zinc-700 bg-(--surface-2) px-3 py-2 shadow-(--shadow-md)">
-      <div className="mb-1 text-xs font-medium text-zinc-400">{title}</div>
-      {rows.map((r) => (
-        <div key={r.label} className="flex items-center gap-2 text-sm">
-          <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: r.color }} />
-          <span className="text-zinc-400">{r.label}</span>
-          <span className="ml-auto font-semibold text-zinc-100 tabular-nums">{r.value}</span>
-        </div>
-      ))}
+    <div className="flex items-center gap-2 text-xs">
+      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} aria-hidden />
+      <span className="text-zinc-400">{label}</span>
+      <span className="ml-auto font-semibold tabular-nums text-zinc-100">{value}</span>
     </div>
   );
 }
 
-const axisProps = {
-  stroke: AXIS,
-  tick: { fill: AXIS, fontSize: 11 },
-  tickLine: false,
-  axisLine: { stroke: GRID },
-} as const;
-
-// --- Members over time (humans vs bots) ------------------------------------
-
-function formatBucket(bucket: string, hourly: boolean): string {
-  const d = new Date(`${bucket}:00Z`);
-  if (Number.isNaN(d.getTime())) return bucket;
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
-  return hourly ? `${day}/${month} ${String(d.getUTCHours()).padStart(2, "0")}h` : `${day}/${month}`;
-}
-
-export function MembersChart({ data, hourly, height = 260 }: { data: MemberSnapshotPoint[]; hourly: boolean; height?: number }) {
-  if (data.length === 0) {
-    return (
-      <EmptyChart height={height}>
-        Pas encore de données de membres. Les snapshots sont pris chaque heure par le service Gateway.
-      </EmptyChart>
-    );
-  }
-  return (
-    <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: -8 }}>
-        <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
-        <XAxis dataKey="bucket" tickFormatter={(b: string) => formatBucket(b, hourly)} minTickGap={28} {...axisProps} />
-        <YAxis allowDecimals={false} width={44} {...axisProps} />
-        <Tooltip
-          cursor={{ stroke: GRID }}
-          content={({ active, payload }) => {
-            if (!active || !payload?.length) return null;
-            const p = payload[0]!.payload as MemberSnapshotPoint;
-            return (
-              <TooltipBox
-                title={formatBucket(p.bucket, hourly)}
-                rows={[
-                  { label: "Humains", value: String(p.humans), color: VIZ.violet },
-                  { label: "Bots", value: String(p.bots), color: VIZ.green },
-                  { label: "Total", value: String(p.total), color: AXIS },
-                ]}
-              />
-            );
-          }}
-        />
-        <Legend iconType="plainline" wrapperStyle={{ fontSize: 12, color: AXIS }} />
-        <Line type="monotone" name="Humains" dataKey="humans" stroke={VIZ.violet} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-        <Line type="monotone" name="Bots" dataKey="bots" stroke={VIZ.green} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-      </LineChart>
-    </ResponsiveContainer>
-  );
-}
-
-// --- Joins / leaves (diverging around zero) --------------------------------
-
-function formatDay(day: string): string {
-  const [, m, d] = day.split("-");
-  return d && m ? `${d}/${m}` : day;
-}
-
-export function JoinLeaveChart({ data, height = 200 }: { data: MemberDeltaPoint[]; height?: number }) {
-  if (data.length === 0) {
-    return <EmptyChart height={height}>Aucune arrivée ni départ enregistré sur la période.</EmptyChart>;
-  }
-  // Leaves render below the zero baseline (position = the CVD-safe secondary cue).
-  const rows = data.map((d) => ({ day: d.day, joins: d.joins, leaves: -d.leaves, rawLeaves: d.leaves }));
-  return (
-    <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={rows} margin={{ top: 8, right: 12, bottom: 0, left: -8 }} barGap={2}>
-        <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
-        <XAxis dataKey="day" tickFormatter={formatDay} minTickGap={20} {...axisProps} />
-        <YAxis allowDecimals={false} width={44} tickFormatter={(v: number) => String(Math.abs(v))} {...axisProps} />
-        <ReferenceLine y={0} stroke={GRID} />
-        <Tooltip
-          cursor={{ fill: "rgba(255,255,255,0.04)" }}
-          content={({ active, payload }) => {
-            if (!active || !payload?.length) return null;
-            const p = payload[0]!.payload as { day: string; joins: number; rawLeaves: number };
-            return (
-              <TooltipBox
-                title={formatDay(p.day)}
-                rows={[
-                  { label: "Arrivées", value: `+${p.joins}`, color: VIZ.green },
-                  { label: "Départs", value: `-${p.rawLeaves}`, color: VIZ.red },
-                ]}
-              />
-            );
-          }}
-        />
-        <Legend iconType="square" wrapperStyle={{ fontSize: 12, color: AXIS }} />
-        <Bar name="Arrivées" dataKey="joins" fill={VIZ.green} radius={[3, 3, 0, 0]} />
-        <Bar name="Départs" dataKey="leaves" fill={VIZ.red} radius={[0, 0, 3, 3]} />
-      </BarChart>
-    </ResponsiveContainer>
-  );
-}
-
-// --- Top channels (horizontal bars, single series) -------------------------
-
-export interface NamedStat {
-  name: string;
-  value: number;
-}
-
-export function ChannelBarChart({
+export function ActivityAreaChart({
   data,
-  color,
-  unit,
-  height = 280,
+  summary,
+  height = 250,
 }: {
-  data: NamedStat[];
-  color: string;
-  unit: string;
+  data: ActivityChartPoint[];
+  summary: string;
   height?: number;
 }) {
-  if (data.length === 0) {
-    return <EmptyChart height={height}>Aucune activité sur la période.</EmptyChart>;
-  }
+  const reducedMotion = useReducedMotion();
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, bottom: 0, left: 8 }}>
-        <CartesianGrid stroke={GRID} strokeDasharray="3 3" horizontal={false} />
-        <XAxis type="number" allowDecimals={false} {...axisProps} />
-        <YAxis type="category" dataKey="name" width={120} tick={{ fill: "#9ba1b0", fontSize: 12 }} tickLine={false} axisLine={{ stroke: GRID }} />
-        <Tooltip
-          cursor={{ fill: "rgba(255,255,255,0.04)" }}
-          content={({ active, payload }) => {
-            if (!active || !payload?.length) return null;
-            const p = payload[0]!.payload as NamedStat;
-            return <TooltipBox title={p.name} rows={[{ label: unit, value: String(p.value), color }]} />;
-          }}
-        />
-        <Bar dataKey="value" fill={color} radius={[0, 4, 4, 0]} maxBarSize={22} />
-      </BarChart>
-    </ResponsiveContainer>
+    <div>
+      <div
+        data-chart="activity"
+        role="img"
+        aria-label={summary}
+        tabIndex={0}
+        className="rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+      >
+        <ResponsiveContainer width="100%" height={height}>
+          <AreaChart accessibilityLayer data={data} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
+            <defs>
+              <linearGradient id="activity-arrivals" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={CHART_COLORS.violet} stopOpacity={0.38} />
+                <stop offset="100%" stopColor={CHART_COLORS.violet} stopOpacity={0.02} />
+              </linearGradient>
+              <linearGradient id="activity-departures" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={CHART_COLORS.green} stopOpacity={0.28} />
+                <stop offset="100%" stopColor={CHART_COLORS.green} stopOpacity={0.01} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke={CHART_COLORS.grid} strokeDasharray="3 5" vertical={false} />
+            <XAxis
+              dataKey="day"
+              tickFormatter={formatChartDay}
+              minTickGap={24}
+              {...axisProps}
+            />
+            <YAxis allowDecimals={false} width={40} {...axisProps} />
+            <Tooltip
+              cursor={{ stroke: CHART_COLORS.violet, strokeOpacity: 0.35, strokeDasharray: "3 3" }}
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const point = payload[0]!.payload as ActivityChartPoint;
+                return (
+                  <TooltipSurface title={formatChartDay(point.day)}>
+                    <TooltipRow color={CHART_COLORS.violet} label="Arrivées" value={numberFormat.format(point.arrivals)} />
+                    <TooltipRow color={CHART_COLORS.green} label="Départs" value={numberFormat.format(point.departures)} />
+                    <div className="mt-1 border-t border-zinc-700/70 pt-1">
+                      <TooltipRow color={CHART_COLORS.gray} label="Total" value={numberFormat.format(point.total)} />
+                    </div>
+                  </TooltipSurface>
+                );
+              }}
+            />
+            <Area
+              type="monotone"
+              dataKey="arrivals"
+              name="Arrivées"
+              stroke={CHART_COLORS.violet}
+              fill="url(#activity-arrivals)"
+              strokeWidth={2.25}
+              dot={false}
+              activeDot={{ r: 4, strokeWidth: 2, fill: CHART_COLORS.surface }}
+              connectNulls={false}
+              isAnimationActive={!reducedMotion}
+              animationDuration={500}
+            />
+            <Area
+              type="monotone"
+              dataKey="departures"
+              name="Départs"
+              stroke={CHART_COLORS.green}
+              fill="url(#activity-departures)"
+              strokeWidth={2.25}
+              dot={false}
+              activeDot={{ r: 4, strokeWidth: 2, fill: CHART_COLORS.surface }}
+              connectNulls={false}
+              isAnimationActive={!reducedMotion}
+              animationDuration={500}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+      <details className="mt-2 text-[11px] text-zinc-500">
+        <summary className="cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70">
+          Données du graphique
+        </summary>
+        <div className="no-scrollbar mt-2 max-h-40 overflow-auto rounded-lg border border-zinc-800">
+          <table className="w-full text-left">
+            <thead className="sticky top-0 bg-zinc-900 text-zinc-400">
+              <tr><th className="px-2 py-1.5">Date</th><th className="px-2 py-1.5 text-right">Arrivées</th><th className="px-2 py-1.5 text-right">Départs</th></tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-800/70">
+              {data.map((point) => (
+                <tr key={point.day}>
+                  <td className="px-2 py-1.5">{formatChartDay(point.day)}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{point.arrivals}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{point.departures}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </div>
   );
 }
 
-// --- Presence donut --------------------------------------------------------
-
-const PRESENCE_SLICES: { key: keyof PresenceStatsDto; label: string; color: string }[] = [
-  { key: "online", label: "En ligne", color: VIZ.green },
-  { key: "idle", label: "Absent", color: VIZ.amber },
-  { key: "dnd", label: "Ne pas déranger", color: VIZ.red },
-  { key: "offline", label: "Hors ligne", color: VIZ.gray },
-];
-
-export function PresenceDonut({ data, height = 240 }: { data: PresenceStatsDto; height?: number }) {
-  const slices = PRESENCE_SLICES.map((s) => ({ ...s, value: data[s.key] })).filter((s) => s.value > 0);
-  const total = slices.reduce((sum, s) => sum + s.value, 0);
-  if (total === 0) {
-    return <EmptyChart height={height}>Aucune présence à afficher.</EmptyChart>;
-  }
+export function RankedBarChart({
+  data,
+  unit,
+  formatValue = (value) => numberFormat.format(value),
+  height,
+}: {
+  data: RankedChartDatum[];
+  unit: string;
+  formatValue?: (value: number) => string;
+  height?: number;
+}) {
+  const max = Math.max(...data.map((item) => item.value), 1);
   return (
-    <div className="flex flex-col items-center gap-3 sm:flex-row">
-      <ResponsiveContainer width="100%" height={height} className="max-w-[220px]">
-        <PieChart>
-          <Pie data={slices} dataKey="value" nameKey="label" innerRadius="62%" outerRadius="92%" paddingAngle={2} stroke={SURFACE} strokeWidth={2}>
-            {slices.map((s) => (
-              <Cell key={s.key} fill={s.color} />
-            ))}
-          </Pie>
-          <Tooltip
-            content={({ active, payload }) => {
-              if (!active || !payload?.length) return null;
-              const p = payload[0]!.payload as { label: string; value: number; color: string };
-              return (
-                <TooltipBox
-                  title={p.label}
-                  rows={[{ label: `${Math.round((p.value / total) * 100)} %`, value: String(p.value), color: p.color }]}
-                />
-              );
-            }}
-          />
-        </PieChart>
-      </ResponsiveContainer>
-      <ul className="grid w-full grid-cols-2 gap-x-4 gap-y-1.5 text-sm sm:w-auto sm:grid-cols-1">
-        {slices.map((s) => (
-          <li key={s.key} className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
-            <span className="text-zinc-400">{s.label}</span>
-            <span className="ml-auto font-semibold text-zinc-100 tabular-nums">{s.value}</span>
+    <ol data-chart="ranking" className="space-y-2.5" style={height ? { minHeight: height } : undefined}>
+      {data.map((item, index) => (
+        <li key={item.id} className="group">
+          <div className="mb-1 flex items-end justify-between gap-3 text-xs">
+            <span className="min-w-0 truncate font-medium text-zinc-300" title={item.label}>
+              <span className="mr-1.5 text-zinc-600">{index + 1}.</span>
+              {item.label}
+            </span>
+            <span className="shrink-0 font-semibold tabular-nums text-zinc-100">
+              {formatValue(item.value)} <span className="font-normal text-zinc-500">{unit}</span>
+            </span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-zinc-800/90" title={`${item.label} : ${formatValue(item.value)} ${unit}`}>
+            <div
+              className="h-full min-w-1 rounded-full bg-[linear-gradient(90deg,#6d4be8,#9b7cf7)] transition-[width] duration-500 motion-reduce:transition-none"
+              style={{ width: `${(item.value / max) * 100}%` }}
+            />
+          </div>
+          {item.detail && <p className="mt-1 truncate text-[10px] text-zinc-600">{item.detail}</p>}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+export function PresenceDonut({
+  slices,
+  total,
+  summary,
+  height = 210,
+}: {
+  slices: PresenceChartSlice[];
+  total: number;
+  summary: string;
+  height?: number;
+}) {
+  const reducedMotion = useReducedMotion();
+  const visibleSlices = useMemo(() => slices.filter((slice) => slice.value > 0), [slices]);
+  return (
+    <div data-chart="presence" className="flex flex-col items-center gap-3 sm:flex-row sm:items-center">
+      <div
+        role="img"
+        aria-label={summary}
+        tabIndex={0}
+        className="relative w-full min-w-0 max-w-[230px] outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+      >
+        <ResponsiveContainer width="100%" height={height}>
+          <PieChart accessibilityLayer>
+            <Pie
+              data={visibleSlices}
+              dataKey="value"
+              nameKey="label"
+              innerRadius="66%"
+              outerRadius="92%"
+              paddingAngle={2}
+              cornerRadius={5}
+              stroke={CHART_COLORS.surface}
+              strokeWidth={2}
+              isAnimationActive={!reducedMotion}
+              animationDuration={500}
+            >
+              {visibleSlices.map((slice) => <Cell key={slice.id} fill={slice.color} />)}
+            </Pie>
+            <Tooltip
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const slice = payload[0]!.payload as PresenceChartSlice;
+                return (
+                  <TooltipSurface title={slice.label}>
+                    <TooltipRow color={slice.color} label="Membres" value={numberFormat.format(slice.value)} />
+                    <TooltipRow color={slice.color} label="Part" value={`${numberFormat.format(slice.percentage)} %`} />
+                  </TooltipSurface>
+                );
+              }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <span className="font-display text-2xl font-bold tabular-nums text-zinc-100">{numberFormat.format(total)}</span>
+          <span className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-zinc-500">membres</span>
+        </div>
+      </div>
+      <ul className="grid w-full min-w-0 grid-cols-1 gap-2">
+        {slices.map((slice) => (
+          <li key={slice.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 text-[11px]">
+            <span className="h-2.5 w-2.5 rounded-full ring-2 ring-white/5" style={{ backgroundColor: slice.color }} aria-hidden />
+            <span className="truncate text-zinc-400">{slice.label}</span>
+            <span className="font-semibold tabular-nums text-zinc-200">
+              {numberFormat.format(slice.value)}
+              <span className="ml-1 font-normal text-zinc-500">· {numberFormat.format(slice.percentage)} %</span>
+            </span>
           </li>
         ))}
       </ul>

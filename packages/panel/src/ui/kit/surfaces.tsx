@@ -36,12 +36,12 @@ export function Card({
   const inner = (
     <>
       {(title || action) && (
-        <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="mb-3 flex flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             {title && <h2 className="text-title font-semibold text-zinc-100">{title}</h2>}
             {description && <p className="mt-0.5 text-xs leading-relaxed text-zinc-400">{description}</p>}
           </div>
-          {action && <div className="shrink-0">{action}</div>}
+          {action && <div className="min-w-0 sm:shrink-0">{action}</div>}
         </div>
       )}
       {children}

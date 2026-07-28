@@ -15,7 +15,7 @@ export function Landing() {
 
       <header className="relative mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-6">
         <Wordmark size={30} textClassName="text-[18px]" />
-        <Button href="/auth/login" variant="secondary" size="sm">Ouvrir le panel</Button>
+        <Button href="/auth/login" variant="secondary" size="sm">Se connecter</Button>
       </header>
 
       <LandingContent />

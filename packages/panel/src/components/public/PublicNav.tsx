@@ -4,7 +4,7 @@ import { NavLink } from "react-router";
    qui n'existent qu'avec le flag `platform.publicSite` ON — donc ce composant
    n'est monté que dans ce cas (via PublicLayout). Contenu final = M3+. */
 const LINKS = [
-  { to: "/features", label: "Fonctions" },
+  { to: "/features", label: "Fonctionnalités" },
   { to: "/pricing", label: "Tarifs" },
   { to: "/updates", label: "Mises à jour" },
   { to: "/status", label: "Statut" },

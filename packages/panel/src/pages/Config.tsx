@@ -139,6 +139,7 @@ export function ConfigPage() {
               value={logChannelId || null}
               onChange={(id) => setLogChannelId(id ?? "")}
               placeholder="— Désactivé —"
+              ariaLabel="Salon des logs de modération"
             />
           </section>
 
@@ -164,7 +165,7 @@ export function ConfigPage() {
             </summary>
             <div className="pb-3">
               <div className="flex gap-2">
-                <Input value={botNickname} onChange={(e) => setBotNickname(e.target.value)} maxLength={32} placeholder="Nom par défaut du bot" className="flex-1" />
+                <Input aria-label="Surnom du bot" value={botNickname} onChange={(e) => setBotNickname(e.target.value)} maxLength={32} placeholder="Nom par défaut du bot" className="flex-1" />
                 <Button variant="secondary" onClick={() => saveNickname.mutate()} loading={saveNickname.isPending}>Appliquer</Button>
               </div>
               {saveNickname.isSuccess && <p className="mt-2 text-sm text-green-400">✓ Surnom appliqué sur ce serveur.</p>}

@@ -1,0 +1,60 @@
+{
+  "generatedAt": "2026-07-28T05:39:16.392Z",
+  "checks": 9,
+  "results": [
+    {
+      "name": "drawer",
+      "triggerFocused": true,
+      "open": true,
+      "bodyLocked": true,
+      "focusInside": true,
+      "insideViewport": true
+    },
+    {
+      "name": "drawer_escape",
+      "closed": true,
+      "focusReturned": true
+    },
+    {
+      "name": "search_keyboard",
+      "open": true,
+      "inputFocused": true,
+      "insideViewport": true,
+      "groups": 2
+    },
+    {
+      "name": "search_results_and_enter",
+      "results": 4,
+      "actualPath": "/guilds/123456789012345678/roles"
+    },
+    {
+      "name": "search_escape_restore",
+      "closed": true,
+      "focusReturned": true
+    },
+    {
+      "name": "dashboard_periods",
+      "available": true,
+      "labels": [
+        "7 j",
+        "30 j",
+        "90 j"
+      ],
+      "selected": "90 j"
+    },
+    {
+      "name": "favorite_persistence",
+      "clicked": true,
+      "visibleAfterReload": true
+    },
+    {
+      "name": "dirty_guard",
+      "dirty": true,
+      "savebar": true
+    },
+    {
+      "name": "reduced_motion",
+      "matches": true
+    }
+  ]
+}

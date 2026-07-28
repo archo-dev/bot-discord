@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { Icon } from "./icons.js";
 
 export function ContextMenu({ label = "Plus d’actions", children }: { label?: string; children: ReactNode }) {
@@ -7,7 +7,7 @@ export function ContextMenu({ label = "Plus d’actions", children }: { label?: 
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (open) menu.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus();
   }, [open]);
 
@@ -67,7 +67,7 @@ export function ContextMenu({ label = "Plus d’actions", children }: { label?: 
                 : (current + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
             items[next]?.focus();
           }}
-          className="animate-panel-in absolute right-0 z-(--z-sticky) mt-1 min-w-44 overflow-hidden rounded-lg border border-zinc-700 bg-(--surface-2) p-1 shadow-(--shadow-md)"
+          className="animate-panel-in absolute right-0 z-(--z-sticky) mt-1 min-w-44 max-w-[calc(100vw-2rem)] max-h-[min(20rem,calc(100dvh-6rem))] overscroll-contain overflow-auto rounded-lg border border-zinc-700 bg-(--surface-2) p-1 shadow-(--shadow-md)"
         >
           {children}
         </div>

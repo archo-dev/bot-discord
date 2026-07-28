@@ -15,6 +15,7 @@ import { Skeleton, SkeletonGuildGrid } from "./ui/skeleton.js";
 import { PanelErrorBoundary } from "./ui/error-boundary.js";
 import { consumeReturnRoute } from "./lib/resilience.js";
 import { recoverExpiredSession } from "./lib/session-recovery.js";
+import { destinationPath } from "./navigation/registry.js";
 
 /*
  * Découpage de code (M04) — chaque page secondaire vit dans son propre chunk,
@@ -22,7 +23,8 @@ import { recoverExpiredSession } from "./lib/session-recovery.js";
  * reste dans le chunk initial : c'est le parcours d'atterrissage le plus
  * probable, il ne doit jamais suspendre. Les modules exportent des composants
  * nommés → on les réexporte en `default` pour `React.lazy`.
- * Recharts (~lourd) n'est importé que par Stats : il part donc avec ce chunk.
+ * Recharts (~lourd) reste dans un chunk graphique différé, partagé par Stats
+ * et le bloc de visualisations chargé à la demande sur le Dashboard.
  * Le <Suspense> qui couvre ces routes vit dans GuildLayout (autour de l'Outlet),
  * pour que la nav et l'en-tête restent affichés pendant le chargement.
  */
@@ -83,6 +85,11 @@ function PublicFallback() {
 function NotFoundPage({ scope = "panel" }: { scope?: "panel" | "guild" }) {
   return (
     <div className="mx-auto flex min-h-[55vh] max-w-md items-center px-4">
+      {scope === "guild" ? (
+        <h2 className="sr-only">Page du serveur introuvable</h2>
+      ) : (
+        <h1 className="sr-only">Page introuvable</h1>
+      )}
       <ErrorCard
         message={scope === "guild" ? "Cette page du serveur n’existe pas." : "Cette page n’existe pas ou n’est plus disponible."}
         onRetry={() => window.location.assign(scope === "guild" ? ".." : "/")}
@@ -214,33 +221,33 @@ export function App() {
       )}
       <Route path="/guilds/:guildId" element={<GuildLayout me={me.data} />}>
         <Route index element={<Dashboard />} />
-        <Route path="onboarding" element={<OnboardingPage />} />
-        <Route path="stats" element={<StatsPage />} />
-        <Route path="health" element={<HealthPage />} />
-        <Route path="audit" element={<AuditPage />} />
-        <Route path="modules" element={<PanelErrorBoundary zone="modules" resetKey={location.pathname}><ModulesPage /></PanelErrorBoundary>} />
-        <Route path="config" element={<ConfigPage />} />
+        <Route path={destinationPath("onboarding")} element={<OnboardingPage />} />
+        <Route path={destinationPath("observability")} element={<StatsPage />} />
+        <Route path={destinationPath("health")} element={<HealthPage />} />
+        <Route path={destinationPath("audit")} element={<AuditPage />} />
+        <Route path={destinationPath("modules")} element={<PanelErrorBoundary zone="modules" resetKey={location.pathname}><ModulesPage /></PanelErrorBoundary>} />
+        <Route path={destinationPath("settings")} element={<ConfigPage />} />
         <Route path="backup" element={<BackupPage />} />
         <Route path="privacy" element={<PrivacyPage />} />
-        <Route path="commands" element={<CommandsPage />} />
+        <Route path={destinationPath("commands")} element={<CommandsPage />} />
         <Route path="commands/new" element={<CommandEditorPage />} />
         <Route path="commands/:commandId" element={<CommandEditorPage />} />
-        <Route path="automations" element={<PanelErrorBoundary zone="automations" resetKey={location.pathname}><AutomationsPage /></PanelErrorBoundary>} />
+        <Route path={destinationPath("automations")} element={<PanelErrorBoundary zone="automations" resetKey={location.pathname}><AutomationsPage /></PanelErrorBoundary>} />
         <Route path="automations/new" element={<PanelErrorBoundary zone="automations" resetKey={location.pathname}><AutomationEditorPage /></PanelErrorBoundary>} />
         <Route path="automations/:automationId" element={<PanelErrorBoundary zone="automations" resetKey={location.pathname}><AutomationEditorPage /></PanelErrorBoundary>} />
-        <Route path="tickets" element={<TicketsPage />} />
-        <Route path="roles" element={<RolesPage />} />
-        <Route path="welcome" element={<WelcomePage />} />
-        <Route path="automod" element={<AutomodPage />} />
-        <Route path="levels" element={<LevelsPage />} />
-        <Route path="starboard" element={<StarboardPage />} />
-        <Route path="tempvoice" element={<TempVoicePage />} />
-        <Route path="music" element={<MusicPage />} />
+        <Route path={destinationPath("tickets")} element={<TicketsPage />} />
+        <Route path={destinationPath("roles")} element={<RolesPage />} />
+        <Route path={destinationPath("welcome")} element={<WelcomePage />} />
+        <Route path={destinationPath("automod")} element={<AutomodPage />} />
+        <Route path={destinationPath("levels")} element={<LevelsPage />} />
+        <Route path={destinationPath("starboard")} element={<StarboardPage />} />
+        <Route path={destinationPath("tempvoice")} element={<TempVoicePage />} />
+        <Route path={destinationPath("music")} element={<MusicPage />} />
         {/* Legacy Mod-log route folded into the unified history (keeps old links alive). */}
         <Route path="modlog" element={<Navigate to="../sanctions" replace />} />
-        <Route path="sanctions" element={<ModerationHistoryPage />} />
+        <Route path={destinationPath("moderation")} element={<ModerationHistoryPage />} />
         <Route path="apply" element={<ApplySanctionPage />} />
-        <Route path="voicelog" element={<VoiceLogPage />} />
+        <Route path={destinationPath("logs")} element={<VoiceLogPage />} />
         <Route path="access" element={<PanelAccessPage />} />
         <Route path="*" element={<NotFoundPage scope="guild" />} />
       </Route>

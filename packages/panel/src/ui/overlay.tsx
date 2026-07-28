@@ -75,7 +75,7 @@ export function Modal({
 
   return (
     <div
-      className={`animate-overlay-in fixed inset-0 z-(--z-modal) flex bg-[rgba(6,7,14,0.72)] ${placement === "right" ? "justify-end" : "items-center justify-center p-4 sm:p-6"}`}
+      className={`animate-overlay-in fixed inset-0 z-(--z-modal) flex bg-[rgba(6,7,14,0.72)] ${placement === "right" ? "justify-end" : "items-center justify-center p-2 sm:p-6"}`}
       onClick={() => !locked && onClose()}
       aria-hidden={false}
     >
@@ -86,10 +86,10 @@ export function Modal({
         aria-label={typeof title === "string" ? title : undefined}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className={`animate-panel-in w-full overflow-auto border border-zinc-800 bg-zinc-900 shadow-(--shadow-lg) outline-none ${
+        className={`animate-panel-in w-full overscroll-contain overflow-auto border border-zinc-800 bg-zinc-900 shadow-(--shadow-lg) outline-none ${
           placement === "right"
-            ? "h-full max-w-lg border-y-0 border-r-0 p-4 sm:p-5"
-            : `max-h-[85vh] rounded-2xl p-5 sm:p-6 ${size === "2xl" ? "max-w-2xl" : "max-w-md"}`
+            ? "h-[100dvh] max-h-[100dvh] max-w-lg border-y-0 border-r-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5"
+            : `max-h-[calc(100dvh-1rem)] rounded-2xl p-4 sm:max-h-[calc(100dvh-3rem)] sm:p-6 ${size === "2xl" ? "max-w-2xl" : "max-w-md"}`
         }`}
       >
         <div className="mb-3 flex items-start justify-between gap-3">
@@ -99,7 +99,7 @@ export function Modal({
             onClick={onClose}
             disabled={locked}
             aria-label="Fermer"
-            className="rounded-lg p-1 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
+            className="-mr-1 -mt-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 disabled:opacity-50"
           >
             <svg viewBox="0 0 20 20" className="h-5 w-5 fill-current" aria-hidden>
               <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
@@ -129,6 +129,7 @@ export function ConfirmModal({
   consequence,
   confirmLabel = "Supprimer",
   loading = false,
+  error,
   onCancel,
   onConfirm,
 }: {
@@ -138,6 +139,7 @@ export function ConfirmModal({
   consequence?: ReactNode;
   confirmLabel?: string;
   loading?: boolean;
+  error?: ReactNode;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -157,11 +159,16 @@ export function ConfirmModal({
           {consequence && <p className="mt-1.5 text-[13px] text-zinc-500">{consequence}</p>}
         </div>
       </div>
-      <div className="mt-5 flex justify-end gap-2">
-        <Button variant="ghost" onClick={onCancel} disabled={loading}>
+      {error && (
+        <div role="alert" className="mt-4 rounded-lg border border-red-900/60 bg-red-950/25 px-3 py-2 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+      <div className="mt-5 flex flex-col-reverse gap-2 min-[360px]:flex-row min-[360px]:justify-end">
+        <Button className="w-full min-[360px]:w-auto" variant="ghost" onClick={onCancel} disabled={loading}>
           Annuler
         </Button>
-        <Button variant="danger" onClick={onConfirm} loading={loading}>
+        <Button className="w-full min-[360px]:w-auto" variant="danger" onClick={onConfirm} loading={loading}>
           {confirmLabel}
         </Button>
       </div>

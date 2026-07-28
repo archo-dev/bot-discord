@@ -3,8 +3,13 @@ import { MODULE_REGISTRY } from "@bot/shared";
 import { BENEFITS, USE_CASES, FEATURED_MODULES } from "../src/components/public/landing/data.js";
 
 describe("landing content data (M3)", () => {
-  it("fournit des bénéfices et cas d'usage non vides, à clés stables", () => {
-    expect(BENEFITS.length).toBeGreaterThanOrEqual(4);
+  it("limite la landing aux trois bénéfices validés, à clés stables", () => {
+    expect(BENEFITS).toHaveLength(3);
+    expect(BENEFITS.map((benefit) => benefit.title)).toEqual([
+      "Tout centralisé",
+      "Communauté plus saine",
+      "Statistiques en temps réel",
+    ]);
     expect(USE_CASES.length).toBeGreaterThanOrEqual(3);
     for (const b of BENEFITS) {
       expect(b.title.trim().length).toBeGreaterThan(0);

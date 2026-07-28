@@ -4,7 +4,7 @@ import { useParams } from "react-router";
 import type { GuildPrivacyResponse, ProductFeedbackCategory, ProductFeedbackResponse } from "@bot/shared";
 import { api } from "../lib/api.js";
 import { useCanWrite } from "../lib/access.js";
-import { Badge, Button, Card, ErrorCard, Field, InfoCard, Select, Textarea, Toggle } from "../ui/kit.js";
+import { Badge, Button, Card, ErrorCard, Field, InfoCard, OperationalState, Select, Textarea, Toggle } from "../ui/kit.js";
 import { Icon } from "../ui/icons.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
 
@@ -23,14 +23,14 @@ export function PrivacyPage() {
     mutationFn: (enabled: boolean) => api<GuildPrivacyResponse>(`/api/guilds/${guildId}/privacy`, {
       method: "PATCH", body: JSON.stringify({ productAnalyticsEnabled: enabled }),
     }),
-    meta: { successMessage: "Préférence de confidentialité enregistrée." },
+    meta: { successMessage: "Préférence de confidentialité enregistrée.", silentError: true },
     onSuccess: (data) => queryClient.setQueryData(["privacy", guildId], data),
   });
   const feedback = useMutation({
     mutationFn: () => api<ProductFeedbackResponse>(`/api/guilds/${guildId}/feedback`, {
       method: "POST", body: JSON.stringify({ category, message }),
     }),
-    meta: { successMessage: "Merci, votre retour a été envoyé." },
+    meta: { successMessage: "Merci, votre retour a été envoyé.", silentError: true },
     onSuccess: () => setMessage(""),
   });
 
@@ -39,6 +39,13 @@ export function PrivacyPage() {
 
   return (
     <div className="space-y-4">
+      {!canWrite && (
+        <OperationalState
+          kind="readonly"
+          title="Consultation en lecture seule"
+          description="Les préférences et le formulaire restent visibles, mais votre rôle panel ne permet pas de les modifier."
+        />
+      )}
       <Card
         title="Analytics produit minimales"
         description="Aidez-nous à comprendre l’installation, la prise en main et l’adoption des modules. Aucun contenu Discord ni membre n’est suivi."
@@ -47,6 +54,7 @@ export function PrivacyPage() {
           <Toggle
             checked={privacy.data.productAnalyticsEnabled}
             onChange={(enabled) => update.mutate(enabled)}
+            disabled={update.isPending}
             label="Participer aux analytics produit"
             description="Désactiver purge immédiatement les contributions pseudonymisées encore rattachables à cette guilde."
           />
@@ -56,6 +64,11 @@ export function PrivacyPage() {
             <Badge tone={privacy.data.productAnalyticsEnabled ? "success" : "neutral"}>
               {privacy.data.productAnalyticsEnabled ? "Activée" : "Désactivée"}
             </Badge>
+          </div>
+        )}
+        {update.isError && (
+          <div className="mt-4">
+            <ErrorCard compact title="Préférence non enregistrée" message="La valeur précédente est conservée. Vérifiez votre connexion puis réessayez." />
           </div>
         )}
         <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-3">
@@ -77,6 +90,9 @@ export function PrivacyPage() {
             <Textarea value={message} maxLength={1000} disabled={!canWrite} onChange={(event) => setMessage(event.target.value)} placeholder="Votre retour…" />
           </Field>
           {canWrite && <Button loading={feedback.isPending} disabled={message.trim().length === 0} onClick={() => feedback.mutate()}>Envoyer</Button>}
+          {feedback.isError && (
+            <ErrorCard compact title="Retour non envoyé" message="Votre message est conservé dans le formulaire. Vérifiez votre connexion puis réessayez." />
+          )}
         </div>
       </Card>
 

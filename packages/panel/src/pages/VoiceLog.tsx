@@ -89,18 +89,27 @@ export function VoiceLogPage() {
   return (
     // M21 : largeur bornée — une table 4 colonnes s'étale et paraît vide sur 1600 px.
     <div className="max-w-5xl space-y-4">
+      {channels.isError && (
+        <ErrorCard
+          compact
+          title="Noms des salons indisponibles"
+          message="L’historique reste consultable avec les identifiants connus. Le filtre par salon est neutralisé jusqu’au prochain chargement."
+          onRetry={() => void channels.refetch()}
+          retrying={channels.isFetching}
+        />
+      )}
       <Card
         title="Historique vocal"
         description="Arrivées, départs et déplacements en vocal — indépendants du salon de logs. Nécessite le service Gateway."
       >
         <Toolbar className="mb-4">
           <div className="w-56">
-            <MemberCombobox guildId={guildId!} value={userId || null} onChange={(id) => setUserId(id ?? "")} placeholder="Filtrer par membre…" />
+            <MemberCombobox guildId={guildId!} value={userId || null} onChange={(id) => setUserId(id ?? "")} placeholder="Filtrer par membre…" ariaLabel="Filtrer les logs vocaux par membre" />
           </div>
           <div className="w-52">
-            <ChannelSelect guildId={guildId!} value={channelId || null} onChange={(id) => setChannelId(id ?? "")} types={[2, 13]} placeholder="Filtrer par salon…" />
+            <ChannelSelect guildId={guildId!} value={channelId || null} onChange={(id) => setChannelId(id ?? "")} types={[2, 13]} placeholder="Filtrer par salon…" ariaLabel="Filtrer les logs vocaux par salon" />
           </div>
-          <Select value={action} onChange={(e) => setAction(e.target.value)} className="sm:max-w-52">
+          <Select aria-label="Filtrer les logs vocaux par action" value={action} onChange={(e) => setAction(e.target.value)} className="sm:max-w-52">
             {ACTION_FILTERS.map((f) => (
               <option key={f.value} value={f.value}>
                 {f.label}
@@ -140,34 +149,54 @@ export function VoiceLogPage() {
           )
         ) : (
           <>
-            <TableWrap>
-              <thead>
-                <tr className="border-b border-zinc-800 text-left text-xs uppercase tracking-wide text-zinc-500">
-                  <th className="py-2 pr-4 font-semibold">Action</th>
-                  <th className="py-2 pr-4 font-semibold">Membre</th>
-                  <th className="py-2 pr-4 font-semibold">Salon</th>
-                  <th className="py-2 pr-4 text-right font-semibold">Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {items.map((log) => (
-                  <tr key={log.id} className="align-middle">
-                    <td className="py-2.5 pr-4">
-                      <span className="font-semibold text-zinc-100">
-                        {ACTION_META[log.action].emoji} {ACTION_META[log.action].label}
-                      </span>
-                    </td>
-                    <td className="py-2.5 pr-4">
-                      <UserCell userId={log.userId} />
-                    </td>
-                    <td className="py-2.5 pr-4">{channelCell(log)}</td>
-                    <td className="whitespace-nowrap py-2.5 pr-4 text-right text-zinc-500">
-                      <TimeAgo iso={log.createdAt} />
-                    </td>
+            <div className="hidden md:block">
+              <TableWrap>
+                <thead>
+                  <tr className="border-b border-zinc-800 text-left text-xs uppercase tracking-wide text-zinc-500">
+                    <th className="py-2 pr-4 font-semibold">Action</th>
+                    <th className="py-2 pr-4 font-semibold">Membre</th>
+                    <th className="py-2 pr-4 font-semibold">Salon</th>
+                    <th className="py-2 pr-4 text-right font-semibold">Date</th>
                   </tr>
-                ))}
-              </tbody>
-            </TableWrap>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {items.map((log) => (
+                    <tr key={log.id} className="align-middle">
+                      <td className="py-2.5 pr-4">
+                        <span className="font-semibold text-zinc-100">
+                          {ACTION_META[log.action].emoji} {ACTION_META[log.action].label}
+                        </span>
+                      </td>
+                      <td className="py-2.5 pr-4">
+                        <UserCell userId={log.userId} />
+                      </td>
+                      <td className="py-2.5 pr-4">{channelCell(log)}</td>
+                      <td className="whitespace-nowrap py-2.5 pr-4 text-right text-zinc-500">
+                        <TimeAgo iso={log.createdAt} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </TableWrap>
+            </div>
+            <ul className="space-y-2 md:hidden" aria-label="Historique vocal">
+              {items.map((log) => (
+                <li
+                  key={log.id}
+                  data-mobile-card
+                  className="min-w-0 rounded-xl border border-zinc-800 bg-zinc-950/35 p-3"
+                >
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <span className="font-semibold text-zinc-100">
+                      {ACTION_META[log.action].emoji} {ACTION_META[log.action].label}
+                    </span>
+                    <span className="shrink-0 text-xs text-zinc-500"><TimeAgo iso={log.createdAt} /></span>
+                  </div>
+                  <div className="mt-3 min-w-0"><UserCell userId={log.userId} /></div>
+                  <div className="mt-2 min-w-0 break-words text-sm">{channelCell(log)}</div>
+                </li>
+              ))}
+            </ul>
 
             {logs.hasNextPage && (
               <div className="mt-4 flex justify-center">

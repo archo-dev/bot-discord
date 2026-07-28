@@ -20,12 +20,19 @@ export function SegmentedControl<T extends string | number>({
   className?: string;
 }) {
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
     e.preventDefault();
     const i = options.findIndex((o) => o.value === value);
     if (i < 0) return;
-    const next = options[(i + (e.key === "ArrowRight" ? 1 : options.length - 1)) % options.length]!;
+    const nextIndex = e.key === "Home"
+      ? 0
+      : e.key === "End"
+        ? options.length - 1
+        : (i + (e.key === "ArrowRight" ? 1 : options.length - 1)) % options.length;
+    const next = options[nextIndex]!;
+    const group = e.currentTarget;
     onChange(next.value);
+    requestAnimationFrame(() => group.querySelectorAll<HTMLButtonElement>('[role="radio"]')[nextIndex]?.focus());
   };
   return (
     <div
@@ -44,7 +51,7 @@ export function SegmentedControl<T extends string | number>({
             aria-checked={active}
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(o.value)}
-            className={`rounded-md px-2.5 py-1 font-medium transition duration-(--motion-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 ${
+            className={`min-h-8 rounded-md px-2.5 py-1 font-medium transition duration-(--motion-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 ${
               active ? "bg-(--primary) text-white" : "text-zinc-400 hover:text-zinc-200"
             }`}
           >

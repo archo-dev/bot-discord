@@ -33,6 +33,7 @@ interface ComboboxProps {
   invalid?: boolean;
   emptyText?: string;
   id?: string;
+  ariaLabel?: string;
   className?: string;
   /** Libellé de la valeur courante quand elle n'est pas dans `options` (mode async). */
   selectedOption?: ComboOption | null;
@@ -59,6 +60,7 @@ export function Combobox({
   invalid = false,
   emptyText = "Aucun résultat.",
   id,
+  ariaLabel,
   className = "",
   selectedOption = null,
 }: ComboboxProps) {
@@ -145,6 +147,7 @@ export function Combobox({
           ref={inputRef}
           id={id}
           role="combobox"
+          aria-label={ariaLabel}
           aria-expanded={open}
           aria-controls={listId}
           aria-autocomplete="list"
@@ -172,7 +175,7 @@ export function Combobox({
               setOpen(false);
             }}
             aria-label="Effacer la sélection"
-            className="shrink-0 rounded p-0.5 text-zinc-500 transition hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+            className="-mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
           >
             <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
               <line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" />
@@ -199,7 +202,7 @@ export function Combobox({
         <ul
           id={listId}
           role="listbox"
-          className="absolute z-30 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-zinc-700 bg-(--surface-2) py-1 shadow-xl"
+          className="absolute z-30 mt-1 max-h-[min(16rem,calc(100dvh-8rem))] w-full max-w-[calc(100vw-2rem)] overscroll-contain overflow-auto rounded-lg border border-zinc-700 bg-(--surface-2) py-1 shadow-xl"
         >
           {loading && <li className="px-3 py-2 text-sm text-zinc-500">Recherche…</li>}
           {!loading && filtered.length === 0 && (

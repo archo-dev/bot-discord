@@ -30,24 +30,7 @@ export const queryClient = new QueryClient({
     },
     onError: (error, _variables, _context, mutation) => {
       if (mutation.meta?.silentError) return;
-      const fallback = error instanceof ApiError
-        ? error.category === "network"
-          ? "Connexion indisponible — vérifiez votre réseau puis réessayez."
-          : error.category === "timeout"
-            ? "Le serveur met trop de temps à répondre — réessayez."
-          : error.code === "target_is_guild_owner"
-          ? "Action refusée : le propriétaire du serveur ne peut pas être sanctionné. Un avertissement automatique a été enregistré."
-          : error.code === "quota_exceeded"
-          ? "Quota de sécurité atteint — réessayez demain."
-          : error.code === "csrf_rejected"
-            ? "Origine de la requête refusée — rechargez le panel officiel."
-            : error.status === 401
-              ? "Votre session a expiré — reconnectez-vous."
-              : error.status === 403
-                ? "Action refusée — permissions insuffisantes."
-                : "L'opération a échoué — réessayez."
-        : "L'opération a échoué — réessayez.";
-      toast.error(mutation.meta?.errorMessage ?? fallback);
+      toast.error(mutation.meta?.errorMessage ?? mutationErrorMessage(error));
     },
   }),
   defaultOptions: {
@@ -62,6 +45,21 @@ export const queryClient = new QueryClient({
     mutations: { retry: false },
   },
 });
+
+/** Message public borné : aucun code interne, payload ou détail serveur n'est exposé. */
+export function mutationErrorMessage(error: unknown): string {
+  if (!(error instanceof ApiError)) return "L'opération a échoué — réessayez.";
+  if (error.category === "network") return "Connexion indisponible — vérifiez votre réseau puis réessayez.";
+  if (error.category === "timeout") return "Le serveur met trop de temps à répondre — réessayez.";
+  if (error.code === "target_is_guild_owner") {
+    return "Action refusée : le propriétaire du serveur ne peut pas être sanctionné. Un avertissement automatique a été enregistré.";
+  }
+  if (error.code === "quota_exceeded") return "Quota de sécurité atteint — réessayez demain.";
+  if (error.code === "csrf_rejected") return "Origine de la requête refusée — rechargez le panel officiel.";
+  if (error.status === 401) return "Votre session a expiré — reconnectez-vous.";
+  if (error.status === 403) return "Action refusée — permissions insuffisantes.";
+  return "L'opération a échoué — réessayez.";
+}
 
 export function shouldRetryQuery(failureCount: number, error: unknown): boolean {
   if (!(error instanceof ApiError)) return false;

@@ -11,7 +11,7 @@ import {
   type RoleOption,
 } from "@bot/shared";
 import { api } from "../lib/api.js";
-import { Badge, Button, Select } from "../ui/kit.js";
+import { Badge, Button, ErrorCard, Select } from "../ui/kit.js";
 import { Modal } from "../ui/overlay.js";
 import { toast } from "../ui/toast.js";
 import { invalidateConfigQueries } from "./Backup.js";
@@ -24,21 +24,22 @@ export function BackupImport({ guildId, onClose }: { guildId: string; onClose: (
   const [validation, setValidation] = useState<ImportValidateResult | null>(null);
   const [modules, setModules] = useState<BackupModuleId[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [fileError, setFileError] = useState<string | null>(null);
 
   const channels = useQuery({ queryKey: ["channels", guildId], queryFn: ({ signal }) => api<ChannelOption[]>(`/api/guilds/${guildId}/channels`, { signal }) });
   const roles = useQuery({ queryKey: ["roles", guildId], queryFn: ({ signal }) => api<RoleOption[]>(`/api/guilds/${guildId}/roles`, { signal }) });
 
   const validate = useMutation({
     mutationFn: (parsed: ConfigExport) => api<ImportValidateResult>(`/api/guilds/${guildId}/config-import/validate`, { method: "POST", body: JSON.stringify({ export: parsed }) }),
+    meta: { silentError: true },
     onSuccess: (result, parsed) => {
+      setFileError(null);
       setValidation(result);
       setModules(result.modules);
       // Same-guild import defaults each reference to itself; cross-guild starts unset.
       setMapping(Object.fromEntries(result.references.map((ref) => [ref.sourceId, result.sameGuild ? ref.sourceId : ""])));
-      if (!result.ok) toast.error(result.issues[0] ?? "Fichier invalide.");
       setExported(parsed);
     },
-    onError: () => toast.error("Validation impossible."),
   });
 
   const apply = useMutation({
@@ -50,16 +51,17 @@ export function BackupImport({ guildId, onClose }: { guildId: string; onClose: (
         mapping: Object.fromEntries(Object.entries(mapping).map(([id, value]) => [id, value === DROP ? null : value])),
       }),
     }),
+    meta: { silentError: true },
     onSuccess: () => { toast.success("Configuration importée."); invalidateConfigQueries(queryClient, guildId); onClose(); },
-    onError: () => toast.error("Import impossible."),
   });
 
   async function onFile(file: File) {
+    setFileError(null);
     try {
       const parsed = JSON.parse(await file.text()) as ConfigExport;
       validate.mutate(parsed);
     } catch {
-      toast.error("Fichier JSON illisible.");
+      setFileError("Ce fichier JSON est illisible. Choisissez un export Archodev valide.");
     }
   }
 
@@ -82,6 +84,15 @@ export function BackupImport({ guildId, onClose }: { guildId: string; onClose: (
             <input type="file" accept="application/json,.json" className="sr-only" onChange={(e) => e.target.files?.[0] && void onFile(e.target.files[0])} />
             {validate.isPending ? "Vérification…" : "Cliquez pour choisir un fichier"}
           </label>
+          {(fileError || validate.isError) && (
+            <div className="mt-4">
+              <ErrorCard
+                compact
+                title="Validation impossible"
+                message={fileError ?? "Le fichier n’a pas pu être vérifié. Il reste inchangé sur votre appareil ; choisissez-le à nouveau pour réessayer."}
+              />
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-4">
@@ -92,6 +103,18 @@ export function BackupImport({ guildId, onClose }: { guildId: string; onClose: (
           )}
           {!validation.sameGuild && validation.ok && (
             <p className="text-[13px] text-zinc-400">Import depuis un autre serveur : associez chaque salon/rôle à une entité de ce serveur.</p>
+          )}
+          {(channels.isError || roles.isError) && refsToMap.length > 0 && (
+            <ErrorCard
+              compact
+              title="Correspondances indisponibles"
+              message="Impossible de charger les salons ou les rôles de ce serveur. L’import reste bloqué jusqu’à leur chargement."
+              onRetry={() => {
+                if (channels.isError) void channels.refetch();
+                if (roles.isError) void roles.refetch();
+              }}
+              retrying={channels.isFetching || roles.isFetching}
+            />
           )}
 
           <div>
@@ -130,6 +153,13 @@ export function BackupImport({ guildId, onClose }: { guildId: string; onClose: (
                 ))}
               </div>
             </div>
+          )}
+          {apply.isError && (
+            <ErrorCard
+              compact
+              title="Import non appliqué"
+              message="La configuration actuelle et vos choix de correspondance sont conservés. Vérifiez votre connexion puis réessayez."
+            />
           )}
 
           <div className="flex justify-end gap-2 pt-1">

@@ -1,6 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
-import type { OnboardingInvite } from "@bot/shared";
-import { api } from "../../../lib/api.js";
 import { Button } from "../../../ui/kit.js";
 
 const DiscordMark = ({ className }: { className?: string }) => (
@@ -10,40 +7,45 @@ const DiscordMark = ({ className }: { className?: string }) => (
 );
 
 export function Hero() {
-  const invite = useQuery({
-    queryKey: ["invite"],
-    queryFn: ({ signal }) => api<OnboardingInvite>("/api/invite", { signal }),
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-
   return (
-    <section aria-labelledby="hero-title" className="relative py-16 text-center sm:py-24">
-      <div className="mb-4 font-display text-[11px] font-semibold uppercase tracking-[0.2em] text-indigo-300">Panel Archodev</div>
-      <h1 id="hero-title" className="mx-auto max-w-3xl font-display text-4xl font-semibold tracking-[-0.02em] text-zinc-50 sm:text-5xl">
-        Animez, modérez et gérez votre serveur Discord — sans effort.
-      </h1>
-      <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-zinc-400 sm:text-lg">
-        Accueil, auto-modération, niveaux, tickets, musique et vocaux temporaires, réunis dans un panel web clair.
-        Passez moins de temps à gérer, plus de temps à faire grandir votre communauté.
-      </p>
-      <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-        {/* Exception assumée au kit (CTA marketing du hero, cf. ui/kit/DESIGN_TOKENS.md). */}
-        <a
-          href={invite.data?.url ?? "#"}
-          aria-disabled={!invite.data}
-          target="_blank"
-          rel="noreferrer"
-          className={`inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-gradient-to-b from-indigo-500 to-indigo-600 px-6 font-semibold text-white shadow-(--shadow-primary) transition hover:from-indigo-400 hover:to-indigo-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${invite.data ? "" : "pointer-events-none opacity-60"}`}
-        >
-          <DiscordMark className="h-5 w-5 fill-current" />
-          Ajouter à mon serveur
-        </a>
-        <Button href="#offres" variant="secondary" size="lg">Voir les offres</Button>
+    <section aria-labelledby="hero-title" className="relative text-center lg:text-left">
+      <div className="mb-4 font-display text-[11px] font-semibold uppercase tracking-[0.2em] text-indigo-300">
+        Panel Discord tout-en-un
       </div>
-      <p className="mt-4 text-xs text-zinc-500">
-        Gratuit pour commencer. Permissions minimales, expliquées une par une à l'installation.
+      <h1
+        id="hero-title"
+        className="mx-auto max-w-2xl font-display text-[2.55rem] font-semibold leading-[1.04] tracking-[-0.045em] text-zinc-50 sm:text-5xl lg:mx-0 lg:text-[3.25rem] xl:text-[3.75rem]"
+      >
+        Pilotez votre serveur Discord sans friction
+      </h1>
+      <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-zinc-400 lg:mx-0">
+        Modération, communauté, automatisations et santé du serveur réunies dans une interface claire, rapide et
+        immédiatement compréhensible.
       </p>
+      <div className="mt-7 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center lg:justify-start">
+        <Button href="/auth/login" size="lg" className="whitespace-nowrap lg:px-4 xl:px-5">
+          <DiscordMark className="h-5 w-5 fill-current" />
+          Se connecter avec Discord
+        </Button>
+        <Button href="#apercu-panel" variant="secondary" size="lg" className="whitespace-nowrap lg:px-4 xl:px-5">
+          Voir la démo
+          <span aria-hidden>↓</span>
+        </Button>
+      </div>
+      <ul className="mt-5 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-zinc-400 lg:justify-start">
+        <li className="flex items-center gap-1.5">
+          <span className="text-emerald-400" aria-hidden>✓</span>
+          Configuration guidée
+        </li>
+        <li className="flex items-center gap-1.5">
+          <span className="text-emerald-400" aria-hidden>✓</span>
+          Responsive par défaut
+        </li>
+        <li className="flex items-center gap-1.5">
+          <span className="text-emerald-400" aria-hidden>✓</span>
+          Actions centralisées
+        </li>
+      </ul>
     </section>
   );
 }

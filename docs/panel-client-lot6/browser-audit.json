@@ -1,0 +1,111 @@
+{
+  "generatedAt": "2026-07-28T02:22:50.020Z",
+  "total": 26,
+  "passed": 26,
+  "checks": [
+    {
+      "name": "matrix_visible",
+      "value": true
+    },
+    {
+      "name": "read_error_alert",
+      "value": true
+    },
+    {
+      "name": "read_error_retry",
+      "value": true
+    },
+    {
+      "name": "mutation_error_savebar",
+      "value": true
+    },
+    {
+      "name": "mutation_error_draft",
+      "value": true
+    },
+    {
+      "name": "mutation_error_actions_enabled",
+      "value": true
+    },
+    {
+      "name": "empty_explains_action",
+      "value": true
+    },
+    {
+      "name": "readonly_visible",
+      "value": true
+    },
+    {
+      "name": "permission_visible",
+      "value": true
+    },
+    {
+      "name": "gateway_visible",
+      "value": true
+    },
+    {
+      "name": "quota_visible",
+      "value": true
+    },
+    {
+      "name": "module_visible",
+      "value": true
+    },
+    {
+      "name": "admin_alert",
+      "value": true
+    },
+    {
+      "name": "savebar_mobile_actions",
+      "value": true
+    },
+    {
+      "name": "toast_deduplicated",
+      "value": true
+    },
+    {
+      "name": "toast_close",
+      "value": true
+    },
+    {
+      "name": "retry_initial_error",
+      "value": true
+    },
+    {
+      "name": "retry_success",
+      "value": true
+    },
+    {
+      "name": "long_message_wraps",
+      "value": true
+    },
+    {
+      "name": "save_success_confirmed",
+      "value": true
+    },
+    {
+      "name": "reduced_motion_skeleton",
+      "value": true
+    },
+    {
+      "name": "no_horizontal_1440",
+      "value": true
+    },
+    {
+      "name": "no_horizontal_1024",
+      "value": true
+    },
+    {
+      "name": "no_horizontal_768",
+      "value": true
+    },
+    {
+      "name": "no_horizontal_390",
+      "value": true
+    },
+    {
+      "name": "no_horizontal_320",
+      "value": true
+    }
+  ]
+}

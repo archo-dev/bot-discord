@@ -52,7 +52,12 @@ export function Tabs<T extends string>({
 /* --- Conteneur de table : défilement horizontal sur mobile --- */
 export function TableWrap({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div className="-mx-5 overflow-x-auto px-5 sm:mx-0 sm:px-0">
+    <div
+      className="-mx-5 max-w-[calc(100%+2.5rem)] overscroll-x-contain overflow-x-auto px-5 sm:mx-0 sm:max-w-full sm:px-0"
+      role="region"
+      aria-label="Tableau défilable horizontalement"
+      tabIndex={0}
+    >
       <table className={`w-full min-w-[34rem] text-sm ${className}`}>{children}</table>
     </div>
   );
@@ -60,7 +65,7 @@ export function TableWrap({ children, className = "" }: { children: ReactNode; c
 
 /* --- v2 §4.8 Pagination --- */
 const pgArrow =
-  "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-(--border-strong) text-zinc-300 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40";
+  "inline-flex h-10 w-10 items-center justify-center rounded-lg border border-(--border-strong) text-zinc-300 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 lg:h-8 lg:w-8";
 
 export function Pagination({
   page,
@@ -75,7 +80,7 @@ export function Pagination({
 }) {
   if (totalPages <= 1) return null;
   return (
-    <div className="mt-4 flex items-center justify-end gap-3 text-body text-zinc-400">
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-body text-zinc-400 sm:justify-end">
       <span style={{ fontFeatureSettings: '"tnum" 1' }}>
         {total != null && (
           <>

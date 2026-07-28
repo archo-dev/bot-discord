@@ -13,7 +13,7 @@ import {
 } from "../src/lib/resilience.js";
 import { claimRecoveryReload, isChunkLoadError, PanelErrorBoundary } from "../src/ui/error-boundary.js";
 import { RouterErrorFallback } from "../src/ui/router-error.js";
-import { isValidGuildId } from "../src/pages/GuildLayout.js";
+import { isValidGuildId } from "../src/navigation/registry.js";
 import { claimClientEvent, classifyClientErrorType } from "../src/lib/telemetry.js";
 
 class MemoryStorage implements StorageLike {

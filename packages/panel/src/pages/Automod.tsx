@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router";
+import { useOutletContext, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AutomodSettingsDto, ChannelOption, RoleOption } from "@bot/shared";
 import { api, fieldError } from "../lib/api.js";
-import { Card, Chip, Field, InfoCard, Input, Select, Textarea, Toggle } from "../ui/kit.js";
+import { Card, Chip, ErrorCard, Field, InfoCard, Input, OperationalState, Select, Textarea, Toggle } from "../ui/kit.js";
 import { SaveBar, useDirty } from "../ui/savebar.js";
 import { SkeletonSettingsPage } from "../ui/skeleton.js";
 import { Icon } from "../ui/icons.js";
 import { useCanWrite } from "../lib/access.js";
+import type { GuildOutletContext } from "./GuildLayout.js";
 
 const ACTIONS = [
   { value: "delete", label: "Supprimer le message seulement" },
@@ -19,6 +20,7 @@ export function AutomodPage() {
   const { guildId } = useParams<{ guildId: string }>();
   const queryClient = useQueryClient();
   const canWrite = useCanWrite();
+  const { availability } = useOutletContext<GuildOutletContext>();
 
   const settings = useQuery({
     queryKey: ["automod", guildId],
@@ -82,13 +84,54 @@ export function AutomodPage() {
     setWordsText(settings.data.bannedWords.join("\n"));
   };
 
-  if (settings.isPending || !s) return <SkeletonSettingsPage cards={4} />;
+  if (settings.isPending) return <SkeletonSettingsPage cards={4} />;
+  if (settings.isError) {
+    return (
+      <ErrorCard
+        message="Impossible de charger les réglages d’auto-modération. Vous pouvez continuer à consulter les autres sections."
+        onRetry={() => void settings.refetch()}
+        retrying={settings.isFetching}
+      />
+    );
+  }
+  if (!s) return <SkeletonSettingsPage cards={4} />;
 
   const set = (patch: Partial<AutomodSettingsDto>) => setS((prev) => (prev ? { ...prev, ...patch } : prev));
 
   return (
-    // fieldset disabled (M15) : neutralise tous les champs pour les accès lecture seule.
-    <fieldset disabled={!canWrite} className="space-y-4">
+    <div className="space-y-4">
+      {!canWrite && (
+        <OperationalState
+          kind="readonly"
+          title="Consultation en lecture seule"
+          description="Votre rôle panel autorise la consultation de l’auto-modération, mais pas sa modification."
+          impact="Tous les champs et l’enregistrement sont désactivés."
+          available="Les règles et exemptions actuelles restent consultables."
+        />
+      )}
+      {!availability.gatewayConnected && (
+        <OperationalState
+          kind="gateway"
+          title="Gateway hors ligne"
+          description="Les règles restent modifiables et enregistrables, mais elles ne peuvent pas agir sur les messages tant que la Gateway est indisponible."
+          impact="La modération temps réel est temporairement interrompue."
+          available="La consultation et la sauvegarde de la configuration restent possibles."
+        />
+      )}
+      {(channels.isError || roles.isError) && (
+        <ErrorCard
+          compact
+          title="Certaines exemptions sont indisponibles"
+          message="Impossible de charger les salons ou les rôles. Les autres réglages restent consultables."
+          onRetry={() => {
+            if (channels.isError) void channels.refetch();
+            if (roles.isError) void roles.refetch();
+          }}
+          retrying={channels.isFetching || roles.isFetching}
+        />
+      )}
+      {/* fieldset disabled (M15) : neutralise tous les champs pour les accès lecture seule. */}
+      <fieldset disabled={!canWrite} className="space-y-4">
       {/* M21 : masonry 2 colonnes (chaque colonne se remplit sans aligner les rangées → pas de vide entre cartes). */}
       <div className="columns-1 gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
       <Card>
@@ -98,6 +141,7 @@ export function AutomodPage() {
           Les membres avec « Gérer les messages » sont toujours exemptés.
         </p>
         <Select
+          aria-label="Sanction automatique"
           value={s.action}
           onChange={(e) => set({ action: e.target.value as AutomodSettingsDto["action"] })}
           className="mt-3"
@@ -172,6 +216,7 @@ export function AutomodPage() {
         <h2 className="text-title font-semibold text-zinc-100">Mots interdits</h2>
         <p className="mt-1 text-sm text-zinc-400">Un mot ou une expression par ligne (insensible à la casse).</p>
         <Textarea
+          aria-label="Mots et expressions interdits"
           value={wordsText}
           onChange={(e) => setWordsText(e.target.value)}
           rows={4}
@@ -242,7 +287,10 @@ export function AutomodPage() {
         status={save.isPending ? "pending" : save.isError ? "error" : save.isSuccess ? "success" : "idle"}
         onSave={() => save.mutate()}
         onReset={resetForm}
+        errorMessage="Échec de l’enregistrement. Le brouillon est conservé ; vérifiez votre connexion et réessayez."
+        showWhenClean={!canWrite}
       />
-    </fieldset>
+      </fieldset>
+    </div>
   );
 }
