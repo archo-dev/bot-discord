@@ -20,7 +20,9 @@ export type GatewayObservabilityEvent =
   // Cycle de session (index.ts / session-watchdog.ts)
   | "gateway_resume_detected"
   | "gateway_zombie_suspected"
-  | "gateway_restart_requested";
+  | "gateway_restart_requested"
+  // XP vocal (voice-xp.ts) — agrégat par tick, jamais par utilisateur
+  | "voice_xp_tick";
 
 /** Raisons bornées (énumération fermée — jamais de texte libre). */
 export type GatewayObservabilityReason =
@@ -44,6 +46,9 @@ export interface GatewayObservabilityFields {
   reason?: GatewayObservabilityReason;
   resumesInWindow?: number;
   silenceSeconds?: number;
+  /** XP vocal : agrégats bornés par tick (aucune cardinalité par utilisateur). */
+  eligibleSessions?: number;
+  skippedSessions?: number;
 }
 
 /**
@@ -65,6 +70,8 @@ export function observe(level: ObservabilityLevel, event: GatewayObservabilityEv
     ...(fields.reason ? { reason: fields.reason } : {}),
     ...(fields.resumesInWindow !== undefined ? { resumesInWindow: fields.resumesInWindow } : {}),
     ...(fields.silenceSeconds !== undefined ? { silenceSeconds: Math.max(0, Math.round(fields.silenceSeconds)) } : {}),
+    ...(fields.eligibleSessions !== undefined ? { eligibleSessions: Math.max(0, Math.round(fields.eligibleSessions)) } : {}),
+    ...(fields.skippedSessions !== undefined ? { skippedSessions: Math.max(0, Math.round(fields.skippedSessions)) } : {}),
   });
   if (level === "error") console.error(line);
   else if (level === "warn") console.warn(line);
